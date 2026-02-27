@@ -143,8 +143,9 @@ def _roadmap_progress() -> tuple[int, int]:
     if ROADMAP_DIR.exists():
         for f in sorted(ROADMAP_DIR.glob("v*.md")):
             text = f.read_text()
-            total += text.count("- [x]") + text.count("- [ ]")
-            checked += text.count("- [x]")
+            done = text.count("- [x]") + text.count("- [X]")
+            total += done + text.count("- [ ]")
+            checked += done
     return checked, total
 
 

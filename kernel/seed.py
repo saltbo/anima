@@ -6,15 +6,15 @@ Anima is an Autonomous Iteration Engine that gives software projects a life
 of their own. This seed script is the initial spark — every function here
 is meant to be replaced by a purpose-built module that Anima creates for itself.
 
-The seed provides the core functions for the five iteration steps:
-  1. analyze_gaps() — find gaps between vision and current state
-  2. plan_iteration() — plan the next iteration
-  3. execute_plan() — execute the plan via an AI agent
-  4. verify_iteration() — verify results (ruff + pyright + pytest + contract checks)
-  5. record_iteration() — report and commit (or rollback)
+The seed provides the core functions for the six pipeline steps:
+  1. scan_project_state() — scan current project structure
+  2. analyze_gaps() — find gaps between vision and current state
+  3. plan_iteration() — plan the next iteration
+  4. execute_plan() — execute the plan via an AI agent
+  5. verify_iteration() — verify protected file integrity
+  6. record_iteration() — report and commit (or rollback)
 
 CLI entry point: kernel/cli.py (installed as 'anima' command)
-Backward compat: python seed.py [args] still works (redirects to kernel.cli)
 """
 
 import hashlib
@@ -26,9 +26,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# ---------------------------------------------------------------------------
-# Configuration — imported from kernel.config
-# ---------------------------------------------------------------------------
 from kernel.config import (
     ADAPTERS_DIR,
     AGENT_CMD,
@@ -40,13 +37,6 @@ from kernel.config import (
     PROTECTED_PATHS,
     ROOT,
 )
-
-# ---------------------------------------------------------------------------
-# Git operations — imported from kernel.git_ops
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Roadmap helpers — imported from kernel.roadmap
-# ---------------------------------------------------------------------------
 from kernel.roadmap import (
     get_current_version as _get_current_version,
 )
@@ -57,15 +47,6 @@ from kernel.roadmap import (
     read_roadmap_file as _read_roadmap_file,
 )
 
-# ---------------------------------------------------------------------------
-# Roadmap/milestone ops — imported from kernel.roadmap
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# State Management
-# ---------------------------------------------------------------------------
-# State management — imported from kernel.state
-# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Project State Scanner
@@ -146,6 +127,20 @@ def scan_project_state() -> dict[str, Any]:
                         "content": item.read_text(),
                     }
                 )
+
+    # Snapshot protected file hashes BEFORE agent execution so verify can detect tampering
+    protected_hashes: dict[str, str | None] = {}
+    skip_parts = {"__pycache__", ".pyc"}
+    for p in PROTECTED_PATHS:
+        path = ROOT / p
+        if path.is_file():
+            protected_hashes[p] = _file_hash(path)
+        elif path.is_dir():
+            for f in path.rglob("*"):
+                if f.is_file() and not any(part in f.parts for part in skip_parts):
+                    rel = str(f.relative_to(ROOT))
+                    protected_hashes[rel] = _file_hash(f)
+    state["_protected_hashes"] = protected_hashes
 
     return state
 
@@ -435,7 +430,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
         return {
             "success": False,
             "output": "",
-            "errors": f"Agent command '{AGENT_CMD}' not found. Install it or update AGENT_CMD in seed.py.",
+            "errors": f"Agent command '{AGENT_CMD}' not found. Install it or update AGENT_CMD in kernel/config.py.",
             "exit_code": -1,
             "elapsed_seconds": 0,
         }
@@ -566,6 +561,7 @@ def verify_iteration(pre_state: dict[str, Any], post_state: dict[str, Any]) -> d
     improvements: list[str] = []
 
     # --- Protected file checks (use PROTECTED_PATHS) ---
+    skip_parts = {"__pycache__", ".pyc"}
     protected_files: list[str] = []
     for p in PROTECTED_PATHS:
         path = ROOT / p
@@ -573,13 +569,18 @@ def verify_iteration(pre_state: dict[str, Any], post_state: dict[str, Any]) -> d
             protected_files.append(p)
         elif path.is_dir():
             for f in path.rglob("*"):
-                if f.is_file():
+                if f.is_file() and not any(part in f.parts for part in skip_parts):
                     protected_files.append(str(f.relative_to(ROOT)))
 
+    pre_hashes = pre_state.get("_protected_hashes", {})
     for pf in protected_files:
-        h_before = pre_state.get("_protected_hashes", {}).get(pf) or _file_hash(ROOT / pf)
+        h_before = pre_hashes.get(pf)
         h_after = _file_hash(ROOT / pf)
-        if h_before != h_after:
+        if h_before is None:
+            # File didn't exist before or wasn't hashed — flag if it exists now
+            if h_after is not None:
+                issues.append(f"CRITICAL: {pf} appeared unexpectedly")
+        elif h_before != h_after:
             issues.append(f"CRITICAL: {pf} was modified by the agent")
 
     # --- Detect improvements ---
