@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent.resolve()
 VISION_FILE = ROOT / "VISION.md"
+SOUL_FILE = ROOT / "SOUL.md"
 STATE_FILE = ROOT / ".anima" / "state.json"
 ITERATIONS_DIR = ROOT / "iterations"
 INBOX_DIR = ROOT / "inbox"

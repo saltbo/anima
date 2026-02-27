@@ -9,7 +9,8 @@ Usage:
   anima start [--once] [--max N] [--dry-run] [--cooldown N]
   anima status
   anima reset
-  anima cleanup-tags
+  anima log [--last N]
+  anima instruct <message>
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from datetime import datetime, timezone
 
 
 # ---------------------------------------------------------------------------
@@ -111,18 +113,41 @@ def cmd_reset() -> None:
     print("State reset. Anima is ready to iterate.")
 
 
-def cmd_cleanup_tags() -> None:
-    """Delete all iter-* tags from git history."""
-    from kernel.git_ops import git
+def cmd_log(args: argparse.Namespace) -> None:
+    """Show iteration history."""
+    from kernel.state import load_history
 
-    _, tags_output = git("tag", "-l", "iter-*")
-    if not tags_output.strip():
-        print("No iter-* tags found.")
+    history = load_history()
+    if not history:
+        print("No iterations yet.")
         return
-    tags = tags_output.strip().split("\n")
-    for tag in tags:
-        git("tag", "-d", tag.strip())
-    print(f"Deleted {len(tags)} iter-* tags.")
+
+    entries = history[-args.last:] if args.last else history
+    for h in entries:
+        ok = "ok" if h.get("success") else "FAIL"
+        cost = h.get("cost_usd", 0)
+        elapsed = h.get("elapsed_seconds", 0)
+        summary = h.get("summary", "--")[:80]
+        print(f"  [{ok}] {h['id']}  ${cost:.4f}  {elapsed:.0f}s  {summary}")
+
+
+def cmd_instruct(args: argparse.Namespace) -> None:
+    """Inject a human instruction into the inbox."""
+    from kernel.config import INBOX_DIR
+
+    INBOX_DIR.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    # Derive a short slug from the message
+    slug = args.message[:40].lower().replace(" ", "-")
+    slug = "".join(c for c in slug if c.isalnum() or c == "-").strip("-")
+    filename = f"{timestamp}-{slug}.md"
+
+    path = INBOX_DIR / filename
+    content = f"# Instruction\n\n{args.message}\n"
+    path.write_text(content)
+    print(f"  Instruction saved to inbox/{filename}")
+    print(f"  It will be picked up on the next iteration.")
 
 
 def cmd_start(args: argparse.Namespace) -> None:
@@ -144,9 +169,8 @@ def cmd_start(args: argparse.Namespace) -> None:
 
     # Refuse to start with a dirty working tree (unless dry-run)
     if not args.dry_run:
-        code, _ = git("diff", "--quiet")
-        _, untracked = git("ls-files", "--others", "--exclude-standard")
-        if code != 0 or untracked.strip():
+        _, porcelain = git("status", "--porcelain")
+        if porcelain.strip():
             print("ERROR: Working tree is not clean. Commit or stash your changes first.")
             print("  git status  # see what's pending")
             sys.exit(1)
@@ -256,8 +280,13 @@ def main() -> None:
     # anima reset
     sub.add_parser("reset", help="Reset failure count and resume")
 
-    # anima cleanup-tags
-    sub.add_parser("cleanup-tags", help="Delete all iter-* tags from git history")
+    # anima log
+    log_p = sub.add_parser("log", help="Show iteration history")
+    log_p.add_argument("--last", type=int, default=0, help="Show last N iterations (0=all)")
+
+    # anima instruct
+    instruct_p = sub.add_parser("instruct", help="Send instruction for next iteration")
+    instruct_p.add_argument("message", help="The instruction text")
 
     args = parser.parse_args()
 
@@ -267,8 +296,10 @@ def main() -> None:
         cmd_status()
     elif args.command == "reset":
         cmd_reset()
-    elif args.command == "cleanup-tags":
-        cmd_cleanup_tags()
+    elif args.command == "log":
+        cmd_log(args)
+    elif args.command == "instruct":
+        cmd_instruct(args)
     else:
         parser.print_help()
         sys.exit(1)

@@ -303,7 +303,6 @@ def analyze_gaps(vision: str, project_state: dict, history: list[dict]) -> str:
 
 
 def plan_iteration(
-    vision: str,
     project_state: dict,
     gaps: str,
     history: list[dict],
@@ -311,6 +310,9 @@ def plan_iteration(
 ) -> str:
     """
     Construct the prompt for the AI agent.
+
+    Static context (SOUL.md, VISION.md, CLAUDE.md, roadmap/) is read by the
+    agent itself — the prompt only carries dynamic per-iteration data.
 
     Seed's planning logic. Will be replaced by modules/planner/core.py.
     """
@@ -321,112 +323,35 @@ def plan_iteration(
         for h in last_3:
             status = "✓" if h.get("success") else "✗"
             entries.append(f"  [{status}] {h.get('summary', 'no summary')}")
-        recent_history = f"\nRECENT ITERATIONS:\n" + "\n".join(entries)
+        recent_history = "\nRECENT ITERATIONS:\n" + "\n".join(entries)
 
-    file_list = "\n".join(f"  {f}" for f in project_state.get("files", []))
-
-    module_status = ""
-    if project_state.get("modules"):
-        lines = []
-        for name, info in project_state["modules"].items():
-            flags = []
-            if info["has_contract"]:
-                flags.append("contract")
-            if info.get("has_spec"):
-                flags.append("spec")
-            if info.get("has_core"):
-                flags.append("core")
-            if info["has_tests"]:
-                flags.append("tests")
-            lines.append(f"  {name}: [{', '.join(flags) if flags else 'empty'}]")
-        module_status = "\nMODULE STATUS:\n" + "\n".join(lines)
-
-    arch_status = (
-        f"\nARCHITECTURE STATUS:\n"
-        f"  domain/ layer: {'exists' if project_state.get('domain_exists') else 'MISSING'}\n"
-        f"  adapters/ layer: {'exists' if project_state.get('adapters_exist') else 'MISSING'}\n"
-        f"  kernel/ layer: {'exists' if project_state.get('kernel_exists') else 'not yet needed'}\n"
-        f"  pyproject.toml: {'exists' if project_state.get('has_pyproject') else 'MISSING'}\n"
-        f"  pyrightconfig.json: {'exists' if project_state.get('has_pyrightconfig') else 'MISSING'}"
+    # Brief state summary (no full file list — agent can scan itself)
+    modules = list(project_state.get("modules", {}).keys())
+    state_summary = (
+        f"  Modules: {modules or '(none)'}\n"
+        f"  Domain: {'exists' if project_state.get('domain_exists') else 'MISSING'}\n"
+        f"  Tests: {'✓' if project_state.get('has_tests') else '—'}\n"
+        f"  Inbox: {len(project_state.get('inbox_items', []))} items"
     )
 
-    quality_status = ""
-    qr = project_state.get("quality_results", {})
-    if qr:
-        parts = []
-        for tool in ["ruff_lint", "ruff_format", "pyright"]:
-            if qr.get(tool):
-                parts.append(f"  {tool}: {'✓' if qr[tool]['passed'] else '✗ FAILING'}")
-            else:
-                parts.append(f"  {tool}: not installed")
-        quality_status = "\nQUALITY PIPELINE:\n" + "\n".join(parts)
-
-    test_status = ""
-    if project_state.get("test_results"):
-        tr = project_state["test_results"]
-        test_status = f"\nTESTS: {'✓ passing' if tr['passed'] else '✗ FAILING'}"
-
-    # Load current roadmap target
     current_version = _get_current_version()
-    roadmap_content = _read_roadmap_file(current_version)
 
-    prompt = f"""You are the AI agent driving Anima, an Autonomous Iteration Engine.
-Anima builds itself through iterative development cycles. You are in iteration #{iteration_count + 1}.
+    prompt = f"""You are Anima. Read these files to understand yourself and your mission:
+- SOUL.md — your identity and behavioral principles
+- VISION.md — the project vision and architecture
+- roadmap/v{current_version}.md — current version target
 
-======== VISION (read VISION.md for full details) ========
-{vision}
+Iteration #{iteration_count + 1}. Current roadmap target: v{current_version}.
 
-======== CURRENT ROADMAP TARGET (v{current_version}) ========
-{roadmap_content}
-
-======== CURRENT STATE ========
-FILES:
-{file_list if file_list else '  (no files yet beyond seed.py and VISION.md)'}
-{arch_status}
-{module_status}
-{quality_status}
-{test_status}
+GAPS TO ADDRESS:
+{gaps}
 {recent_history}
 
-======== GAPS TO ADDRESS ========
-{gaps}
+STATE SUMMARY:
+{state_summary}
 
-======== YOUR TASK ========
-Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
-
-1. **ONE THING WELL.** Pick the highest-priority gap and address it thoroughly.
-   Do not attempt multiple unrelated changes.
-
-2. **FINISH THE CURRENT VERSION FIRST.** Only work on items listed in the
-   CURRENT ROADMAP TARGET (v{current_version}) above. Do NOT start tasks from
-   later versions until all items in v{current_version} are checked off.
-
-3. **PRIORITY ORDER** (do the first applicable item from the current version):
-   a. If quality checks are failing (ruff/pyright) → fix the issues
-   b. If tests are failing → fix them
-   c. Pick the next unchecked roadmap item and implement it
-   d. If inbox has items → incorporate into specs/plans
-   e. If all items in current version are done → advance to next roadmap version
-
-4. **ROADMAP TRACKING**: When you complete a roadmap item, check it off yourself
-   by changing `- [ ]` to `- [x]` in the corresponding roadmap/v*.md file.
-
-5. **SELF-REPLACEMENT via wiring.py**: To replace a seed function with your module:
-   a. Ensure your module passes its CONTRACT.md tests
-   b. Write a conformance test in tests/conformance/ that proves your module
-      produces equivalent or better output than the seed for the same inputs
-   c. Modify wiring.py to point the step to your implementation
-   d. The verification pipeline must pass with the new wiring
-
-6. **DO NOT MODIFY these files** (protected — violations cause rollback):
-   - VISION.md
-   - kernel/ (all files)
-   - roadmap/ (checked off by the system, not by you)
-
-7. **YOU MAY MODIFY**: wiring.py, modules/, adapters/, domain/, tests/conformance/
-
-Now execute. Create or modify files to address the most important gap.
-After making changes, verify them by running: ruff check . && pyright && python -m pytest
+Execute the single most important next step to advance Anima.
+After making changes, verify: ruff check . && pyright && python -m pytest
 """
     return prompt
 
@@ -489,26 +414,41 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
     prompt_file.parent.mkdir(parents=True, exist_ok=True)
     prompt_file.write_text(prompt)
 
+    # Remove CLAUDECODE env var to allow nested invocation in --print mode
+    env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
     try:
-        # Remove CLAUDECODE env var to allow nested invocation in --print mode
-        env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
         proc = subprocess.Popen(
             [AGENT_CMD, "--print", "--verbose", "--dangerously-skip-permissions",
-             "--output-format", "stream-json", "--include-partial-messages",
-             prompt],
+             "--output-format", "stream-json", "--include-partial-messages"],
             cwd=ROOT,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             env=env,
         )
+        assert proc.stdin is not None
+        proc.stdin.write(prompt)
+        proc.stdin.close()
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "output": "",
+            "errors": f"Agent command '{AGENT_CMD}' not found. Install it or update AGENT_CMD in seed.py.",
+            "exit_code": -1,
+            "elapsed_seconds": 0,
+        }
 
-        # Parse stream-json NDJSON and display events in real-time
-        result_text = ""
-        current_tool: Optional[str] = None
-        tool_input_chunks: list[str] = []
+    # Parse stream-json NDJSON and display events in real-time
+    result_text = ""
+    current_tool: Optional[str] = None
+    tool_input_chunks: list[str] = []
+    cost = 0.0
+    total_tokens = 0
+
+    try:
         assert proc.stdout is not None
-        for line in proc.stdout:
+        for line in iter(proc.stdout.readline, ""):
             line = line.strip()
             if not line:
                 continue
@@ -567,23 +507,19 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
         print()  # newline after streaming
         proc.wait(timeout=600)
 
-        assert proc.stderr is not None
-        stderr_output = proc.stderr.read()
-        if stderr_output:
-            print(f"  [agent stderr] {stderr_output[:500]}")
+    except KeyboardInterrupt:
+        print("\n\n[executor] Interrupted — killing agent process...")
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        raise  # re-raise so cmd_start's KeyboardInterrupt handler runs
 
-        elapsed = time.time() - start_time
-        return {
-            "success": proc.returncode == 0,
-            "output": result_text[-5000:] if result_text else "",
-            "errors": stderr_output[-2000:] if stderr_output else "",
-            "exit_code": proc.returncode,
-            "elapsed_seconds": round(elapsed, 1),
-            "cost_usd": cost,
-            "total_tokens": total_tokens,
-        }
     except subprocess.TimeoutExpired:
         proc.kill()
+        proc.wait()
         return {
             "success": False,
             "output": "",
@@ -591,14 +527,22 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
             "exit_code": -1,
             "elapsed_seconds": 600,
         }
-    except FileNotFoundError:
-        return {
-            "success": False,
-            "output": "",
-            "errors": f"Agent command '{AGENT_CMD}' not found. Install it or update AGENT_CMD in seed.py.",
-            "exit_code": -1,
-            "elapsed_seconds": 0,
-        }
+
+    assert proc.stderr is not None
+    stderr_output = proc.stderr.read()
+    if stderr_output:
+        print(f"  [agent stderr] {stderr_output[:500]}")
+
+    elapsed = time.time() - start_time
+    return {
+        "success": proc.returncode == 0,
+        "output": result_text[-5000:] if result_text else "",
+        "errors": stderr_output[-2000:] if stderr_output else "",
+        "exit_code": proc.returncode,
+        "elapsed_seconds": round(elapsed, 1),
+        "cost_usd": cost,
+        "total_tokens": total_tokens,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 You are the AI agent driving Anima, an Autonomous Iteration Engine.
-Anima builds itself through iterative development cycles. You are in iteration #14.
+Anima builds itself through iterative development cycles. You are in iteration #1.
 
 ======== VISION (read VISION.md for full details) ========
 # VISION: Anima
@@ -24,8 +24,10 @@ release will have been produced by itself.
 3. **Verify Before Commit**: Nothing is committed without passing the full
    verification pipeline (ruff + pyright + pytest). Failed iterations are
    rolled back and their failure is recorded as knowledge.
-4. **Seed Replacement**: Anima progressively replaces the seed script's primitive
-   logic with its own purpose-built modules. The seed is scaffolding, not architecture.
+4. **Self-Bootstrapping**: Anima starts with a seed — minimal implementations of each
+   pipeline step. It progressively replaces these with purpose-built modules, proving
+   each replacement through conformance tests. The seed is scaffolding for bootstrapping,
+   not architecture.
 5. **Human as Visionary**: Humans define *what* and *why*. Anima decides *how* and *when*.
 6. **Type Safety as Contract**: All code must have complete type annotations and
    pass strict static analysis. Types are the machine-enforceable form of contracts.
@@ -96,16 +98,16 @@ anima/
 │   └── local_fs.py            # LocalFileSystem implements FileSystemPort
 │
 ├── kernel/                    # IMMUTABLE — Anima cannot modify this
-│   ├── loop.py                # Iteration loop scheduler
-│   ├── rollback.py            # Rollback mechanism
-│   └── config.py              # System configuration
+│   ├── __init__.py
+│   ├── cli.py                 # CLI entry point (anima command)
+│   ├── loop.py                # Fixed iteration loop (calls through wiring)
+│   └── seed.py                # Seed implementations (initial/fallback)
 │
-├── cli/                       # User-facing command-line interface
-│   └── main.py                # anima init / start / status / instruct / pause / approve
-│
+├── wiring.py                  # Agent-modifiable step registry
 ├── inbox/                     # Human intent injection (drop .md files here)
 ├── iterations/                # Iteration logs (auto-generated)
-└── seed.py                    # Bootstrap script (to be replaced by modules)
+└── tests/
+    └── conformance/           # Conformance tests for module replacements
 ```
 
 ### Clean Architecture Rules
@@ -267,39 +269,50 @@ to `inbox/.archive/`.
 
 Build the two modules with the simplest contracts first.
 
-- [x] Implement gap_analyzer/core.py: reads Vision + ProjectState, outputs GapReport
-- [x] Tests for gap_analyzer validating CONTRACT.md
-- [x] Implement reporter/core.py: writes structured IterationRecord to iterations/
-- [x] Tests for reporter validating CONTRACT.md
-- [ ] Seed delegates gap analysis to gap_analyzer module (first self-replacement)
-- [ ] Seed delegates reporting to reporter module (second self-replacement)
-- [x] All code passes full quality pipeline
+- [ ] Implement gap_analyzer/core.py: reads Vision + ProjectState, outputs GapReport
+- [ ] Tests for gap_analyzer validating CONTRACT.md
+- [ ] Implement reporter/core.py: writes structured IterationRecord to iterations/
+- [ ] Tests for reporter validating CONTRACT.md
+- [ ] Wire gap_analyzer into wiring.py with conformance test (first self-replacement)
+- [ ] Wire reporter into wiring.py with conformance test (second self-replacement)
+- [ ] All code passes full quality pipeline
 
 
 ======== CURRENT STATE ========
 FILES:
-  .coverage
   .gitignore
+  CLAUDE.md
   LICENSE
   README.md
   VISION.md
   conftest.py
   pyproject.toml
   pyrightconfig.json
-  seed.py
   test_claude.sh
+  uv.lock
+  wiring.py
   .claude/settings.local.json
   adapters/__init__.py
   adapters/git_vc.py
   adapters/local_fs.py
+  adapters/seed_bridge.py
   adapters/agents/__init__.py
   adapters/tests/__init__.py
   adapters/tests/test_git_vc.py
   adapters/tests/test_local_fs.py
+  adapters/tests/test_seed_bridge.py
   domain/__init__.py
   domain/models.py
   domain/ports.py
-  inbox/20260227-120000-bootstrap-foundation.md
+  inbox/.archive/20260227-120000-bootstrap-foundation.md
+  kernel/__init__.py
+  kernel/cli.py
+  kernel/config.py
+  kernel/git_ops.py
+  kernel/loop.py
+  kernel/roadmap.py
+  kernel/seed.py
+  kernel/state.py
   modules/__init__.py
   modules/executor/CONTRACT.md
   modules/executor/SPEC.md
@@ -339,11 +352,14 @@ FILES:
   roadmap/v0.6.md
   roadmap/v0.7.md
   roadmap/v1.0.md
+  tests/__init__.py
+  tests/conformance/__init__.py
+  tests/conformance/test_analyze_gaps.py
 
 ARCHITECTURE STATUS:
   domain/ layer: exists
   adapters/ layer: exists
-  kernel/ layer: not yet needed
+  kernel/ layer: exists
   pyproject.toml: exists
   pyrightconfig.json: exists
 
@@ -355,45 +371,18 @@ MODULE STATUS:
   reporter: [contract, spec, core, tests]
   verifier: [contract, spec, core, tests]
 
-QUALITY PIPELINE:
-  ruff_lint: ✓
-  ruff_format: ✓
-  pyright: ✓
 
-TESTS: ✓ passing
 
-RECENT ITERATIONS:
-  [✓] All tests passing; New files: 2; Module 'verifier' gained core
-  [✓] All tests passing; New files: 2
-  [✓] All tests passing; New files: 1
 
 ======== GAPS TO ADDRESS ========
-UNCOMPLETED ROADMAP ITEMS for v0.2 (2):
-  - Seed delegates gap analysis to gap_analyzer module (first self-replacement)
-  - Seed delegates reporting to reporter module (second self-replacement)
-
-HUMAN REQUEST (20260227-120000-bootstrap-foundation.md):
-# Bootstrap project foundation
-
-## What
-Create pyproject.toml, pyrightconfig.json, and the domain layer (models.py + ports.py)
-as the first structural foundation for Anima.
-
-## Why
-Everything else depends on the domain types and quality toolchain being in place.
-Without pyproject.toml there is no ruff/pytest config. Without domain/models.py
-and domain/ports.py, modules have no types to work with and no Ports to depend on.
-
-## Priority
-high
-
-## Constraints
-- domain/ must have ZERO external imports (only stdlib + typing)
-- Use @dataclass(frozen=True) for all domain models
-- Use typing.Protocol for all port interfaces
-- pyproject.toml must configure ruff (strict), pytest (cov>=80), and project metadata
-- pyrightconfig.json must enable strict mode
-
+UNCOMPLETED ROADMAP ITEMS for v0.2 (7):
+  - Implement gap_analyzer/core.py: reads Vision + ProjectState, outputs GapReport
+  - Tests for gap_analyzer validating CONTRACT.md
+  - Implement reporter/core.py: writes structured IterationRecord to iterations/
+  - Tests for reporter validating CONTRACT.md
+  - Wire gap_analyzer into wiring.py with conformance test (first self-replacement)
+  - Wire reporter into wiring.py with conformance test (second self-replacement)
+  - All code passes full quality pipeline
 
 ======== YOUR TASK ========
 Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
@@ -412,45 +401,22 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    d. If inbox has items → incorporate into specs/plans
    e. If all items in current version are done → advance to next roadmap version
 
-4. **ARCHITECTURE RULES** (enforced — violations cause rollback):
-   - domain/ must have ZERO external imports (only stdlib + typing)
-   - modules/*/core.py must only import from domain/
-   - adapters/ implement Protocols defined in domain/ports.py
-   - Use @dataclass(frozen=True) for domain models
-   - Use typing.Protocol for all port interfaces
-   - Complete type annotations on ALL functions (params + return types)
-   - No `Any` type in domain models
+4. **ROADMAP TRACKING**: When you complete a roadmap item, check it off yourself
+   by changing `- [ ]` to `- [x]` in the corresponding roadmap/v*.md file.
 
-5. **FILE LOCATIONS**:
-   - Domain types: domain/models.py
-   - Port interfaces: domain/ports.py
-   - Module logic: modules/<name>/core.py
-   - Module contracts: modules/<name>/CONTRACT.md
-   - Module specs: modules/<name>/SPEC.md
-   - Module tests: modules/<name>/tests/test_<name>.py
-   - Adapters: adapters/<name>.py or adapters/<category>/<name>.py
-   - Config: pyproject.toml, pyrightconfig.json (project root)
+5. **SELF-REPLACEMENT via wiring.py**: To replace a seed function with your module:
+   a. Ensure your module passes its CONTRACT.md tests
+   b. Write a conformance test in tests/conformance/ that proves your module
+      produces equivalent or better output than the seed for the same inputs
+   c. Modify wiring.py to point the step to your implementation
+   d. The verification pipeline must pass with the new wiring
 
-6. **CONTRACT.md FORMAT**:
-   ```
-   # <Module Name> Contract
-   ## Purpose
-   One sentence.
-   ## Input
-   What this module receives (with Python types from domain/models.py).
-   ## Output
-   What this module produces (with Python types from domain/models.py).
-   ## Dependencies
-   Which Ports (from domain/ports.py) this module requires.
-   ## Constraints
-   Rules and invariants.
-   ```
-
-6. **DO NOT MODIFY these files** (they are protected):
-   - seed.py
+6. **DO NOT MODIFY these files** (protected — violations cause rollback):
    - VISION.md
-   - Anything in kernel/ (if it exists)
-   - Anything in roadmap/ (managed by seed.py auto-check)
+   - kernel/ (all files)
+   - roadmap/ (checked off by the system, not by you)
+
+7. **YOU MAY MODIFY**: wiring.py, modules/, adapters/, domain/, tests/conformance/
 
 Now execute. Create or modify files to address the most important gap.
 After making changes, verify them by running: ruff check . && pyright && python -m pytest

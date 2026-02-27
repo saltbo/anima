@@ -1,44 +1,41 @@
-# Anima — Agent Instructions
+# Anima — Project Guide
 
-Anima is an Autonomous Iteration Engine that builds itself through
-iterative development cycles. You are the AI agent driving it.
+Anima is an Autonomous Iteration Engine — a system that gives software
+projects a life of their own through continuous, goal-driven development cycles.
 
 ## Architecture
 
 ```
-kernel/loop.py  →  wiring.py (you modify this)  →  seed or module implementations
-                →  kernel/seed.py (infrastructure — you cannot modify this)
+kernel/           — Immutable trust root (human-maintained only)
+  loop.py         — Fixed iteration loop, dispatches through wiring.py
+  seed.py         — Seed implementations of the 6 pipeline steps
+  config.py       — Path constants and configuration
+  git_ops.py      — Git snapshot, commit, rollback
+  state.py        — State persistence (load/save)
+  roadmap.py      — Milestone detection, README updates
+  cli.py          — CLI entry point (anima command)
+
+wiring.py         — Step registry, maps pipeline steps to implementations
+modules/          — Purpose-built pipeline step implementations
+domain/           — Core types and Protocol interfaces
+adapters/         — Concrete implementations of domain Ports
+tests/conformance/— Tests proving module equivalence to seed
 ```
 
-- **kernel/** contains the fixed iteration loop and seed implementations
-- **wiring.py** maps each pipeline step to its current implementation
-- **modules/** contain purpose-built replacements for seed functions
-- **domain/** defines core types and Protocol interfaces
-- **adapters/** implement external integrations
+Key files:
+- `SOUL.md` — Anima's identity and behavioral principles
+- `VISION.md` — Project vision and goals
+- `CLAUDE.md` — Technical guide and architecture rules (auto-loaded by Claude Code)
 
-## Protected Paths (DO NOT MODIFY — violations cause rollback)
+Two trust zones:
+- **kernel/** — immutable, human-only modifications
+- **Everything else** — iterable, subject to verification
 
+## Protected Paths
+
+These files must not be modified by automated processes:
 - `VISION.md`
 - `kernel/` (all files)
-- `roadmap/` (checked off by the system, not by you)
-
-## Self-Replacement Protocol
-
-To replace a seed function with your module:
-
-1. Build your module in `modules/<name>/` with `CONTRACT.md`, `core.py`, and `tests/`
-2. Write a conformance test in `tests/conformance/` that proves your module
-   produces equivalent or better output than the seed for the same inputs
-3. Modify `wiring.py` to point the step to your implementation
-4. The verification pipeline must pass with the new wiring
-
-## You May Modify
-
-- `wiring.py` — step registry (this is how you replace seed functions)
-- `modules/` — your module implementations
-- `adapters/` — port implementations
-- `domain/` — core types and protocols
-- `tests/conformance/` — conformance tests for replacements
 
 ## Quality Pipeline
 
@@ -60,7 +57,6 @@ ruff check . && ruff format --check . && pyright && pytest
 
 ## File Conventions
 
-- Module contracts: `modules/<name>/CONTRACT.md`
 - Module specs: `modules/<name>/SPEC.md`
 - Module implementation: `modules/<name>/core.py`
 - Module tests: `modules/<name>/tests/`

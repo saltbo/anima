@@ -70,8 +70,8 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
 
     # Step 3: Plan + Snapshot (via wiring + kernel)
     print("\n[3/5] Planning iteration...")
-    prompt = wiring.plan_iteration(vision, project_state, gaps, history, state["iteration_count"])
-    snapshot_ref = create_snapshot(iteration_id)
+    prompt = wiring.plan_iteration(project_state, gaps, history, state["iteration_count"])
+    snapshot_ref = create_snapshot(iteration_id) if not dry_run else ""
 
     # Step 4: Execute (via wiring)
     print("\n[4/5] Executing plan...")

@@ -206,12 +206,13 @@ scaffolding (v0.1):
 See `roadmap/` for per-version checklists:
 
 - roadmap/v0.1.md — Foundation & Toolchain
-- roadmap/v0.2.md — Core Modules (Gap Analyzer & Reporter)
-- roadmap/v0.3.md — Planner & Executor
-- roadmap/v0.4.md — Verifier & Quality Gate
-- roadmap/v0.5.md — Kernel & Full Autonomy
-- roadmap/v0.6.md — CLI & Developer Experience
-- roadmap/v0.7.md — Self-Validation & Benchmark
+- roadmap/v0.2.md — Scanner & Reporter (first self-replacements)
+- roadmap/v0.3.md — Gap Analyzer & Planner (analysis intelligence)
+- roadmap/v0.4.md — Executor (resilient agent integration)
+- roadmap/v0.5.md — Verifier (protection & quality gate)
+- roadmap/v0.6.md — Resilience & Self-Awareness
+- roadmap/v0.7.md — CLI & Developer Experience
+- roadmap/v0.8.md — Self-Validation & Benchmark
 - roadmap/v1.0.md — Production Ready
 
 ## Inbox Protocol

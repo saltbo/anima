@@ -4,8 +4,8 @@
   "last_iteration": null,
   "completed_items": [],
   "module_versions": {},
-  "status": "alive",
-  "current_milestone": "v0.2.0",
+  "status": "sleep",
+  "current_milestone": "v0.0.0",
   "total_cost_usd": 0,
   "total_tokens": 0,
   "total_elapsed_seconds": 0
