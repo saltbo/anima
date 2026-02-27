@@ -24,6 +24,7 @@ import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Configuration — imported from kernel.config
@@ -71,14 +72,13 @@ from kernel.roadmap import (
 # ---------------------------------------------------------------------------
 
 
-def scan_project_state(*, skip_checks: bool = False) -> dict:
-    """Scan the current project to understand what exists.
+def scan_project_state() -> dict[str, Any]:
+    """Scan the current project structure.
 
-    Args:
-        skip_checks: If True, skip quality pipeline and test execution
-                     (useful for fast status display).
+    Returns a dict describing what files, modules, and directories exist.
+    Does NOT run quality checks or tests — that's the agent's job.
     """
-    state: dict = {
+    state: dict[str, Any] = {
         "files": [],
         "modules": {},
         "domain_exists": False,
@@ -87,8 +87,6 @@ def scan_project_state(*, skip_checks: bool = False) -> dict:
         "has_tests": False,
         "has_pyproject": (ROOT / "pyproject.toml").exists(),
         "has_pyrightconfig": (ROOT / "pyrightconfig.json").exists(),
-        "test_results": None,
-        "quality_results": None,
         "inbox_items": [],
     }
 
@@ -120,30 +118,23 @@ def scan_project_state(*, skip_checks: bool = False) -> dict:
     if MODULES_DIR.exists():
         for module_dir in sorted(MODULES_DIR.iterdir()):
             if module_dir.is_dir() and not module_dir.name.startswith("."):
-                module_info = {
+                files: list[str] = []
+                for f in module_dir.rglob("*"):
+                    if f.is_file():
+                        files.append(str(f.relative_to(module_dir)))
+                module_info: dict[str, Any] = {
                     "has_contract": (module_dir / "CONTRACT.md").exists(),
                     "has_spec": (module_dir / "SPEC.md").exists(),
                     "has_core": (module_dir / "core.py").exists(),
                     "has_tests": (module_dir / "tests").exists()
                     and any((module_dir / "tests").rglob("test_*.py")),
-                    "files": [],
+                    "files": files,
                 }
-                for f in module_dir.rglob("*"):
-                    if f.is_file():
-                        module_info["files"].append(str(f.relative_to(module_dir)))
                 state["modules"][module_dir.name] = module_info
 
     # Check for tests anywhere in the project
     test_files = [f for f in state["files"] if "test_" in f and f.endswith(".py")]
     state["has_tests"] = len(test_files) > 0
-
-    # Run quality pipeline if tooling is available (skip for fast status)
-    if not skip_checks:
-        state["quality_results"] = run_quality_checks()
-
-        # Run tests if they exist
-        if state["has_tests"]:
-            state["test_results"] = run_tests()
 
     # Scan inbox
     if INBOX_DIR.exists():
@@ -159,9 +150,9 @@ def scan_project_state(*, skip_checks: bool = False) -> dict:
     return state
 
 
-def run_quality_checks() -> dict:
+def run_quality_checks() -> dict[str, Any]:
     """Run ruff and pyright if available. Returns structured results."""
-    results: dict = {"ruff_lint": None, "ruff_format": None, "pyright": None}
+    results: dict[str, Any] = {"ruff_lint": None, "ruff_format": None, "pyright": None}
 
     # Exclude kernel/ from quality checks — it is the human-maintained trust root
     exclude_args = ["--exclude", "kernel/"]
@@ -217,7 +208,7 @@ def run_quality_checks() -> dict:
     return results
 
 
-def run_tests() -> dict:
+def run_tests() -> dict[str, Any]:
     """Run pytest and return structured results."""
     try:
         result = subprocess.run(
@@ -247,7 +238,7 @@ def run_tests() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def analyze_gaps(vision: str, project_state: dict, history: list[dict]) -> str:
+def analyze_gaps(vision: str, project_state: dict[str, Any], history: list[dict[str, Any]]) -> str:
     """
     Compute the gap between vision and current state.
 
@@ -306,9 +297,9 @@ def analyze_gaps(vision: str, project_state: dict, history: list[dict]) -> str:
 
 
 def plan_iteration(
-    project_state: dict,
+    project_state: dict[str, Any],
     gaps: str,
-    history: list[dict],
+    history: list[dict[str, Any]],
     iteration_count: int,
 ) -> str:
     """
@@ -322,7 +313,7 @@ def plan_iteration(
     recent_history = ""
     if history:
         last_3 = history[-3:]
-        entries = []
+        entries: list[str] = []
         for h in last_3:
             status = "✓" if h.get("success") else "✗"
             entries.append(f"  [{status}] {h.get('summary', 'no summary')}")
@@ -394,7 +385,7 @@ def _summarize_tool_input(tool_name: str, raw_json: str) -> str:
     return ""
 
 
-def execute_plan(prompt: str, dry_run: bool = False) -> dict:
+def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
     """
     Send the plan to the AI agent and capture results.
 
@@ -561,14 +552,13 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def verify_iteration(pre_state: dict, post_state: dict) -> dict:
+def verify_iteration(pre_state: dict[str, Any], post_state: dict[str, Any]) -> dict[str, Any]:
     """
     Verify that the iteration produced valid results.
 
-    Checks:
-    1. Protected files not modified (VISION.md, kernel/)
-    2. Quality pipeline passes (ruff + pyright)
-    3. Tests pass
+    The agent already runs `ruff check . && pyright && pytest` during
+    execution. This verifier only checks what the agent CANNOT be trusted
+    to check itself: protected file integrity.
 
     Will be replaced by modules/verifier/core.py.
     """
@@ -591,19 +581,6 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
         h_after = _file_hash(ROOT / pf)
         if h_before != h_after:
             issues.append(f"CRITICAL: {pf} was modified by the agent")
-
-    # --- Quality pipeline ---
-    qr = run_quality_checks()
-    for tool_name, tool_result in qr.items():
-        if tool_result and not tool_result["passed"]:
-            issues.append(f"Quality check failed ({tool_name}): {tool_result['output'][:200]}")
-
-    # --- Tests ---
-    test_results = run_tests()
-    if test_results["passed"]:
-        improvements.append("All tests passing")
-    else:
-        issues.append(f"Tests failed:\n{test_results['output'][:500]}")
 
     # --- Detect improvements ---
     new_files = set(post_state.get("files", [])) - set(pre_state.get("files", []))
@@ -633,10 +610,10 @@ def _file_hash(path: Path) -> str | None:
 def record_iteration(
     iteration_id: str,
     gaps: str,
-    execution_result: dict,
-    verification: dict,
+    execution_result: dict[str, Any],
+    verification: dict[str, Any],
     elapsed: float,
-) -> dict:
+) -> dict[str, Any]:
     """Record iteration results. Will be replaced by modules/reporter/core.py."""
     ITERATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -661,18 +638,16 @@ def record_iteration(
     print(f"  Iteration {iteration_id}")
     print(f"  Status: {'✓ PASSED' if report['success'] else '✗ FAILED'}")
     print(f"  Time: {elapsed:.1f}s")
-    if report["improvements"]:
-        for imp in report["improvements"]:
-            print(f"  ✓ {imp}")
-    if report["issues"]:
-        for issue in report["issues"]:
-            print(f"  ✗ {issue[:120]}")
+    for imp in verification.get("improvements", []):
+        print(f"  ✓ {imp}")
+    for issue in verification.get("issues", []):
+        print(f"  ✗ {str(issue)[:120]}")
     print(f"{'─' * 50}")
 
     return report
 
 
-def _generate_summary(verification: dict) -> str:
+def _generate_summary(verification: dict[str, Any]) -> str:
     """Generate a one-line summary."""
     if verification["improvements"]:
         return "; ".join(verification["improvements"][:3])

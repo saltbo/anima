@@ -33,7 +33,7 @@ def cmd_status() -> None:
     from kernel.state import load_history, load_state
 
     state = load_state()
-    project_state = seed.scan_project_state(skip_checks=True)
+    project_state = seed.scan_project_state()
     vision = VISION_FILE.read_text()
     history = load_history()
     gaps = seed.analyze_gaps(vision, project_state, history)
@@ -64,7 +64,7 @@ def cmd_status() -> None:
     print("\n  Modules:")
     if project_state["modules"]:
         for name, info in project_state["modules"].items():
-            flags = []
+            flags: list[str] = []
             for field, label in [
                 ("has_contract", "contract"),
                 ("has_spec", "spec"),

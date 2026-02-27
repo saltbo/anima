@@ -8,6 +8,7 @@ roadmap and reflecting that progress in git tags and README badges.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from kernel.config import (
     PROGRESS_END,
@@ -75,7 +76,7 @@ def _parse_version(v: str) -> tuple[int, ...]:
     return tuple(int(x) for x in v.lstrip("v").split("."))
 
 
-def detect_current_milestone(state: dict) -> str:
+def detect_current_milestone(state: dict[str, Any]) -> str:
     """Detect the current version milestone using roadmap files.
 
     Scans roadmap/v*.md in order. The first version that still has unchecked
@@ -98,7 +99,7 @@ def detect_current_milestone(state: dict) -> str:
     return prev_version  # all complete
 
 
-def tag_milestone_if_advanced(state: dict) -> None:
+def tag_milestone_if_advanced(state: dict[str, Any]) -> None:
     """Create a git tag when the milestone version advances (never downgrades)."""
     new_milestone = detect_current_milestone(state)
     old_milestone = state.get("current_milestone", "v0.0.0")
@@ -147,7 +148,7 @@ def _roadmap_progress() -> tuple[int, int]:
     return checked, total
 
 
-def update_readme(state: dict) -> None:
+def update_readme(state: dict[str, Any]) -> None:
     """Update README.md auto-generated blocks (status, stage, progress)."""
     if not README_FILE.exists():
         return

@@ -9,8 +9,10 @@ Usage:
 
 from __future__ import annotations
 
-from kernel import seed
 import wiring
+from kernel import seed
+from kernel.config import VISION_FILE
+from kernel.state import load_history
 
 
 def test_wiring_resolves_to_callable() -> None:
@@ -22,9 +24,9 @@ def test_wiring_matches_seed_for_no_gaps() -> None:
     """When seed returns NO_GAPS, wiring should also return NO_GAPS."""
     # This test is meaningful once analyze_gaps is replaced.
     # For now it verifies the wiring passthrough works.
-    vision = seed.VISION_FILE.read_text() if seed.VISION_FILE.exists() else ""
+    vision = VISION_FILE.read_text() if VISION_FILE.exists() else ""
     project_state = seed.scan_project_state()
-    history = seed.load_history()
+    history = load_history()
 
     seed_result = seed.analyze_gaps(vision, project_state, history)
     wiring_result = wiring.analyze_gaps(vision, project_state, history)

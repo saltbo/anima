@@ -46,7 +46,7 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
 
     # Step 1: Scan current state (via wiring)
     print("\n[1/5] Scanning project state...")
-    project_state = wiring.scan_project_state(skip_checks=True)
+    project_state = wiring.scan_project_state()
     print(f"  Files: {len(project_state['files'])}")
     print(f"  Modules: {list(project_state['modules'].keys()) or '(none)'}")
     print(f"  Domain: {'✓' if project_state['domain_exists'] else '✗'}")
@@ -87,7 +87,7 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
     # Step 5: Verify (via wiring)
     print("\n[5/5] Verifying results...")
     verification = wiring.verify_iteration(
-        project_state, wiring.scan_project_state(skip_checks=True)
+        project_state, wiring.scan_project_state()
     )
 
     # Report + commit/rollback (report via wiring, git ops via kernel)

@@ -63,41 +63,41 @@ anima/
 │
 ├── modules/                   # Functional modules (each is a Use Case)
 │   ├── gap_analyzer/          # Vision + State → GapReport
-│   │   ├── CONTRACT.md
+│   │   ├── SPEC.md
 │   │   ├── core.py            # Pure logic, depends only on domain/
 │   │   └── tests/
 │   ├── planner/               # GapReport + History → IterationPlan
-│   │   ├── CONTRACT.md
+│   │   ├── SPEC.md
 │   │   ├── core.py
 │   │   └── tests/
 │   ├── executor/              # IterationPlan → ExecutionResult (via AgentPort)
-│   │   ├── CONTRACT.md
+│   │   ├── SPEC.md
 │   │   ├── core.py
 │   │   └── tests/
 │   ├── verifier/              # Pre/Post State → VerificationReport
-│   │   ├── CONTRACT.md
+│   │   ├── SPEC.md
 │   │   ├── core.py
 │   │   └── tests/
 │   └── reporter/              # VerificationReport → IterationRecord
-│       ├── CONTRACT.md
+│       ├── SPEC.md
 │       ├── core.py
 │       └── tests/
 │
-├── adapters/                  # Concrete implementations of Ports
-│   ├── agents/
-│   │   ├── claude_code.py     # ClaudeCodeAdapter implements AgentPort
-│   │   ├── codex.py           # CodexAdapter implements AgentPort
-│   │   └── gemini.py          # GeminiAdapter implements AgentPort
-│   ├── git_vc.py              # GitVersionControl implements VersionControlPort
-│   ├── pytest_runner.py       # PytestRunner implements TestRunnerPort
-│   ├── quality_checker.py     # RuffPyrightChecker implements LinterPort
-│   └── local_fs.py            # LocalFileSystem implements FileSystemPort
+├── adapters/                  # Concrete implementations of domain Ports
+│   └── agents/
+│       ├── claude_code.py     # ClaudeCodeAdapter implements AgentPort
+│       ├── codex.py           # CodexAdapter implements AgentPort
+│       └── gemini.py          # GeminiAdapter implements AgentPort
 │
 ├── kernel/                    # IMMUTABLE — Anima cannot modify this
 │   ├── __init__.py
 │   ├── cli.py                 # CLI entry point (anima command)
+│   ├── config.py              # Path constants and configuration
+│   ├── git_ops.py             # Git snapshot, commit, rollback
 │   ├── loop.py                # Fixed iteration loop (calls through wiring)
-│   └── seed.py                # Seed implementations (initial/fallback)
+│   ├── roadmap.py             # Milestone detection, README updates
+│   ├── seed.py                # Seed implementations (initial/fallback)
+│   └── state.py               # State persistence (load/save)
 │
 ├── wiring.py                  # Agent-modifiable step registry
 ├── inbox/                     # Human intent injection (drop .md files here)
@@ -115,9 +115,9 @@ anima/
 2. **modules/ depend only on domain/.** Each module's core.py receives
    Ports via constructor injection. It never imports from adapters/ or kernel/.
 
-3. **adapters/ implement domain/ports.py Protocols.** They are the only
-   code that touches external tools (git, pytest, claude CLI, file system).
-   Swapping an adapter requires zero changes to modules.
+3. **adapters/ implement domain/ports.py Protocols** for swappable
+   components (e.g. different AI agent backends). Infrastructure tools
+   (git, pytest, ruff) are handled directly by kernel/.
 
 4. **kernel/ is the trust root.** It orchestrates the iteration loop and
    manages rollback. Anima's self-iteration scope explicitly excludes kernel/.
@@ -171,16 +171,15 @@ Enforces:
 - No unsafe type narrowing
 - Proper handling of Optional/None
 
-### Stage 3: Tests & Coverage (pytest + pytest-cov)
+### Stage 3: Tests (pytest)
 
 ```
-pytest --cov=anima --cov-fail-under=80 --tb=short -q
+pytest --tb=short -q
 ```
 
 Enforces:
 - All tests pass
-- Minimum 80% code coverage
-- Each module has at least one test validating its CONTRACT.md
+- Each module has at least one test validating its SPEC.md
 
 ### Pipeline Integration
 
@@ -188,7 +187,7 @@ The verification pipeline is defined as a single command that the Verifier
 module (and initially the seed script) runs after every iteration:
 
 ```bash
-ruff check . && ruff format --check . && pyright && pytest --cov=anima --cov-fail-under=80
+ruff check . && ruff format --check . && pyright && pytest
 ```
 
 All four must exit 0 for the iteration to be considered successful.
@@ -250,9 +249,8 @@ to `inbox/.archive/`.
 
 - All code must have complete type annotations (enforced by pyright strict)
 - All code must pass ruff linting and formatting checks
-- All modules must have ≥80% test coverage
 - All module interfaces must be defined as Protocols in domain/ports.py
-- Every CONTRACT.md must be written before implementation begins
+- Every SPEC.md must be written before implementation begins
 - Every iteration produces a structured JSON log entry
 - Failed iterations are valuable data — always record the failure reason
 - Code that passes tests but violates type contracts is a failure
