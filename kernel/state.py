@@ -39,6 +39,6 @@ def load_history() -> list[dict]:
         for log_file in sorted(ITERATIONS_DIR.glob("*.json")):
             try:
                 history.append(json.loads(log_file.read_text()))
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 continue
     return history

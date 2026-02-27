@@ -30,7 +30,7 @@ packages = ["kernel", "modules", "domain", "adapters"]
 target-version = "py312"
 line-length = 99
 src = ["."]
-exclude = ["kernel/seed.py"]
+exclude = ["kernel/"]
 
 [tool.ruff.lint]
 select = [

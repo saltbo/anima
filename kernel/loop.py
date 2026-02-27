@@ -86,7 +86,9 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
 
     # Step 5: Verify (via wiring)
     print("\n[5/5] Verifying results...")
-    verification = wiring.verify_iteration(project_state, wiring.scan_project_state(skip_checks=True))
+    verification = wiring.verify_iteration(
+        project_state, wiring.scan_project_state(skip_checks=True)
+    )
 
     # Report + commit/rollback (report via wiring, git ops via kernel)
     elapsed = time.time() - iteration_start

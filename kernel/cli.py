@@ -18,8 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 # ---------------------------------------------------------------------------
 # CLI commands
@@ -39,9 +38,9 @@ def cmd_status() -> None:
     history = load_history()
     gaps = seed.analyze_gaps(vision, project_state, history)
 
-    print(f"\n{'='*60}")
-    print(f"  ANIMA -- Status")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("  ANIMA -- Status")
+    print(f"{'=' * 60}")
     print(f"\n  Iterations: {state['iteration_count']}")
     print(f"  Status: {state['status']}")
     print(f"  Failures (consecutive): {state['consecutive_failures']}")
@@ -55,19 +54,23 @@ def cmd_status() -> None:
     print(f"\n  Roadmap target: v{current_version}")
     print(f"  Roadmap progress: {len(checked)}/{total} items checked")
 
-    print(f"\n  Architecture:")
+    print("\n  Architecture:")
     print(f"    domain/:          {'ok' if project_state['domain_exists'] else 'missing'}")
     print(f"    adapters/:        {'ok' if project_state['adapters_exist'] else 'not yet'}")
     print(f"    kernel/:          {'ok' if project_state['kernel_exists'] else 'not yet'}")
     print(f"    pyproject.toml:   {'ok' if project_state['has_pyproject'] else 'missing'}")
     print(f"    pyrightconfig.json: {'ok' if project_state['has_pyrightconfig'] else 'missing'}")
 
-    print(f"\n  Modules:")
+    print("\n  Modules:")
     if project_state["modules"]:
         for name, info in project_state["modules"].items():
             flags = []
-            for field, label in [("has_contract", "contract"), ("has_spec", "spec"),
-                                 ("has_core", "core"), ("has_tests", "tests")]:
+            for field, label in [
+                ("has_contract", "contract"),
+                ("has_spec", "spec"),
+                ("has_core", "core"),
+                ("has_tests", "tests"),
+            ]:
                 flags.append(f"{'ok' if info.get(field) else 'no'}-{label}")
             print(f"    {name}: {' '.join(flags)}")
     else:
@@ -75,7 +78,7 @@ def cmd_status() -> None:
 
     qr = project_state.get("quality_results", {})
     if qr:
-        print(f"\n  Quality Pipeline:")
+        print("\n  Quality Pipeline:")
         for tool in ["ruff_lint", "ruff_format", "pyright"]:
             if qr.get(tool):
                 print(f"    {tool}: {'ok' if qr[tool]['passed'] else 'failing'}")
@@ -94,7 +97,7 @@ def cmd_status() -> None:
     print(f"\n  Gaps: {gap_count if gap_count else 'none -- system at rest'}")
 
     if history:
-        print(f"\n  Recent iterations:")
+        print("\n  Recent iterations:")
         for h in history[-5:]:
             ok = "ok" if h.get("success") else "fail"
             print(f"    [{ok}] {h['id']}: {h.get('summary', '--')[:60]}")
@@ -122,7 +125,7 @@ def cmd_log(args: argparse.Namespace) -> None:
         print("No iterations yet.")
         return
 
-    entries = history[-args.last:] if args.last else history
+    entries = history[-args.last :] if args.last else history
     for h in entries:
         ok = "ok" if h.get("success") else "FAIL"
         cost = h.get("cost_usd", 0)
@@ -137,7 +140,7 @@ def cmd_instruct(args: argparse.Namespace) -> None:
 
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     # Derive a short slug from the message
     slug = args.message[:40].lower().replace(" ", "-")
     slug = "".join(c for c in slug if c.isalnum() or c == "-").strip("-")
@@ -147,7 +150,7 @@ def cmd_instruct(args: argparse.Namespace) -> None:
     content = f"# Instruction\n\n{args.message}\n"
     path.write_text(content)
     print(f"  Instruction saved to inbox/{filename}")
-    print(f"  It will be picked up on the next iteration.")
+    print("  It will be picked up on the next iteration.")
 
 
 def cmd_start(args: argparse.Namespace) -> None:

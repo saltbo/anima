@@ -17,21 +17,17 @@ CLI entry point: kernel/cli.py (installed as 'anima' command)
 Backward compat: python seed.py [args] still works (redirects to kernel.cli)
 """
 
-import subprocess
+import hashlib
 import json
 import os
-import re
+import subprocess
 import time
-import hashlib
-import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Configuration — imported from kernel.config
 # ---------------------------------------------------------------------------
-
 from kernel.config import (
     ADAPTERS_DIR,
     AGENT_CMD,
@@ -39,50 +35,36 @@ from kernel.config import (
     INBOX_DIR,
     ITERATIONS_DIR,
     KERNEL_DIR,
-    MAX_CONSECUTIVE_FAILURES,
     MODULES_DIR,
     PROTECTED_PATHS,
-    ROADMAP_DIR,
     ROOT,
-    VISION_FILE,
 )
-
-# ---------------------------------------------------------------------------
-# Roadmap helpers — imported from kernel.roadmap
-# ---------------------------------------------------------------------------
-
-from kernel.roadmap import (
-    get_current_version as _get_current_version,
-    parse_roadmap_items as _parse_roadmap_items,
-    read_roadmap_file as _read_roadmap_file,
-)
-
-# ---------------------------------------------------------------------------
-# State Management
-# ---------------------------------------------------------------------------
-# State management — imported from kernel.state
-# ---------------------------------------------------------------------------
-
-from kernel.state import load_history, load_state, save_state
 
 # ---------------------------------------------------------------------------
 # Git operations — imported from kernel.git_ops
 # ---------------------------------------------------------------------------
-
-from kernel.git_ops import (
-    commit_iteration,
-    create_snapshot,
-    ensure_git,
-    git,
-    rollback_to,
+# ---------------------------------------------------------------------------
+# Roadmap helpers — imported from kernel.roadmap
+# ---------------------------------------------------------------------------
+from kernel.roadmap import (
+    get_current_version as _get_current_version,
+)
+from kernel.roadmap import (
+    parse_roadmap_items as _parse_roadmap_items,
+)
+from kernel.roadmap import (
+    read_roadmap_file as _read_roadmap_file,
 )
 
 # ---------------------------------------------------------------------------
 # Roadmap/milestone ops — imported from kernel.roadmap
 # ---------------------------------------------------------------------------
 
-from kernel.roadmap import tag_milestone_if_advanced, update_readme
-
+# ---------------------------------------------------------------------------
+# State Management
+# ---------------------------------------------------------------------------
+# State management — imported from kernel.state
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Project State Scanner
@@ -111,8 +93,17 @@ def scan_project_state(*, skip_checks: bool = False) -> dict:
     }
 
     # Scan file tree — use os.walk to prune directories early (avoid .venv etc)
-    skip_dirs = {".git", "__pycache__", "node_modules", "venv", ".venv",
-                 ".pytest_cache", ".ruff_cache", ".anima", "iterations"}
+    skip_dirs = {
+        ".git",
+        "__pycache__",
+        "node_modules",
+        "venv",
+        ".venv",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".anima",
+        "iterations",
+    }
     for dirpath, dirnames, filenames in os.walk(ROOT):
         # Prune skip_dirs in-place so os.walk won't descend into them
         dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs)
@@ -134,7 +125,7 @@ def scan_project_state(*, skip_checks: bool = False) -> dict:
                     "has_spec": (module_dir / "SPEC.md").exists(),
                     "has_core": (module_dir / "core.py").exists(),
                     "has_tests": (module_dir / "tests").exists()
-                                and any((module_dir / "tests").rglob("test_*.py")),
+                    and any((module_dir / "tests").rglob("test_*.py")),
                     "files": [],
                 }
                 for f in module_dir.rglob("*"):
@@ -158,10 +149,12 @@ def scan_project_state(*, skip_checks: bool = False) -> dict:
     if INBOX_DIR.exists():
         for item in sorted(INBOX_DIR.iterdir()):
             if item.is_file() and item.suffix == ".md":
-                state["inbox_items"].append({
-                    "filename": item.name,
-                    "content": item.read_text(),
-                })
+                state["inbox_items"].append(
+                    {
+                        "filename": item.name,
+                        "content": item.read_text(),
+                    }
+                )
 
     return state
 
@@ -170,14 +163,17 @@ def run_quality_checks() -> dict:
     """Run ruff and pyright if available. Returns structured results."""
     results: dict = {"ruff_lint": None, "ruff_format": None, "pyright": None}
 
-    # Exclude protected files from quality checks — they are not managed by Anima
-    exclude_args = ["--exclude", "seed.py"]
+    # Exclude kernel/ from quality checks — it is the human-maintained trust root
+    exclude_args = ["--exclude", "kernel/"]
 
     # ruff check
     try:
         r = subprocess.run(
             ["ruff", "check", ".", *exclude_args],
-            cwd=ROOT, capture_output=True, text=True, timeout=60,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         results["ruff_lint"] = {
             "passed": r.returncode == 0,
@@ -190,7 +186,10 @@ def run_quality_checks() -> dict:
     try:
         r = subprocess.run(
             ["ruff", "format", "--check", ".", *exclude_args],
-            cwd=ROOT, capture_output=True, text=True, timeout=60,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         results["ruff_format"] = {
             "passed": r.returncode == 0,
@@ -203,7 +202,10 @@ def run_quality_checks() -> dict:
     try:
         r = subprocess.run(
             ["pyright"],
-            cwd=ROOT, capture_output=True, text=True, timeout=120,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         results["pyright"] = {
             "passed": r.returncode == 0,
@@ -219,10 +221,11 @@ def run_tests() -> dict:
     """Run pytest and return structured results."""
     try:
         result = subprocess.run(
-            ["python", "-m", "pytest", "--tb=short", "-q",
-             "--cov=domain", "--cov=modules", "--cov=adapters",
-             "--cov-report=term-missing"],
-            cwd=ROOT, capture_output=True, text=True, timeout=120,
+            ["python", "-m", "pytest", "--tb=short", "-q"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         return {
             "exit_code": result.returncode,
@@ -256,7 +259,7 @@ def analyze_gaps(vision: str, project_state: dict, history: list[dict]) -> str:
     # Read only the current version's roadmap file
     current_version = _get_current_version()
     roadmap_content = _read_roadmap_file(current_version)
-    unchecked, checked = _parse_roadmap_items(roadmap_content)
+    unchecked, _checked = _parse_roadmap_items(roadmap_content)
 
     if unchecked:
         gaps.append(f"UNCOMPLETED ROADMAP ITEMS for v{current_version} ({len(unchecked)}):")
@@ -377,7 +380,7 @@ def _summarize_tool_input(tool_name: str, raw_json: str) -> str:
     if tool_name == "Glob":
         return inp.get("pattern", "")
     if tool_name == "Grep":
-        return f'/{inp.get("pattern", "")}/'
+        return f"/{inp.get('pattern', '')}/"
     if tool_name == "TodoWrite":
         todos = inp.get("todos", [])
         if todos:
@@ -418,8 +421,15 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
     try:
         proc = subprocess.Popen(
-            [AGENT_CMD, "--print", "--verbose", "--dangerously-skip-permissions",
-             "--output-format", "stream-json", "--include-partial-messages"],
+            [
+                AGENT_CMD,
+                "--print",
+                "--verbose",
+                "--dangerously-skip-permissions",
+                "--output-format",
+                "stream-json",
+                "--include-partial-messages",
+            ],
             cwd=ROOT,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -441,7 +451,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
 
     # Parse stream-json NDJSON and display events in real-time
     result_text = ""
-    current_tool: Optional[str] = None
+    current_tool: str | None = None
     tool_input_chunks: list[str] = []
     cost = 0.0
     total_tokens = 0
@@ -485,8 +495,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
                 # Tool use end — parse accumulated input and show summary
                 elif inner_type == "content_block_stop":
                     if current_tool:
-                        summary = _summarize_tool_input(
-                            current_tool, "".join(tool_input_chunks))
+                        summary = _summarize_tool_input(current_tool, "".join(tool_input_chunks))
                         print(f"  ▶ [{current_tool}] {summary}", flush=True)
                         current_tool = None
                         tool_input_chunks = []
@@ -502,7 +511,9 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
                 cache_read = usage.get("cache_read_input_tokens", 0)
                 cache_creation = usage.get("cache_creation_input_tokens", 0)
                 total_tokens = input_tokens + output_tokens + cache_read + cache_creation
-                print(f"\n  [executor] Done in {duration/1000:.1f}s, cost: ${cost:.4f}, tokens: {total_tokens}")
+                print(
+                    f"\n  [executor] Done in {duration / 1000:.1f}s, cost: ${cost:.4f}, tokens: {total_tokens}"
+                )
 
         print()  # newline after streaming
         proc.wait(timeout=600)
@@ -575,35 +586,27 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
                 if f.is_file():
                     protected_files.append(str(f.relative_to(ROOT)))
 
-    protected_hashes_before = {
-        p: _file_hash(ROOT / p)
-        for p in protected_files
-    }
-
-    current_state = scan_project_state()
-
-    for path, hash_before in protected_hashes_before.items():
-        hash_after = _file_hash(ROOT / path)
-        if hash_before != hash_after:
-            issues.append(f"CRITICAL: {path} was modified by the agent")
+    for pf in protected_files:
+        h_before = pre_state.get("_protected_hashes", {}).get(pf) or _file_hash(ROOT / pf)
+        h_after = _file_hash(ROOT / pf)
+        if h_before != h_after:
+            issues.append(f"CRITICAL: {pf} was modified by the agent")
 
     # --- Quality pipeline ---
-    qr = current_state.get("quality_results", {})
-    if qr:
-        for tool_name, tool_result in qr.items():
-            if tool_result and not tool_result["passed"]:
-                issues.append(f"Quality check failed ({tool_name}): {tool_result['output'][:200]}")
+    qr = run_quality_checks()
+    for tool_name, tool_result in qr.items():
+        if tool_result and not tool_result["passed"]:
+            issues.append(f"Quality check failed ({tool_name}): {tool_result['output'][:200]}")
 
     # --- Tests ---
-    if current_state["has_tests"]:
-        test_results = run_tests()
-        if not test_results["passed"]:
-            issues.append(f"Tests failed:\n{test_results['output'][:500]}")
-        else:
-            improvements.append("All tests passing")
+    test_results = run_tests()
+    if test_results["passed"]:
+        improvements.append("All tests passing")
+    else:
+        issues.append(f"Tests failed:\n{test_results['output'][:500]}")
 
     # --- Detect improvements ---
-    new_files = set(current_state["files"]) - set(pre_state["files"])
+    new_files = set(post_state.get("files", [])) - set(pre_state.get("files", []))
     if new_files:
         improvements.append(f"New files: {len(new_files)}")
 
@@ -611,13 +614,11 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
         "passed": len(issues) == 0,
         "issues": issues,
         "improvements": improvements,
-        "post_state": current_state,
+        "post_state": post_state,
     }
 
 
-
-
-def _file_hash(path: Path) -> Optional[str]:
+def _file_hash(path: Path) -> str | None:
     """Get SHA256 hash of a file, or None if it doesn't exist."""
     if not path.exists():
         return None
@@ -641,7 +642,7 @@ def record_iteration(
 
     report = {
         "id": iteration_id,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "success": verification["passed"],
         "summary": _generate_summary(verification),
         "gaps_addressed": gaps[:1000],
@@ -656,7 +657,7 @@ def record_iteration(
     log_file = ITERATIONS_DIR / f"{iteration_id}.json"
     log_file.write_text(json.dumps(report, indent=2, ensure_ascii=False))
 
-    print(f"\n{'─'*50}")
+    print(f"\n{'─' * 50}")
     print(f"  Iteration {iteration_id}")
     print(f"  Status: {'✓ PASSED' if report['success'] else '✗ FAILED'}")
     print(f"  Time: {elapsed:.1f}s")
@@ -666,7 +667,7 @@ def record_iteration(
     if report["issues"]:
         for issue in report["issues"]:
             print(f"  ✗ {issue[:120]}")
-    print(f"{'─'*50}")
+    print(f"{'─' * 50}")
 
     return report
 
@@ -683,8 +684,3 @@ def _generate_summary(verification: dict) -> str:
 # ---------------------------------------------------------------------------
 # Module Replacement Check
 # ---------------------------------------------------------------------------
-
-
-
-
-
