@@ -274,7 +274,8 @@ def run_tests() -> dict:
     try:
         result = subprocess.run(
             ["python", "-m", "pytest", "--tb=short", "-q",
-             "--cov=.", "--cov-report=term-missing"],
+             "--cov=domain", "--cov=modules", "--cov=adapters",
+             "--cov-report=term-missing"],
             cwd=ROOT, capture_output=True, text=True, timeout=120,
         )
         return {
@@ -568,8 +569,9 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
             env=env,
         )
 
-        # Parse stream-json NDJSON and print text deltas in real-time
+        # Parse stream-json NDJSON and display events in real-time
         result_text = ""
+        current_tool: Optional[str] = None
         assert proc.stdout is not None
         for line in proc.stdout:
             line = line.strip()
@@ -582,19 +584,41 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
 
             etype = event.get("type", "")
 
-            # Real-time text output
             if etype == "stream_event":
                 inner = event.get("event", {})
-                if inner.get("type") == "content_block_delta":
+                inner_type = inner.get("type", "")
+
+                # Text streaming
+                if inner_type == "content_block_delta":
                     delta = inner.get("delta", {})
                     if delta.get("type") == "text_delta":
-                        text = delta.get("text", "")
-                        print(text, end="", flush=True)
+                        print(delta.get("text", ""), end="", flush=True)
+
+                # Tool use start — show which tool the agent is calling
+                elif inner_type == "content_block_start":
+                    block = inner.get("content_block", {})
+                    if block.get("type") == "tool_use":
+                        current_tool = block.get("name", "unknown")
+                        print(f"\n  ▶ [{current_tool}]", end="", flush=True)
+
+                # Tool use end
+                elif inner_type == "content_block_stop":
+                    if current_tool:
+                        print(f" ✓", flush=True)
+                        current_tool = None
+
+            # Tool result from agent
+            elif etype == "tool_result":
+                tool_name = event.get("tool_name", "")
+                content = event.get("content", "")
+                if isinstance(content, str) and content:
+                    # Show a brief excerpt of tool output
+                    preview = content[:200].replace("\n", " ")
+                    print(f"  ◀ [{tool_name}] {preview}", flush=True)
 
             # Final result
             elif etype == "result":
                 result_text = event.get("result", "")
-                is_error = event.get("is_error", False)
                 cost = event.get("total_cost_usd", 0)
                 duration = event.get("duration_ms", 0)
                 print(f"\n  [executor] Done in {duration/1000:.1f}s, cost: ${cost:.4f}")
@@ -735,6 +759,10 @@ def check_domain_imports() -> Optional[str]:
     }
 
     for py_file in DOMAIN_DIR.rglob("*.py"):
+        # Skip test files — they are allowed to import pytest etc.
+        rel_parts = py_file.relative_to(DOMAIN_DIR).parts
+        if "tests" in rel_parts or py_file.name.startswith("test_"):
+            continue
         try:
             content = py_file.read_text()
         except (IOError, UnicodeDecodeError):
