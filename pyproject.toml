@@ -10,7 +10,7 @@ dependencies = []
 [project.scripts]
 anima = "kernel.cli:main"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
