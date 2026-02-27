@@ -807,7 +807,13 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
                 result_text = event.get("result", "")
                 cost = event.get("total_cost_usd", 0)
                 duration = event.get("duration_ms", 0)
-                print(f"\n  [executor] Done in {duration/1000:.1f}s, cost: ${cost:.4f}")
+                usage = event.get("usage", {})
+                input_tokens = usage.get("input_tokens", 0)
+                output_tokens = usage.get("output_tokens", 0)
+                cache_read = usage.get("cache_read_input_tokens", 0)
+                cache_creation = usage.get("cache_creation_input_tokens", 0)
+                total_tokens = input_tokens + output_tokens + cache_read + cache_creation
+                print(f"\n  [executor] Done in {duration/1000:.1f}s, cost: ${cost:.4f}, tokens: {total_tokens}")
 
         print()  # newline after streaming
         proc.wait(timeout=600)
@@ -824,6 +830,8 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
             "errors": stderr_output[-2000:] if stderr_output else "",
             "exit_code": proc.returncode,
             "elapsed_seconds": round(elapsed, 1),
+            "cost_usd": cost,
+            "total_tokens": total_tokens,
         }
     except subprocess.TimeoutExpired:
         proc.kill()
@@ -1008,6 +1016,8 @@ def record_iteration(
         "issues": verification.get("issues", []),
         "agent_output_excerpt": execution_result.get("output", "")[:1000],
         "elapsed_seconds": elapsed,
+        "cost_usd": execution_result.get("cost_usd", 0),
+        "total_tokens": execution_result.get("total_tokens", 0),
     }
 
     log_file = ITERATIONS_DIR / f"{iteration_id}.json"
@@ -1146,6 +1156,11 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
     # Report + commit/rollback
     elapsed = time.time() - iteration_start
     report = record_iteration(iteration_id, gaps, exec_result, verification, elapsed)
+
+    # Accumulate totals in state
+    state["total_cost_usd"] = state.get("total_cost_usd", 0) + report.get("cost_usd", 0)
+    state["total_tokens"] = state.get("total_tokens", 0) + report.get("total_tokens", 0)
+    state["total_elapsed_seconds"] = state.get("total_elapsed_seconds", 0) + elapsed
 
     if verification["passed"]:
         commit_iteration(iteration_id, report["summary"])
@@ -1362,10 +1377,35 @@ def update_readme(state: dict) -> None:
     status_color = {"alive": "brightgreen", "sleep": "yellow", "paused": "red"}.get(
         status, "lightgrey"
     )
+    # Format cumulative stats for badges
+    total_cost = state.get("total_cost_usd", 0)
+    total_tokens = state.get("total_tokens", 0)
+    total_seconds = state.get("total_elapsed_seconds", 0)
+
+    # Human-readable time: "1h_23m" or "45m" or "2m" (underscore for shields.io)
+    total_minutes = int(total_seconds // 60)
+    if total_minutes >= 60:
+        time_label = f"{total_minutes // 60}h_{total_minutes % 60}m"
+    else:
+        time_label = f"{total_minutes}m"
+
+    # Human-readable tokens: "123k" or "1.2M"
+    if total_tokens >= 1_000_000:
+        tokens_label = f"{total_tokens / 1_000_000:.1f}M"
+    elif total_tokens >= 1_000:
+        tokens_label = f"{total_tokens / 1_000:.0f}k"
+    else:
+        tokens_label = str(total_tokens)
+
+    cost_label = f"${total_cost:.2f}"
+
     status_block = (
         f"{STATUS_START}\n"
         f"![status](https://img.shields.io/badge/status-{status}-{status_color})"
-        f" ![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)\n"
+        f" ![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)"
+        f" ![time](https://img.shields.io/badge/time-{time_label}-blue)"
+        f" ![tokens](https://img.shields.io/badge/tokens-{tokens_label}-blue)"
+        f" ![cost](https://img.shields.io/badge/cost-{cost_label}-blue)\n"
         f"{STATUS_END}"
     )
     content = _replace_block(content, STATUS_START, STATUS_END, status_block)
