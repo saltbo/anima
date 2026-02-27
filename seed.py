@@ -532,6 +532,36 @@ After making changes, verify them by running: ruff check . && pyright && python 
 # ---------------------------------------------------------------------------
 
 
+def _summarize_tool_input(tool_name: str, raw_json: str) -> str:
+    """Extract a brief summary from tool input JSON for display."""
+    try:
+        inp = json.loads(raw_json)
+    except (json.JSONDecodeError, ValueError):
+        return ""
+    if tool_name == "Read":
+        return inp.get("file_path", "")
+    if tool_name in ("Write", "Edit"):
+        return inp.get("file_path", "")
+    if tool_name == "Bash":
+        cmd = inp.get("command", "")
+        return cmd[:120] if cmd else ""
+    if tool_name == "Glob":
+        return inp.get("pattern", "")
+    if tool_name == "Grep":
+        return f'/{inp.get("pattern", "")}/'
+    if tool_name == "TodoWrite":
+        todos = inp.get("todos", [])
+        if todos:
+            first = todos[0] if isinstance(todos[0], str) else todos[0].get("content", "")
+            return f"({len(todos)} items) {first[:60]}"
+        return ""
+    # Generic: show first string value
+    for v in inp.values():
+        if isinstance(v, str) and v:
+            return v[:80]
+    return ""
+
+
 def execute_plan(prompt: str, dry_run: bool = False) -> dict:
     """
     Send the plan to the AI agent and capture results.
@@ -572,6 +602,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
         # Parse stream-json NDJSON and display events in real-time
         result_text = ""
         current_tool: Optional[str] = None
+        tool_input_chunks: list[str] = []
         assert proc.stdout is not None
         for line in proc.stdout:
             line = line.strip()
@@ -593,28 +624,25 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
                     delta = inner.get("delta", {})
                     if delta.get("type") == "text_delta":
                         print(delta.get("text", ""), end="", flush=True)
+                    elif delta.get("type") == "input_json_delta":
+                        # Accumulate tool input JSON chunks
+                        tool_input_chunks.append(delta.get("partial_json", ""))
 
-                # Tool use start — show which tool the agent is calling
+                # Tool use start
                 elif inner_type == "content_block_start":
                     block = inner.get("content_block", {})
                     if block.get("type") == "tool_use":
                         current_tool = block.get("name", "unknown")
-                        print(f"\n  ▶ [{current_tool}]", end="", flush=True)
+                        tool_input_chunks = []
 
-                # Tool use end
+                # Tool use end — parse accumulated input and show summary
                 elif inner_type == "content_block_stop":
                     if current_tool:
-                        print(f" ✓", flush=True)
+                        summary = _summarize_tool_input(
+                            current_tool, "".join(tool_input_chunks))
+                        print(f"  ▶ [{current_tool}] {summary}", flush=True)
                         current_tool = None
-
-            # Tool result from agent
-            elif etype == "tool_result":
-                tool_name = event.get("tool_name", "")
-                content = event.get("content", "")
-                if isinstance(content, str) and content:
-                    # Show a brief excerpt of tool output
-                    preview = content[:200].replace("\n", " ")
-                    print(f"  ◀ [{tool_name}] {preview}", flush=True)
+                        tool_input_chunks = []
 
             # Final result
             elif etype == "result":
