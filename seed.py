@@ -546,12 +546,15 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
     start_time = time.time()
 
     try:
+        # Remove CLAUDECODE env var to allow nested invocation in --print mode
+        env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
         result = subprocess.run(
             [AGENT_CMD, "--print", "--dangerously-skip-permissions", prompt],
             cwd=ROOT,
             capture_output=True,
             text=True,
             timeout=600,
+            env=env,
         )
         elapsed = time.time() - start_time
         return {
