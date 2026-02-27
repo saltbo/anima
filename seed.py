@@ -164,15 +164,15 @@ def scan_project_state() -> dict:
         "inbox_items": [],
     }
 
-    # Scan file tree
+    # Scan file tree — use os.walk to prune directories early (avoid .venv etc)
     skip_dirs = {".git", "__pycache__", "node_modules", "venv", ".venv",
-                 ".pytest_cache", ".ruff_cache", ".anima"}
-    for path in sorted(ROOT.rglob("*")):
-        if path.is_file():
-            rel = path.relative_to(ROOT)
-            if any(part in skip_dirs for part in rel.parts):
-                continue
-            state["files"].append(str(rel))
+                 ".pytest_cache", ".ruff_cache", ".anima", "iterations"}
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        # Prune skip_dirs in-place so os.walk won't descend into them
+        dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs)
+        for filename in sorted(filenames):
+            rel = os.path.relpath(os.path.join(dirpath, filename), ROOT)
+            state["files"].append(rel)
 
     # Check architectural layers
     state["domain_exists"] = DOMAIN_DIR.exists() and any(DOMAIN_DIR.rglob("*.py"))
@@ -223,10 +223,13 @@ def run_quality_checks() -> dict:
     """Run ruff and pyright if available. Returns structured results."""
     results: dict = {"ruff_lint": None, "ruff_format": None, "pyright": None}
 
+    # Exclude protected files from quality checks — they are not managed by Anima
+    exclude_args = ["--exclude", "seed.py"]
+
     # ruff check
     try:
         r = subprocess.run(
-            ["ruff", "check", "."],
+            ["ruff", "check", ".", *exclude_args],
             cwd=ROOT, capture_output=True, text=True, timeout=60,
         )
         results["ruff_lint"] = {
@@ -239,7 +242,7 @@ def run_quality_checks() -> dict:
     # ruff format --check
     try:
         r = subprocess.run(
-            ["ruff", "format", "--check", "."],
+            ["ruff", "format", "--check", ".", *exclude_args],
             cwd=ROOT, capture_output=True, text=True, timeout=60,
         )
         results["ruff_format"] = {
