@@ -1,65 +1,42 @@
-# 🌱 Anima
+# Anima
 
 <!-- anima:status:start -->
-![status](https://img.shields.io/badge/status-sleep-yellow) ![iterations](https://img.shields.io/badge/iterations-7-blue) ![milestone](https://img.shields.io/badge/milestone-v0.4.0-purple)
-
-| Key | Value |
-|-----|-------|
-| Status | **sleep** |
-| Iterations | 7 |
-| Last iteration | `0007-20260227-120221` |
-| Milestone | v0.4.0 |
+![milestone](https://img.shields.io/badge/milestone-v0.0.0-purple)
 <!-- anima:status:end -->
-
 
 **Give your project a soul.**
 
 Anima is an Autonomous Iteration Engine — a system that drives software projects
-through continuous, goal-driven, self-directed development cycles. It builds itself
-using the same process it provides to others.
+through continuous, gap-driven, self-directed development cycles.
 
-## Quickstart
+<!-- anima:stage:start -->
+> **Status: Growing** — Anima is building itself. It is not yet available for external use.
+<!-- anima:stage:end -->
+
+## What is Anima?
+
+Anima scans the gap between where your project is and where it should be, then
+autonomously plans, executes, verifies, and commits changes — iteration after
+iteration. It builds itself using the same engine it provides to others.
+
+## Usage
+
+> The following commands will be available after the v1.0 release.
 
 ```bash
-# Prerequisites: Python 3.11+, Git, Claude Code CLI (or other supported agent)
-
-# See current state
-python seed.py --status
-
-# Preview what Anima will do (without executing)
-python seed.py --dry-run
-
-# Run continuous iterations (default)
-python seed.py
-
-# Run a single iteration then sleep
-python seed.py --once
-
-# Run exactly 5 iterations then sleep
-python seed.py --max 5
-
-# Delete legacy iter-* git tags
-python seed.py --cleanup-tags
-
-# Inject a new idea
-echo "# My idea\n\n## What\nAdd X feature\n\n## Why\nBecause Y\n\n## Priority\nhigh" \
-  > inbox/$(date +%Y%m%d-%H%M%S)-my-idea.md
-
-# Reset after failures
-python seed.py --reset
+anima init          # Initialize Anima in a project
+anima start         # Begin autonomous iteration
+anima status        # Show current progress and gaps
+anima instruct "…"  # Give Anima a specific directive
+anima pause         # Pause iteration
+anima resume        # Resume iteration
 ```
 
 ## How It Works
 
-Anima runs a gap-driven loop: **scan → analyze gaps → plan → execute → verify → commit or rollback**.
-
-The seed script is scaffolding. Every function in it will be replaced by a module
-that Anima builds for itself. When all functions are replaced, the seed has served its purpose.
+Anima runs a gap-driven loop: **scan → analyze gaps → plan → execute → verify → commit or rollback**. Each iteration targets the highest-priority gap between the project vision and its current state. If verification fails, changes are rolled back automatically.
 
 ## Architecture
-
-Anima follows Clean Architecture: dependency flows inward, the core domain has zero
-external dependencies, all external interactions go through abstract Ports.
 
 ```
 anima/
@@ -83,10 +60,8 @@ anima/
 └── iterations/          # Iteration logs (auto-generated)
 ```
 
-## Quality Pipeline
+## Current Progress
 
-Every iteration must pass before changes are committed:
-
-```
-ruff check + format  →  pyright strict  →  pytest --cov ≥80%
-```
+<!-- anima:progress:start -->
+**Milestone: v0.0.0** — Roadmap: 14 / 69 tasks complete
+<!-- anima:progress:end -->

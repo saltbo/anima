@@ -1285,6 +1285,10 @@ def show_status() -> None:
 README_FILE = ROOT / "README.md"
 STATUS_START = "<!-- anima:status:start -->"
 STATUS_END = "<!-- anima:status:end -->"
+STAGE_START = "<!-- anima:stage:start -->"
+STAGE_END = "<!-- anima:stage:end -->"
+PROGRESS_START = "<!-- anima:progress:start -->"
+PROGRESS_END = "<!-- anima:progress:end -->"
 
 
 def _detect_current_milestone(state: dict) -> str:
@@ -1375,59 +1379,72 @@ def tag_milestone_if_advanced(state: dict) -> None:
         print(f"  🏷️  Tagged {new_milestone} (was {old_milestone})")
 
 
+def _replace_block(content: str, start: str, end: str, block: str) -> str:
+    """Replace content between start/end markers, or return unchanged."""
+    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
+    if pattern.search(content):
+        return pattern.sub(block, content)
+    return content
+
+
+def _roadmap_progress() -> tuple[int, int]:
+    """Count checked and total roadmap items across all version files."""
+    checked = 0
+    total = 0
+    if ROADMAP_DIR.exists():
+        for f in sorted(ROADMAP_DIR.glob("v*.md")):
+            text = f.read_text()
+            total += text.count("- [x]") + text.count("- [ ]")
+            checked += text.count("- [x]")
+    return checked, total
+
+
 def update_readme(state: dict) -> None:
-    """Update README.md with a status block after the title."""
+    """Update README.md auto-generated blocks (status, stage, progress)."""
     if not README_FILE.exists():
         return
 
-    status = state.get("status", "sleep")
-    iteration_count = state.get("iteration_count", 0)
-    last_iter = state.get("last_iteration", "—")
     milestone = _detect_current_milestone(state)
-
-    # shields.io badge colours
-    status_color = {"alive": "brightgreen", "sleep": "yellow", "paused": "red"}.get(
-        status, "lightgrey"
-    )
-
-    badge_line = (
-        f"![status](https://img.shields.io/badge/status-{status}-{status_color})"
-        f" ![iterations](https://img.shields.io/badge/iterations-{iteration_count}-blue)"
-        f" ![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)"
-    )
-
-    status_block = f"""{STATUS_START}
-{badge_line}
-
-| Key | Value |
-|-----|-------|
-| Status | **{status}** |
-| Iterations | {iteration_count} |
-| Last iteration | `{last_iter}` |
-| Milestone | {milestone} |
-{STATUS_END}"""
-
     content = README_FILE.read_text()
 
-    # Replace existing block if present
-    pattern = re.compile(
-        re.escape(STATUS_START) + r".*?" + re.escape(STATUS_END),
-        re.DOTALL,
+    # --- Status block: milestone badge only ---
+    status_block = (
+        f"{STATUS_START}\n"
+        f"![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)\n"
+        f"{STATUS_END}"
     )
-    if pattern.search(content):
-        content = pattern.sub(status_block, content)
+    content = _replace_block(content, STATUS_START, STATUS_END, status_block)
+
+    # --- Stage block: Growing vs Available ---
+    # Parse major version from milestone (e.g. "v0.4.0" -> 0)
+    major = 0
+    m = re.match(r"v(\d+)\.", milestone)
+    if m:
+        major = int(m.group(1))
+
+    if major >= 1:
+        stage_block = (
+            f"{STAGE_START}\n"
+            f"> **Status: Available** — Install Anima via pip: `pip install anima`\n"
+            f"{STAGE_END}"
+        )
     else:
-        # Insert after the first heading line
-        lines = content.split("\n")
-        insert_idx = 0
-        for i, line in enumerate(lines):
-            if line.startswith("# "):
-                insert_idx = i + 1
-                break
-        lines.insert(insert_idx, "")
-        lines.insert(insert_idx + 1, status_block)
-        lines.insert(insert_idx + 2, "")
-        content = "\n".join(lines)
+        stage_block = (
+            f"{STAGE_START}\n"
+            f"> **Status: Growing** — Anima is building itself."
+            f" It is not yet available for external use.\n"
+            f"{STAGE_END}"
+        )
+    content = _replace_block(content, STAGE_START, STAGE_END, stage_block)
+
+    # --- Progress block: milestone + roadmap counts ---
+    checked, total = _roadmap_progress()
+    progress_block = (
+        f"{PROGRESS_START}\n"
+        f"**Milestone: {milestone}** — Roadmap: {checked} / {total} tasks complete\n"
+        f"{PROGRESS_END}"
+    )
+    content = _replace_block(content, PROGRESS_START, PROGRESS_END, progress_block)
 
     README_FILE.write_text(content)
 
