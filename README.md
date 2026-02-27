@@ -1,13 +1,13 @@
 # 🌱 Anima
 
 <!-- anima:status:start -->
-![status](https://img.shields.io/badge/status-alive-brightgreen) ![iterations](https://img.shields.io/badge/iterations-6-blue) ![milestone](https://img.shields.io/badge/milestone-v0.4.0-purple)
+![status](https://img.shields.io/badge/status-sleep-yellow) ![iterations](https://img.shields.io/badge/iterations-7-blue) ![milestone](https://img.shields.io/badge/milestone-v0.4.0-purple)
 
 | Key | Value |
 |-----|-------|
-| Status | **alive** |
-| Iterations | 6 |
-| Last iteration | `0006-20260227-113856` |
+| Status | **sleep** |
+| Iterations | 7 |
+| Last iteration | `0007-20260227-120221` |
 | Milestone | v0.4.0 |
 <!-- anima:status:end -->
 
