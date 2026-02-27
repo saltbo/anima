@@ -51,7 +51,7 @@ KERNEL_DIR = ROOT / "kernel"
 ROADMAP_DIR = ROOT / "roadmap"
 
 # How long to wait between iterations in continuous mode (seconds)
-ITERATION_COOLDOWN = 30
+ITERATION_COOLDOWN = 10
 
 # Max consecutive failures before pausing and waiting for human
 MAX_CONSECUTIVE_FAILURES = 3
