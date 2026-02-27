@@ -1407,10 +1407,15 @@ def update_readme(state: dict) -> None:
     milestone = _detect_current_milestone(state)
     content = README_FILE.read_text()
 
-    # --- Status block: milestone badge only ---
+    # --- Status block: agent status + milestone badges ---
+    status = state.get("status", "sleep")
+    status_color = {"alive": "brightgreen", "sleep": "yellow", "paused": "red"}.get(
+        status, "lightgrey"
+    )
     status_block = (
         f"{STATUS_START}\n"
-        f"![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)\n"
+        f"![status](https://img.shields.io/badge/status-{status}-{status_color})"
+        f" ![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)\n"
         f"{STATUS_END}"
     )
     content = _replace_block(content, STATUS_START, STATUS_END, status_block)
