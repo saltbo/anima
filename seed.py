@@ -14,16 +14,18 @@ The seed does exactly five things in a loop:
   5. Report and commit (or rollback)
 
 Usage:
-  python seed.py                  # Run one iteration
-  python seed.py --loop           # Run continuous iterations
-  python seed.py --loop --max 10  # Run up to 10 iterations
+  python seed.py                  # Run continuous iterations (default)
+  python seed.py --once           # Run a single iteration then sleep
+  python seed.py --max 10         # Run up to 10 iterations then sleep
   python seed.py --dry-run        # Show what would be done without executing
   python seed.py --status         # Show current project state and gaps
+  python seed.py --cleanup-tags   # Delete all iter-* tags from git history
 """
 
 import subprocess
 import json
 import os
+import re
 import sys
 import time
 import hashlib
@@ -78,7 +80,7 @@ def load_state() -> dict:
         "last_iteration": None,
         "completed_items": [],
         "module_versions": {},
-        "status": "running",  # running | paused | idle | error
+        "status": "sleep",  # alive | sleep | paused
     }
 
 
@@ -120,28 +122,29 @@ def ensure_git() -> None:
 
 
 def create_snapshot(label: str) -> str:
-    """Create a git tag as a snapshot before iteration."""
-    tag = f"iter-{label}"
+    """Create a commit snapshot before iteration. Returns commit SHA."""
     git("add", "-A")
     code, _ = git("diff", "--cached", "--quiet")
     if code != 0:
         git("commit", "-m", f"Pre-iteration snapshot: {label}")
-    git("tag", "-f", tag)
-    return tag
+    _, sha = git("rev-parse", "HEAD")
+    return sha
 
 
 def commit_iteration(iteration_id: str, summary: str) -> None:
-    """Commit changes from a successful iteration."""
+    """Commit changes from a successful iteration and push."""
     git("add", "-A")
     git("commit", "-m", f"[iter-{iteration_id}] {summary}")
-    git("tag", f"iter-{iteration_id}-done")
+    code, out = git("push")
+    if code != 0:
+        print(f"  [git] push failed: {out[:200]}")
 
 
-def rollback_to(tag: str) -> None:
-    """Rollback to a previous snapshot."""
-    git("reset", "--hard", tag)
+def rollback_to(ref: str) -> None:
+    """Rollback to a previous snapshot by commit SHA."""
+    git("reset", "--hard", ref)
     git("clean", "-fd")
-    print(f"[git] Rolled back to {tag}")
+    print(f"[git] Rolled back to {ref[:12]}")
 
 
 # ---------------------------------------------------------------------------
@@ -634,6 +637,8 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
                     if block.get("type") == "tool_use":
                         current_tool = block.get("name", "unknown")
                         tool_input_chunks = []
+                    elif block.get("type") == "text":
+                        print("", flush=True)  # separate text from preceding tool output
 
                 # Tool use end — parse accumulated input and show summary
                 elif inner_type == "content_block_stop":
@@ -954,7 +959,7 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
 
     if gaps == "NO_GAPS":
         print("  No gaps found. Anima is at rest. 🌿")
-        state["status"] = "idle"
+        state["status"] = "sleep"
         save_state(state)
         return state
 
@@ -964,7 +969,7 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
     # Step 3: Plan + Snapshot
     print("\n[3/5] Planning iteration...")
     prompt = plan_iteration(vision, project_state, gaps, history, state["iteration_count"])
-    snapshot_tag = create_snapshot(iteration_id)
+    snapshot_ref = create_snapshot(iteration_id)
 
     # Step 4: Execute
     print("\n[4/5] Executing plan...")
@@ -989,9 +994,10 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
         commit_iteration(iteration_id, report["summary"])
         state["consecutive_failures"] = 0
         state["completed_items"].extend(verification.get("improvements", []))
+        tag_milestone_if_advanced(state)
     else:
-        print(f"\n[rollback] Rolling back to {snapshot_tag}")
-        rollback_to(snapshot_tag)
+        print(f"\n[rollback] Rolling back to {snapshot_ref[:12]}")
+        rollback_to(snapshot_ref)
         state["consecutive_failures"] += 1
 
         if state["consecutive_failures"] >= MAX_CONSECUTIVE_FAILURES:
@@ -1076,6 +1082,117 @@ def show_status() -> None:
 
 
 # ---------------------------------------------------------------------------
+# README Status Badge
+# ---------------------------------------------------------------------------
+
+README_FILE = ROOT / "README.md"
+STATUS_START = "<!-- anima:status:start -->"
+STATUS_END = "<!-- anima:status:end -->"
+
+
+def _detect_current_milestone(state: dict) -> str:
+    """Infer the current version milestone from completed_items."""
+    items = state.get("completed_items", [])
+    items_text = " ".join(items).lower()
+
+    # Walk milestones in reverse order — return the highest matched
+    if "kernel" in items_text or "self-modify" in items_text:
+        return "v1.0.0"
+    if "adapter" in items_text and "agent" in items_text:
+        return "v0.5.0"
+    if "core" in items_text and "tests" in items_text:
+        return "v0.4.0"
+    if "spec" in items_text:
+        return "v0.3.0"
+    if "contract" in items_text:
+        return "v0.2.0"
+    if "domain" in items_text or "pyproject" in items_text:
+        return "v0.1.0"
+    return "v0.0.0"
+
+
+def tag_milestone_if_advanced(state: dict) -> None:
+    """Create a git tag when the milestone version advances."""
+    new_milestone = _detect_current_milestone(state)
+    old_milestone = state.get("current_milestone", "v0.0.0")
+
+    if new_milestone == old_milestone:
+        return
+
+    state["current_milestone"] = new_milestone
+
+    # Check if this tag already exists (e.g. from a manual run)
+    code, _ = git("rev-parse", new_milestone)
+    if code == 0:
+        print(f"  [git] Tag {new_milestone} already exists, skipping")
+        return
+
+    git("tag", "-a", new_milestone, "-m", f"Milestone {new_milestone}")
+    code, out = git("push", "origin", new_milestone)
+    if code != 0:
+        print(f"  [git] push tag failed: {out[:200]}")
+    else:
+        print(f"  🏷️  Tagged {new_milestone} (was {old_milestone})")
+
+
+def update_readme(state: dict) -> None:
+    """Update README.md with a status block after the title."""
+    if not README_FILE.exists():
+        return
+
+    status = state.get("status", "sleep")
+    iteration_count = state.get("iteration_count", 0)
+    last_iter = state.get("last_iteration", "—")
+    milestone = _detect_current_milestone(state)
+
+    # shields.io badge colours
+    status_color = {"alive": "brightgreen", "sleep": "yellow", "paused": "red"}.get(
+        status, "lightgrey"
+    )
+
+    badge_line = (
+        f"![status](https://img.shields.io/badge/status-{status}-{status_color})"
+        f" ![iterations](https://img.shields.io/badge/iterations-{iteration_count}-blue)"
+        f" ![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)"
+    )
+
+    status_block = f"""{STATUS_START}
+{badge_line}
+
+| Key | Value |
+|-----|-------|
+| Status | **{status}** |
+| Iterations | {iteration_count} |
+| Last iteration | `{last_iter}` |
+| Milestone | {milestone} |
+{STATUS_END}"""
+
+    content = README_FILE.read_text()
+
+    # Replace existing block if present
+    pattern = re.compile(
+        re.escape(STATUS_START) + r".*?" + re.escape(STATUS_END),
+        re.DOTALL,
+    )
+    if pattern.search(content):
+        content = pattern.sub(status_block, content)
+    else:
+        # Insert after the first heading line
+        lines = content.split("\n")
+        insert_idx = 0
+        for i, line in enumerate(lines):
+            if line.startswith("# "):
+                insert_idx = i + 1
+                break
+        lines.insert(insert_idx, "")
+        lines.insert(insert_idx + 1, status_block)
+        lines.insert(insert_idx + 2, "")
+        content = "\n".join(lines)
+
+    README_FILE.write_text(content)
+
+
+# ---------------------------------------------------------------------------
 # Entry Point
 # ---------------------------------------------------------------------------
 
@@ -1084,13 +1201,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="🌱 Anima Seed — Bootstrap for the Autonomous Iteration Engine"
     )
-    parser.add_argument("--loop", action="store_true", help="Run continuous iterations")
-    parser.add_argument("--max", type=int, default=0, help="Max iterations in loop mode (0=unlimited)")
+    parser.add_argument("--once", action="store_true", help="Run a single iteration then sleep")
+    parser.add_argument("--max", type=int, default=0, help="Max iterations (0=unlimited)")
     parser.add_argument("--dry-run", action="store_true", help="Preview without executing")
     parser.add_argument("--status", action="store_true", help="Show project state and gaps")
     parser.add_argument("--reset", action="store_true", help="Reset failure count")
     parser.add_argument("--cooldown", type=int, default=ITERATION_COOLDOWN,
-                        help=f"Seconds between loop iterations (default: {ITERATION_COOLDOWN})")
+                        help=f"Seconds between iterations (default: {ITERATION_COOLDOWN})")
+    parser.add_argument("--cleanup-tags", action="store_true",
+                        help="Delete all iter-* tags from git history")
 
     args = parser.parse_args()
 
@@ -1105,9 +1224,20 @@ def main() -> None:
     if args.reset:
         state = load_state()
         state["consecutive_failures"] = 0
-        state["status"] = "running"
+        state["status"] = "sleep"
         save_state(state)
         print("State reset. Anima is ready to iterate.")
+        return
+
+    if args.cleanup_tags:
+        _, tags_output = git("tag", "-l", "iter-*")
+        if not tags_output.strip():
+            print("No iter-* tags found.")
+            return
+        tags = tags_output.strip().split("\n")
+        for tag in tags:
+            git("tag", "-d", tag.strip())
+        print(f"Deleted {len(tags)} iter-* tags.")
         return
 
     ensure_git()
@@ -1122,32 +1252,53 @@ def main() -> None:
         print("  python seed.py --reset    # clear and resume")
         sys.exit(1)
 
-    if args.loop:
-        count = 0
+    # Enter alive state
+    state["status"] = "alive"
+    save_state(state)
+    update_readme(state)
+
+    count = 0
+    if not args.once:
         print(f"🌱 Anima entering continuous iteration (cooldown: {args.cooldown}s)")
         if args.max:
             print(f"   Will stop after {args.max} iterations")
 
-        try:
-            while True:
-                state = run_iteration(state, dry_run=args.dry_run)
-                count += 1
+    try:
+        while True:
+            state = run_iteration(state, dry_run=args.dry_run)
+            count += 1
 
-                if args.max and count >= args.max:
-                    print(f"\nReached max iterations ({args.max}). Stopping.")
-                    break
-                if state["status"] in ("paused", "idle"):
-                    print(f"\nAnima entered '{state['status']}' state. Stopping loop.")
-                    break
+            # Update README after each successful iteration
+            if state.get("status") != "paused":
+                update_readme(state)
 
-                print(f"\n⏳ Cooling down {args.cooldown}s...")
-                time.sleep(args.cooldown)
+            if args.once:
+                break
+            if args.max and count >= args.max:
+                print(f"\nReached max iterations ({args.max}). Stopping.")
+                break
+            if state["status"] in ("paused", "sleep"):
+                print(f"\nAnima entered '{state['status']}' state. Stopping.")
+                break
 
-        except KeyboardInterrupt:
-            print("\n\nInterrupted. State saved.")
-            save_state(state)
-    else:
-        run_iteration(state, dry_run=args.dry_run)
+            print(f"\n⏳ Cooling down {args.cooldown}s...")
+            time.sleep(args.cooldown)
+
+    except KeyboardInterrupt:
+        print("\n\nInterrupted.")
+
+    # Enter sleep state (unless paused by failures)
+    if state["status"] != "paused":
+        state["status"] = "sleep"
+    save_state(state)
+    update_readme(state)
+
+    # Commit and push final status change
+    git("add", "-A")
+    code, _ = git("diff", "--cached", "--quiet")
+    if code != 0:
+        git("commit", "-m", f"[anima] {state['status']}")
+        git("push")
 
 
 if __name__ == "__main__":

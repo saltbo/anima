@@ -1,5 +1,17 @@
 # 🌱 Anima
 
+<!-- anima:status:start -->
+![status](https://img.shields.io/badge/status-alive-brightgreen) ![iterations](https://img.shields.io/badge/iterations-6-blue) ![milestone](https://img.shields.io/badge/milestone-v0.4.0-purple)
+
+| Key | Value |
+|-----|-------|
+| Status | **alive** |
+| Iterations | 6 |
+| Last iteration | `0006-20260227-113856` |
+| Milestone | v0.4.0 |
+<!-- anima:status:end -->
+
+
 **Give your project a soul.**
 
 Anima is an Autonomous Iteration Engine — a system that drives software projects
@@ -17,14 +29,17 @@ python seed.py --status
 # Preview what Anima will do (without executing)
 python seed.py --dry-run
 
-# Run a single iteration
+# Run continuous iterations (default)
 python seed.py
 
-# Run continuous iterations
-python seed.py --loop
+# Run a single iteration then sleep
+python seed.py --once
 
-# Run exactly 5 iterations
-python seed.py --loop --max 5
+# Run exactly 5 iterations then sleep
+python seed.py --max 5
+
+# Delete legacy iter-* git tags
+python seed.py --cleanup-tags
 
 # Inject a new idea
 echo "# My idea\n\n## What\nAdd X feature\n\n## Why\nBecause Y\n\n## Priority\nhigh" \

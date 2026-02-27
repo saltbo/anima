@@ -49,7 +49,13 @@ class FileSystemPort(Protocol):
 
 
 class VersionControlPort(Protocol):
-    """Abstraction over version control operations (e.g., git)."""
+    """Abstraction over version control operations (e.g., git).
+
+    Lifecycle responsibilities beyond basic VCS:
+    - commit_and_push: every successful iteration must be pushed to remote
+    - tag_milestone: when the project reaches a new semver milestone (e.g.
+      v0.1.0 → v0.2.0), create an annotated tag and push it to remote
+    """
 
     def current_branch(self) -> str:
         """Return the name of the current branch."""
@@ -63,8 +69,23 @@ class VersionControlPort(Protocol):
         """Stage all changes and commit. Return the commit hash."""
         ...
 
+    def commit_and_push(self, message: str) -> bool:
+        """Stage all changes, commit, and push to remote.
+
+        Returns True if push succeeded.
+        """
+        ...
+
     def rollback_to(self, commit_hash: str) -> None:
         """Reset the working tree to the given commit."""
+        ...
+
+    def tag_milestone(self, version: str) -> bool:
+        """Create an annotated tag (e.g. 'v0.2.0') and push it to remote.
+
+        Should be a no-op if the tag already exists.
+        Returns True if a new tag was created and pushed.
+        """
         ...
 
     def has_uncommitted_changes(self) -> bool:

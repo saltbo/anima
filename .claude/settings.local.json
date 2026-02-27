@@ -5,7 +5,8 @@
       "Bash(uv:*)",
       "Bash(source:*)",
       "Bash(env:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(python:*)"
     ]
   }
 }

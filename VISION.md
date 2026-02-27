@@ -210,7 +210,7 @@ and quality foundation.
 - [ ] Create pyproject.toml with project metadata, ruff config, pytest config
 - [ ] Create pyrightconfig.json with strict mode enabled
 - [ ] Implement domain/models.py with all core dataclasses (fully typed, frozen)
-- [ ] Implement domain/ports.py with all Protocol definitions
+- [ ] Implement domain/ports.py with all Protocol definitions (VersionControlPort must include commit_and_push + tag_milestone)
 - [ ] Create CONTRACT.md for each module (gap_analyzer, planner, executor, verifier, reporter)
 - [ ] Create SPEC.md for each module defining v0.1 target functionality
 - [ ] Implement adapters/local_fs.py (LocalFileSystem implements FileSystemPort)
@@ -265,6 +265,11 @@ Extract the kernel and achieve complete seed replacement.
 - [ ] Extract kernel/config.py from seed.py configuration
 - [ ] Seed script is now a thin entry point that calls kernel/loop.py
 - [ ] System can iterate on its own modules (excluding kernel/)
+- [ ] Lifecycle state machine: alive (iterating) / sleep (idle) / paused (failed)
+- [ ] Continuous iteration by default; --once flag for single run
+- [ ] Auto-detect milestone advancement and create semver git tags (v0.1.0, v0.2.0, ...)
+- [ ] Commit and push to remote after every successful iteration
+- [ ] Update README.md status badges (shields.io) on state transitions
 - [ ] inbox/ monitoring: system detects and incorporates new .md files
 - [ ] Gate mechanism: pause and request human approval on high-risk changes
 - [ ] Iteration rate limiting and cost tracking
