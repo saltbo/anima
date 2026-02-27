@@ -1,0 +1,17 @@
+{
+  "include": ["domain", "modules", "adapters"],
+  "exclude": [
+    ".venv",
+    ".git",
+    ".ruff_cache",
+    "**/__pycache__"
+  ],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "strict",
+  "reportMissingTypeStubs": false,
+  "reportUnusedImport": true,
+  "reportUnusedVariable": true,
+  "reportMissingParameterType": true,
+  "reportMissingReturnType": true,
+  "reportUnnecessaryTypeIgnoreComment": true
+}
