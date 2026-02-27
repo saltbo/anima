@@ -24,6 +24,7 @@ build-backend = "hatchling.backends"
 target-version = "py312"
 line-length = 99
 src = ["."]
+exclude = ["seed.py"]
 
 [tool.ruff.lint]
 select = [

@@ -363,6 +363,7 @@ FILES:
   pyproject.toml
   pyrightconfig.json
   seed.py
+  test_claude.sh
   .claude/settings.local.json
   domain/models.py
   domain/ports.py
@@ -383,9 +384,9 @@ MODULE STATUS:
   verifier: [empty]
 
 QUALITY PIPELINE:
-  ruff_lint: not installed
-  ruff_format: not installed
-  pyright: not installed
+  ruff_lint: ✓
+  ruff_format: ✓
+  pyright: ✓
 
 
 RECENT ITERATIONS:
