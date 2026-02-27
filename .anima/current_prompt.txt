@@ -383,9 +383,9 @@ MODULE STATUS:
   verifier: [empty]
 
 QUALITY PIPELINE:
-  ruff_lint: ✓
-  ruff_format: ✓
-  pyright: ✓
+  ruff_lint: not installed
+  ruff_format: not installed
+  pyright: not installed
 
 
 RECENT ITERATIONS:
