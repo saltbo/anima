@@ -201,113 +201,16 @@ scaffolding (v0.1):
 
 ## Version Roadmap
 
-### v0.1 — Foundation & Toolchain
+See `roadmap/` for per-version checklists:
 
-The seed script drives all iterations. Establish the project's structural
-and quality foundation.
-
-- [ ] Create complete directory structure matching the architecture above
-- [ ] Create pyproject.toml with project metadata, ruff config, pytest config
-- [ ] Create pyrightconfig.json with strict mode enabled
-- [ ] Implement domain/models.py with all core dataclasses (fully typed, frozen)
-- [ ] Implement domain/ports.py with all Protocol definitions (VersionControlPort must include commit_and_push + tag_milestone)
-- [ ] Create CONTRACT.md for each module (gap_analyzer, planner, executor, verifier, reporter)
-- [ ] Create SPEC.md for each module defining v0.1 target functionality
-- [ ] Implement adapters/local_fs.py (LocalFileSystem implements FileSystemPort)
-- [ ] Implement adapters/git_vc.py (GitVersionControl implements VersionControlPort)
-- [ ] Set up pytest with conftest.py and fixtures for common test patterns
-- [ ] All code passes: ruff check + ruff format + pyright strict + pytest
-- [ ] Verify that domain/ has zero external imports
-
-### v0.2 — Core Modules (Gap Analyzer & Reporter)
-
-Build the two modules with the simplest contracts first.
-
-- [ ] Implement gap_analyzer/core.py: reads Vision + ProjectState, outputs GapReport
-- [ ] Tests for gap_analyzer validating CONTRACT.md
-- [ ] Implement reporter/core.py: writes structured IterationRecord to iterations/
-- [ ] Tests for reporter validating CONTRACT.md
-- [ ] Seed delegates gap analysis to gap_analyzer module (first self-replacement)
-- [ ] Seed delegates reporting to reporter module (second self-replacement)
-- [ ] All code passes full quality pipeline
-
-### v0.3 — Planner & Executor
-
-Build the modules that drive the actual iteration work.
-
-- [ ] Implement planner/core.py: receives GapReport + history, produces IterationPlan
-- [ ] Tests for planner validating CONTRACT.md
-- [ ] Implement adapters/agents/claude_code.py (ClaudeCodeAdapter implements AgentPort)
-- [ ] Implement executor/core.py: takes IterationPlan, calls AgentPort, returns ExecutionResult
-- [ ] Tests for executor validating CONTRACT.md (with mock AgentPort)
-- [ ] Seed delegates planning to planner module (third self-replacement)
-- [ ] Seed delegates execution to executor module (fourth self-replacement)
-- [ ] All code passes full quality pipeline
-
-### v0.4 — Verifier & Quality Gate
-
-Build the verification module and integrate the full quality pipeline.
-
-- [ ] Implement adapters/pytest_runner.py (PytestRunner implements TestRunnerPort)
-- [ ] Implement adapters/quality_checker.py (RuffPyrightChecker implements LinterPort)
-- [ ] Implement verifier/core.py: runs lint + typecheck + tests, produces VerificationReport
-- [ ] Tests for verifier validating CONTRACT.md
-- [ ] Seed delegates verification to verifier module (fifth self-replacement — seed is now minimal)
-- [ ] Implement protected file detection (kernel/ and VISION.md cannot be modified by agent)
-- [ ] All code passes full quality pipeline
-
-### v0.5 — Kernel & Full Autonomy
-
-Extract the kernel and achieve complete seed replacement.
-
-- [ ] Extract kernel/loop.py from seed.py iteration logic
-- [ ] Extract kernel/rollback.py from seed.py git operations
-- [ ] Extract kernel/config.py from seed.py configuration
-- [ ] Seed script is now a thin entry point that calls kernel/loop.py
-- [ ] System can iterate on its own modules (excluding kernel/)
-- [ ] Lifecycle state machine: alive (iterating) / sleep (idle) / paused (failed)
-- [ ] Continuous iteration by default; --once flag for single run
-- [ ] Auto-detect milestone advancement and create semver git tags (v0.1.0, v0.2.0, ...)
-- [ ] Commit and push to remote after every successful iteration
-- [ ] Update README.md status badges (shields.io) on state transitions
-- [ ] inbox/ monitoring: system detects and incorporates new .md files
-- [ ] Gate mechanism: pause and request human approval on high-risk changes
-- [ ] Iteration rate limiting and cost tracking
-- [ ] All code passes full quality pipeline
-
-### v0.6 — CLI & Developer Experience
-
-Build the command-line interface for end users.
-
-- [ ] `anima init <project>` — scaffold a new autonomous project
-- [ ] `anima start` — launch iteration daemon
-- [ ] `anima status` — show current state, gaps, module health
-- [ ] `anima log` — show iteration history
-- [ ] `anima instruct "..."` — inject human intent into inbox/
-- [ ] `anima pause` / `anima resume` — control iteration flow
-- [ ] `anima approve <iteration-id>` — approve pending decisions
-- [ ] Published to PyPI, installable via `uv tool install anima`
-- [ ] All code passes full quality pipeline
-
-### v0.7 — Self-Validation & Benchmark
-
-Establish the benchmark suite that proves the system works.
-
-- [ ] Benchmark project #1: Simple TODO CLI app (spec → working app)
-- [ ] Benchmark project #2: REST API with database (spec → working app)
-- [ ] Benchmark project #3: Anima iterates itself (self-improvement cycle)
-- [ ] Stable/Candidate promotion mechanism for self-iteration
-- [ ] Module health scoring (test coverage trend, change frequency, patch count)
-- [ ] Auto-rewrite trigger: when module health score drops below threshold
-
-### v1.0 — Production Ready
-
-- [ ] All seed.py logic fully replaced by purpose-built modules
-- [ ] Self-iteration validated: Anima can improve its own modules reliably
-- [ ] Multiple AI agent backends (Claude Code, Codex, Gemini CLI)
-- [ ] Web dashboard (local) for iteration monitoring
-- [ ] Comprehensive documentation (generated from system's own specs)
-- [ ] Stable release on PyPI
+- roadmap/v0.1.md — Foundation & Toolchain
+- roadmap/v0.2.md — Core Modules (Gap Analyzer & Reporter)
+- roadmap/v0.3.md — Planner & Executor
+- roadmap/v0.4.md — Verifier & Quality Gate
+- roadmap/v0.5.md — Kernel & Full Autonomy
+- roadmap/v0.6.md — CLI & Developer Experience
+- roadmap/v0.7.md — Self-Validation & Benchmark
+- roadmap/v1.0.md — Production Ready
 
 ## Inbox Protocol
 

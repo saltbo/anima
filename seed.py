@@ -48,6 +48,7 @@ MODULES_DIR = ROOT / "modules"
 DOMAIN_DIR = ROOT / "domain"
 ADAPTERS_DIR = ROOT / "adapters"
 KERNEL_DIR = ROOT / "kernel"
+ROADMAP_DIR = ROOT / "roadmap"
 
 # How long to wait between iterations in continuous mode (seconds)
 ITERATION_COOLDOWN = 30
@@ -63,7 +64,177 @@ PROTECTED_PATHS = [
     "seed.py",
     "VISION.md",
     "kernel/",
+    "roadmap/",
 ]
+
+# ---------------------------------------------------------------------------
+# Roadmap Helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_current_version() -> str:
+    """Return the first version that still has unchecked items (e.g. '0.2').
+
+    Scans roadmap/v*.md in sorted order. Returns the highest version if all
+    are complete.
+    """
+    if not ROADMAP_DIR.exists():
+        return "0.1"
+    versions: list[str] = []
+    for f in sorted(ROADMAP_DIR.glob("v*.md")):
+        ver = f.stem[1:]  # "v0.2" -> "0.2"
+        versions.append(ver)
+        content = f.read_text()
+        if "- [ ]" in content:
+            return ver
+    return versions[-1] if versions else "0.1"
+
+
+def _read_roadmap_file(version: str) -> str:
+    """Read the content of roadmap/v{version}.md."""
+    path = ROADMAP_DIR / f"v{version}.md"
+    if path.exists():
+        return path.read_text()
+    return ""
+
+
+def _parse_roadmap_items(content: str) -> tuple[list[str], list[str]]:
+    """Parse markdown checklist, return (unchecked, checked) item texts."""
+    unchecked: list[str] = []
+    checked: list[str] = []
+    for line in content.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("- [ ]"):
+            unchecked.append(stripped[6:].strip())
+        elif stripped.startswith("- [x]") or stripped.startswith("- [X]"):
+            checked.append(stripped[6:].strip())
+    return unchecked, checked
+
+
+def _is_item_complete(item_text: str) -> bool:
+    """Check whether a roadmap checklist item is satisfied by the filesystem.
+
+    Uses conservative pattern matching — returns False if no pattern matches.
+    """
+    text = item_text.lower()
+
+    # "Create complete directory structure"
+    if "directory structure" in text:
+        return all(
+            d.exists()
+            for d in [DOMAIN_DIR, MODULES_DIR, ADAPTERS_DIR, INBOX_DIR]
+        )
+
+    # "Create pyproject.toml ..."
+    if "pyproject.toml" in text:
+        return (ROOT / "pyproject.toml").exists()
+
+    # "Create pyrightconfig.json ..."
+    if "pyrightconfig.json" in text:
+        return (ROOT / "pyrightconfig.json").exists()
+
+    # "Implement domain/models.py ..."
+    if "domain/models.py" in text:
+        return (DOMAIN_DIR / "models.py").exists()
+
+    # "Implement domain/ports.py ..."
+    if "domain/ports.py" in text:
+        return (DOMAIN_DIR / "ports.py").exists()
+
+    # "CONTRACT.md for each module"
+    if "contract.md" in text and "each module" in text:
+        expected = ["gap_analyzer", "planner", "executor", "verifier", "reporter"]
+        return all((MODULES_DIR / m / "CONTRACT.md").exists() for m in expected)
+
+    # "SPEC.md for each module"
+    if "spec.md" in text and "each module" in text:
+        expected = ["gap_analyzer", "planner", "executor", "verifier", "reporter"]
+        return all((MODULES_DIR / m / "SPEC.md").exists() for m in expected)
+
+    # "Implement adapters/local_fs.py"
+    if "adapters/local_fs.py" in text:
+        return (ADAPTERS_DIR / "local_fs.py").exists()
+
+    # "Implement adapters/git_vc.py"
+    if "adapters/git_vc.py" in text:
+        return (ADAPTERS_DIR / "git_vc.py").exists()
+
+    # "Set up pytest with conftest.py"
+    if "conftest.py" in text:
+        return (ROOT / "conftest.py").exists() or any(ROOT.rglob("conftest.py"))
+
+    # "All code passes" quality pipeline
+    if "all code passes" in text:
+        qr = run_quality_checks()
+        for tool_result in qr.values():
+            if tool_result and not tool_result["passed"]:
+                return False
+        return True
+
+    # "domain/ has zero external imports"
+    if "domain/" in text and "zero external imports" in text:
+        return check_domain_imports() is None
+
+    # "Implement <module>/core.py" patterns
+    core_match = re.search(r"implement\s+(\w+)/core\.py", text)
+    if core_match:
+        module_name = core_match.group(1)
+        return (MODULES_DIR / module_name / "core.py").exists()
+
+    # "Tests for <module>"
+    test_match = re.search(r"tests for (\w+)", text)
+    if test_match:
+        module_name = test_match.group(1)
+        test_dir = MODULES_DIR / module_name / "tests"
+        return test_dir.exists() and any(test_dir.rglob("test_*.py"))
+
+    # "Implement adapters/agents/claude_code.py"
+    if "adapters/agents/claude_code.py" in text:
+        return (ADAPTERS_DIR / "agents" / "claude_code.py").exists()
+
+    # "Implement adapters/pytest_runner.py"
+    if "adapters/pytest_runner.py" in text:
+        return (ADAPTERS_DIR / "pytest_runner.py").exists()
+
+    # "Implement adapters/quality_checker.py"
+    if "adapters/quality_checker.py" in text:
+        return (ADAPTERS_DIR / "quality_checker.py").exists()
+
+    # "Extract kernel/*.py"
+    kernel_match = re.search(r"extract kernel/(\w+\.py)", text)
+    if kernel_match:
+        return (KERNEL_DIR / kernel_match.group(1)).exists()
+
+    # Conservative default: not complete
+    return False
+
+
+def auto_check_roadmap_items(version: str) -> list[str]:
+    """Auto-check completed items in a roadmap file. Returns newly checked items."""
+    content = _read_roadmap_file(version)
+    if not content:
+        return []
+
+    newly_checked: list[str] = []
+    lines = content.split("\n")
+    changed = False
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("- [ ]"):
+            item_text = stripped[6:].strip()
+            if _is_item_complete(item_text):
+                # Replace "- [ ]" with "- [x]" preserving indentation
+                lines[i] = line.replace("- [ ]", "- [x]", 1)
+                newly_checked.append(item_text)
+                changed = True
+
+    if changed:
+        path = ROADMAP_DIR / f"v{version}.md"
+        path.write_text("\n".join(lines))
+
+    return newly_checked
+
 
 # ---------------------------------------------------------------------------
 # State Management
@@ -310,18 +481,13 @@ def analyze_gaps(vision: str, project_state: dict, history: list[dict]) -> str:
     """
     gaps: list[str] = []
 
-    # Parse vision for unchecked roadmap items
-    unchecked: list[str] = []
-    checked: list[str] = []
-    for line in vision.split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("- [ ]"):
-            unchecked.append(stripped[6:].strip())
-        elif stripped.startswith("- [x]") or stripped.startswith("- [X]"):
-            checked.append(stripped[6:].strip())
+    # Read only the current version's roadmap file
+    current_version = _get_current_version()
+    roadmap_content = _read_roadmap_file(current_version)
+    unchecked, checked = _parse_roadmap_items(roadmap_content)
 
     if unchecked:
-        gaps.append(f"UNCOMPLETED ROADMAP ITEMS ({len(unchecked)}):")
+        gaps.append(f"UNCOMPLETED ROADMAP ITEMS for v{current_version} ({len(unchecked)}):")
         for item in unchecked:
             gaps.append(f"  - {item}")
 
@@ -449,11 +615,18 @@ def plan_iteration(
         tr = project_state["test_results"]
         test_status = f"\nTESTS: {'✓ passing' if tr['passed'] else '✗ FAILING'}"
 
+    # Load current roadmap target
+    current_version = _get_current_version()
+    roadmap_content = _read_roadmap_file(current_version)
+
     prompt = f"""You are the AI agent driving Anima, an Autonomous Iteration Engine.
 Anima builds itself through iterative development cycles. You are in iteration #{iteration_count + 1}.
 
 ======== VISION (read VISION.md for full details) ========
 {vision}
+
+======== CURRENT ROADMAP TARGET (v{current_version}) ========
+{roadmap_content}
 
 ======== CURRENT STATE ========
 FILES:
@@ -523,6 +696,7 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    - seed.py
    - VISION.md
    - Anything in kernel/ (if it exists)
+   - Anything in roadmap/ (managed by seed.py auto-check)
 
 Now execute. Create or modify files to address the most important gap.
 After making changes, verify them by running: ruff check . && pyright && python -m pytest
@@ -635,10 +809,11 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
                 elif inner_type == "content_block_start":
                     block = inner.get("content_block", {})
                     if block.get("type") == "tool_use":
+                        print("", flush=True)  # newline after preceding text
                         current_tool = block.get("name", "unknown")
                         tool_input_chunks = []
                     elif block.get("type") == "text":
-                        print("", flush=True)  # separate text from preceding tool output
+                        print("", flush=True)  # newline after preceding tool output
 
                 # Tool use end — parse accumulated input and show summary
                 elif inner_type == "content_block_stop":
@@ -712,9 +887,13 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
     improvements: list[str] = []
 
     # --- Protected file checks ---
+    protected_files = ["seed.py", "VISION.md"]
+    if ROADMAP_DIR.exists():
+        for f in sorted(ROADMAP_DIR.glob("*.md")):
+            protected_files.append(str(f.relative_to(ROOT)))
     protected_hashes_before = {
         p: _file_hash(ROOT / p)
-        for p in ["seed.py", "VISION.md"]
+        for p in protected_files
     }
 
     current_state = scan_project_state()
@@ -994,6 +1173,16 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
         commit_iteration(iteration_id, report["summary"])
         state["consecutive_failures"] = 0
         state["completed_items"].extend(verification.get("improvements", []))
+
+        # Auto-check roadmap items after successful iteration
+        current_version = _get_current_version()
+        newly_checked = auto_check_roadmap_items(current_version)
+        if newly_checked:
+            print(f"  [roadmap] Auto-checked {len(newly_checked)} items in v{current_version}")
+            git("add", f"roadmap/v{current_version}.md")
+            git("commit", "-m", f"[seed] auto-check roadmap v{current_version}")
+            git("push")
+
         tag_milestone_if_advanced(state)
     else:
         print(f"\n[rollback] Rolling back to {snapshot_ref[:12]}")
@@ -1033,6 +1222,14 @@ def show_status() -> None:
     print(f"  Status: {state['status']}")
     print(f"  Failures (consecutive): {state['consecutive_failures']}")
     print(f"  Last iteration: {state.get('last_iteration', '—')}")
+
+    # Roadmap progress
+    current_version = _get_current_version()
+    roadmap_content = _read_roadmap_file(current_version)
+    unchecked, checked = _parse_roadmap_items(roadmap_content)
+    total = len(unchecked) + len(checked)
+    print(f"\n  Roadmap target: v{current_version}")
+    print(f"  Roadmap progress: {len(checked)}/{total} items checked")
 
     print(f"\n  Architecture:")
     print(f"    domain/:          {'✓' if project_state['domain_exists'] else '✗ missing'}")
@@ -1091,24 +1288,67 @@ STATUS_END = "<!-- anima:status:end -->"
 
 
 def _detect_current_milestone(state: dict) -> str:
-    """Infer the current version milestone from completed_items."""
-    items = state.get("completed_items", [])
-    items_text = " ".join(items).lower()
+    """Detect the current version milestone using roadmap files.
 
-    # Walk milestones in reverse order — return the highest matched
-    if "kernel" in items_text or "self-modify" in items_text:
-        return "v1.0.0"
-    if "adapter" in items_text and "agent" in items_text:
-        return "v0.5.0"
-    if "core" in items_text and "tests" in items_text:
-        return "v0.4.0"
-    if "spec" in items_text:
-        return "v0.3.0"
-    if "contract" in items_text:
-        return "v0.2.0"
-    if "domain" in items_text or "pyproject" in items_text:
+    Scans roadmap/v*.md in order. The first version that still has unchecked
+    items is the *current target*; the previous version is the achieved
+    milestone. Falls back to filesystem heuristics if roadmap/ is missing.
+    """
+    _ = state  # reserved for future use
+
+    # Primary: use roadmap files
+    if ROADMAP_DIR.exists():
+        prev_version = "v0.0.0"
+        for f in sorted(ROADMAP_DIR.glob("v*.md")):
+            ver = f.stem  # "v0.2"
+            content = f.read_text()
+            if "- [ ]" in content:
+                return prev_version
+            prev_version = ver + ".0"  # "v0.2" -> "v0.2.0"
+        return prev_version  # all complete
+
+    # Fallback: filesystem scan (legacy)
+    expected_modules = {"gap_analyzer", "planner", "executor", "verifier", "reporter"}
+    modules: dict[str, dict[str, bool]] = {}
+    if MODULES_DIR.exists():
+        for d in sorted(MODULES_DIR.iterdir()):
+            if d.is_dir() and d.name in expected_modules:
+                modules[d.name] = {
+                    "contract": (d / "CONTRACT.md").exists(),
+                    "spec": (d / "SPEC.md").exists(),
+                    "core": (d / "core.py").exists(),
+                    "tests": (d / "tests").exists()
+                    and any((d / "tests").rglob("test_*.py")),
+                }
+
+    has_domain = (
+        DOMAIN_DIR.exists()
+        and (DOMAIN_DIR / "models.py").exists()
+        and (DOMAIN_DIR / "ports.py").exists()
+    )
+    has_pyproject = (ROOT / "pyproject.toml").exists()
+    has_pyrightconfig = (ROOT / "pyrightconfig.json").exists()
+    all_contracts = all(modules.get(m, {}).get("contract") for m in expected_modules)
+    all_specs = all(modules.get(m, {}).get("spec") for m in expected_modules)
+
+    if not (has_domain and has_pyproject and has_pyrightconfig and all_contracts and all_specs):
+        return "v0.0.0"
+
+    v02 = {"gap_analyzer", "reporter"}
+    if not all(modules.get(m, {}).get("core") and modules.get(m, {}).get("tests") for m in v02):
         return "v0.1.0"
-    return "v0.0.0"
+
+    v03 = {"planner", "executor"}
+    if not all(modules.get(m, {}).get("core") and modules.get(m, {}).get("tests") for m in v03):
+        return "v0.2.0"
+
+    if not (modules.get("verifier", {}).get("core") and modules.get("verifier", {}).get("tests")):
+        return "v0.3.0"
+
+    if not (KERNEL_DIR.exists() and any(KERNEL_DIR.rglob("*.py"))):
+        return "v0.4.0"
+
+    return "v0.5.0"
 
 
 def tag_milestone_if_advanced(state: dict) -> None:
@@ -1239,6 +1479,9 @@ def main() -> None:
             git("tag", "-d", tag.strip())
         print(f"Deleted {len(tags)} iter-* tags.")
         return
+
+    if not ROADMAP_DIR.exists():
+        print("WARNING: roadmap/ directory not found. Roadmap tracking disabled.")
 
     ensure_git()
     for d in [INBOX_DIR, ITERATIONS_DIR, MODULES_DIR]:
