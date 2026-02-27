@@ -547,7 +547,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
 
     try:
         result = subprocess.run(
-            [AGENT_CMD, "--print", "--dangerously-skip-permissions", "-m", prompt],
+            [AGENT_CMD, "--print", "--dangerously-skip-permissions", prompt],
             cwd=ROOT,
             capture_output=True,
             text=True,
