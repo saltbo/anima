@@ -1,5 +1,5 @@
 You are the AI agent driving Anima, an Autonomous Iteration Engine.
-Anima builds itself through iterative development cycles. You are in iteration #13.
+Anima builds itself through iterative development cycles. You are in iteration #14.
 
 ======== VISION (read VISION.md for full details) ========
 # VISION: Anima
@@ -262,24 +262,18 @@ to `inbox/.archive/`.
 - kernel/ is off-limits to Anima's self-iteration
 
 
-======== CURRENT ROADMAP TARGET (v0.1) ========
-# v0.1 — Foundation & Toolchain
+======== CURRENT ROADMAP TARGET (v0.2) ========
+# v0.2 — Core Modules (Gap Analyzer & Reporter)
 
-The seed script drives all iterations. Establish the project's structural
-and quality foundation.
+Build the two modules with the simplest contracts first.
 
-- [x] Create complete directory structure matching the architecture above
-- [x] Create pyproject.toml with project metadata, ruff config, pytest config
-- [x] Create pyrightconfig.json with strict mode enabled
-- [x] Implement domain/models.py with all core dataclasses (fully typed, frozen)
-- [x] Implement domain/ports.py with all Protocol definitions (VersionControlPort must include commit_and_push + tag_milestone)
-- [x] Create CONTRACT.md for each module (gap_analyzer, planner, executor, verifier, reporter)
-- [x] Create SPEC.md for each module defining v0.1 target functionality
-- [x] Implement adapters/local_fs.py (LocalFileSystem implements FileSystemPort)
-- [x] Implement adapters/git_vc.py (GitVersionControl implements VersionControlPort)
-- [ ] Set up pytest with conftest.py and fixtures for common test patterns
-- [x] All code passes: ruff check + ruff format + pyright strict + pytest
-- [x] Verify that domain/ has zero external imports
+- [x] Implement gap_analyzer/core.py: reads Vision + ProjectState, outputs GapReport
+- [x] Tests for gap_analyzer validating CONTRACT.md
+- [x] Implement reporter/core.py: writes structured IterationRecord to iterations/
+- [x] Tests for reporter validating CONTRACT.md
+- [ ] Seed delegates gap analysis to gap_analyzer module (first self-replacement)
+- [ ] Seed delegates reporting to reporter module (second self-replacement)
+- [x] All code passes full quality pipeline
 
 
 ======== CURRENT STATE ========
@@ -289,6 +283,7 @@ FILES:
   LICENSE
   README.md
   VISION.md
+  conftest.py
   pyproject.toml
   pyrightconfig.json
   seed.py
@@ -368,13 +363,14 @@ QUALITY PIPELINE:
 TESTS: ✓ passing
 
 RECENT ITERATIONS:
-  [✓] All tests passing; New files: 2; Module 'executor' gained core
   [✓] All tests passing; New files: 2; Module 'verifier' gained core
   [✓] All tests passing; New files: 2
+  [✓] All tests passing; New files: 1
 
 ======== GAPS TO ADDRESS ========
-UNCOMPLETED ROADMAP ITEMS for v0.1 (1):
-  - Set up pytest with conftest.py and fixtures for common test patterns
+UNCOMPLETED ROADMAP ITEMS for v0.2 (2):
+  - Seed delegates gap analysis to gap_analyzer module (first self-replacement)
+  - Seed delegates reporting to reporter module (second self-replacement)
 
 HUMAN REQUEST (20260227-120000-bootstrap-foundation.md):
 # Bootstrap project foundation
@@ -406,8 +402,8 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    Do not attempt multiple unrelated changes.
 
 2. **FINISH THE CURRENT VERSION FIRST.** Only work on items listed in the
-   CURRENT ROADMAP TARGET (v0.1) above. Do NOT start tasks from
-   later versions until all items in v0.1 are checked off.
+   CURRENT ROADMAP TARGET (v0.2) above. Do NOT start tasks from
+   later versions until all items in v0.2 are checked off.
 
 3. **PRIORITY ORDER** (do the first applicable item from the current version):
    a. If quality checks are failing (ruff/pyright) → fix the issues
