@@ -1,5 +1,5 @@
 You are the AI agent driving Anima, an Autonomous Iteration Engine.
-Anima builds itself through iterative development cycles. You are in iteration #12.
+Anima builds itself through iterative development cycles. You are in iteration #13.
 
 ======== VISION (read VISION.md for full details) ========
 # VISION: Anima
@@ -276,7 +276,7 @@ and quality foundation.
 - [x] Create CONTRACT.md for each module (gap_analyzer, planner, executor, verifier, reporter)
 - [x] Create SPEC.md for each module defining v0.1 target functionality
 - [x] Implement adapters/local_fs.py (LocalFileSystem implements FileSystemPort)
-- [ ] Implement adapters/git_vc.py (GitVersionControl implements VersionControlPort)
+- [x] Implement adapters/git_vc.py (GitVersionControl implements VersionControlPort)
 - [ ] Set up pytest with conftest.py and fixtures for common test patterns
 - [x] All code passes: ruff check + ruff format + pyright strict + pytest
 - [x] Verify that domain/ has zero external imports
@@ -295,9 +295,11 @@ FILES:
   test_claude.sh
   .claude/settings.local.json
   adapters/__init__.py
+  adapters/git_vc.py
   adapters/local_fs.py
   adapters/agents/__init__.py
   adapters/tests/__init__.py
+  adapters/tests/test_git_vc.py
   adapters/tests/test_local_fs.py
   domain/__init__.py
   domain/models.py
@@ -366,16 +368,13 @@ QUALITY PIPELINE:
 TESTS: ✓ passing
 
 RECENT ITERATIONS:
-  [✓] All tests passing; New files: 2; Module 'planner' gained core
   [✓] All tests passing; New files: 2; Module 'executor' gained core
   [✓] All tests passing; New files: 2; Module 'verifier' gained core
+  [✓] All tests passing; New files: 2
 
 ======== GAPS TO ADDRESS ========
-UNCOMPLETED ROADMAP ITEMS for v0.1 (2):
-  - Implement adapters/git_vc.py (GitVersionControl implements VersionControlPort)
+UNCOMPLETED ROADMAP ITEMS for v0.1 (1):
   - Set up pytest with conftest.py and fixtures for common test patterns
-
-MODULE '__pycache__' INCOMPLETE: missing CONTRACT.md, missing SPEC.md, missing core.py, missing tests
 
 HUMAN REQUEST (20260227-120000-bootstrap-foundation.md):
 # Bootstrap project foundation
@@ -406,19 +405,18 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
 1. **ONE THING WELL.** Pick the highest-priority gap and address it thoroughly.
    Do not attempt multiple unrelated changes.
 
-2. **PRIORITY ORDER** (do the first applicable item):
-   a. If pyproject.toml or pyrightconfig.json is missing → create them
-   b. If domain/models.py or domain/ports.py is missing → create them
-   c. If a module directory is missing → create the directory + CONTRACT.md
-   d. If a module has CONTRACT.md but no SPEC.md → write SPEC.md
-   e. If a module has SPEC.md but no core.py → implement core.py
-   f. If a module has core.py but no tests → write tests
-   g. If quality checks are failing (ruff/pyright) → fix the issues
-   h. If tests are failing → fix them
-   i. If inbox has items → incorporate into specs/plans
-   j. If all above are done → advance to next roadmap version
+2. **FINISH THE CURRENT VERSION FIRST.** Only work on items listed in the
+   CURRENT ROADMAP TARGET (v0.1) above. Do NOT start tasks from
+   later versions until all items in v0.1 are checked off.
 
-3. **ARCHITECTURE RULES** (enforced — violations cause rollback):
+3. **PRIORITY ORDER** (do the first applicable item from the current version):
+   a. If quality checks are failing (ruff/pyright) → fix the issues
+   b. If tests are failing → fix them
+   c. Pick the next unchecked roadmap item and implement it
+   d. If inbox has items → incorporate into specs/plans
+   e. If all items in current version are done → advance to next roadmap version
+
+4. **ARCHITECTURE RULES** (enforced — violations cause rollback):
    - domain/ must have ZERO external imports (only stdlib + typing)
    - modules/*/core.py must only import from domain/
    - adapters/ implement Protocols defined in domain/ports.py
@@ -427,7 +425,7 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    - Complete type annotations on ALL functions (params + return types)
    - No `Any` type in domain models
 
-4. **FILE LOCATIONS**:
+5. **FILE LOCATIONS**:
    - Domain types: domain/models.py
    - Port interfaces: domain/ports.py
    - Module logic: modules/<name>/core.py
@@ -437,7 +435,7 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    - Adapters: adapters/<name>.py or adapters/<category>/<name>.py
    - Config: pyproject.toml, pyrightconfig.json (project root)
 
-5. **CONTRACT.md FORMAT**:
+6. **CONTRACT.md FORMAT**:
    ```
    # <Module Name> Contract
    ## Purpose
