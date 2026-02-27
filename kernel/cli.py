@@ -2,8 +2,8 @@
 """
 Anima CLI — Stable entry point for the Autonomous Iteration Engine.
 
-This file is human-maintained and protected. It dispatches to module
-implementations when available, falling back to seed functions.
+This file is human-maintained and protected. Pipeline step dispatch
+is handled by wiring.py (agent-modifiable) via kernel/loop.py.
 
 Usage:
   anima start [--once] [--max N] [--dry-run] [--cooldown N]
@@ -15,72 +15,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import importlib
 import sys
 import time
-from typing import Any
-
-
-# ---------------------------------------------------------------------------
-# Module dispatch
-# ---------------------------------------------------------------------------
-
-
-def _use_module(module_name: str, class_name: str) -> type | None:
-    """Try to import a class from modules/<module_name>/core.py.
-
-    Returns the class if found, None otherwise.
-    """
-    try:
-        mod = importlib.import_module(f"modules.{module_name}.core")
-        return getattr(mod, class_name, None)
-    except (ImportError, AttributeError):
-        return None
-
-
-# ---------------------------------------------------------------------------
-# Iteration runner (extracted from seed.py)
-# ---------------------------------------------------------------------------
-
-
-def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any]:
-    """Execute a single iteration cycle with module dispatch.
-
-    Each of the 5 steps checks for a module implementation first,
-    falling back to the seed function.
-    """
-    from kernel import seed  # local import — seed is a function library
-
-    # Step 1: scan_project_state — no module yet, always seed
-    # Step 2: analyze_gaps
-    GapAnalyzer = _use_module("gap_analyzer", "GapAnalyzer")
-    if GapAnalyzer:
-        # Module available — agent wires this when ready
-        pass
-
-    # Step 3: plan_iteration
-    Planner = _use_module("planner", "Planner")
-    if Planner:
-        pass
-
-    # Step 4: execute_plan
-    Executor = _use_module("executor", "Executor")
-    if Executor:
-        pass
-
-    # Step 5: verify_iteration
-    Verifier = _use_module("verifier", "Verifier")
-    if Verifier:
-        pass
-
-    # Reporter (record_iteration)
-    Reporter = _use_module("reporter", "Reporter")
-    if Reporter:
-        pass
-
-    # Delegate to seed's run_iteration for now — module wiring happens
-    # incrementally as part of the self-replacement roadmap
-    return seed.run_iteration(state, dry_run=dry_run)
 
 
 # ---------------------------------------------------------------------------
@@ -91,11 +27,14 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
 def cmd_status() -> None:
     """Display current project state."""
     from kernel import seed
+    from kernel.config import VISION_FILE
+    from kernel.roadmap import get_current_version, parse_roadmap_items, read_roadmap_file
+    from kernel.state import load_history, load_state
 
-    state = seed.load_state()
-    project_state = seed.scan_project_state()
-    vision = seed.VISION_FILE.read_text()
-    history = seed.load_history()
+    state = load_state()
+    project_state = seed.scan_project_state(skip_checks=True)
+    vision = VISION_FILE.read_text()
+    history = load_history()
     gaps = seed.analyze_gaps(vision, project_state, history)
 
     print(f"\n{'='*60}")
@@ -107,9 +46,9 @@ def cmd_status() -> None:
     print(f"  Last iteration: {state.get('last_iteration', '--')}")
 
     # Roadmap progress
-    current_version = seed._get_current_version()
-    roadmap_content = seed._read_roadmap_file(current_version)
-    unchecked, checked = seed._parse_roadmap_items(roadmap_content)
+    current_version = get_current_version()
+    roadmap_content = read_roadmap_file(current_version)
+    unchecked, checked = parse_roadmap_items(roadmap_content)
     total = len(unchecked) + len(checked)
     print(f"\n  Roadmap target: v{current_version}")
     print(f"  Roadmap progress: {len(checked)}/{total} items checked")
@@ -163,45 +102,49 @@ def cmd_status() -> None:
 
 def cmd_reset() -> None:
     """Reset failure count and resume."""
-    from kernel import seed
+    from kernel.state import load_state, save_state
 
-    state = seed.load_state()
+    state = load_state()
     state["consecutive_failures"] = 0
     state["status"] = "sleep"
-    seed.save_state(state)
+    save_state(state)
     print("State reset. Anima is ready to iterate.")
 
 
 def cmd_cleanup_tags() -> None:
     """Delete all iter-* tags from git history."""
-    from kernel import seed
+    from kernel.git_ops import git
 
-    _, tags_output = seed.git("tag", "-l", "iter-*")
+    _, tags_output = git("tag", "-l", "iter-*")
     if not tags_output.strip():
         print("No iter-* tags found.")
         return
     tags = tags_output.strip().split("\n")
     for tag in tags:
-        seed.git("tag", "-d", tag.strip())
+        git("tag", "-d", tag.strip())
     print(f"Deleted {len(tags)} iter-* tags.")
 
 
 def cmd_start(args: argparse.Namespace) -> None:
     """Run iteration loop."""
-    from kernel import seed
+    from kernel import loop
+    from kernel.config import INBOX_DIR, ITERATIONS_DIR, MODULES_DIR, ROADMAP_DIR, VISION_FILE
+    from kernel.git_ops import ensure_git, git
+    from kernel.roadmap import update_readme
+    from kernel.state import load_state, save_state
 
-    if not seed.VISION_FILE.exists():
+    if not VISION_FILE.exists():
         print("ERROR: VISION.md not found. Anima cannot iterate without a vision.")
         sys.exit(1)
 
-    if not seed.ROADMAP_DIR.exists():
+    if not ROADMAP_DIR.exists():
         print("WARNING: roadmap/ directory not found. Roadmap tracking disabled.")
 
-    seed.ensure_git()
-    for d in [seed.INBOX_DIR, seed.ITERATIONS_DIR, seed.MODULES_DIR]:
+    ensure_git()
+    for d in [INBOX_DIR, ITERATIONS_DIR, MODULES_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
-    state = seed.load_state()
+    state = load_state()
 
     if state["status"] == "paused":
         print("  Anima is paused due to consecutive failures.")
@@ -211,13 +154,13 @@ def cmd_start(args: argparse.Namespace) -> None:
 
     # Enter alive state — commit + push so remote reflects we're awake
     state["status"] = "alive"
-    seed.save_state(state)
-    seed.update_readme(state)
-    seed.git("add", "-A")
-    code, _ = seed.git("diff", "--cached", "--quiet")
+    save_state(state)
+    update_readme(state)
+    git("add", "-A")
+    code, _ = git("diff", "--cached", "--quiet")
     if code != 0:
-        seed.git("commit", "-m", "chore(anima): I'm waking up")
-        seed.git("push")
+        git("commit", "-m", "chore(anima): I'm waking up")
+        git("push")
 
     count = 0
     if not args.once:
@@ -227,12 +170,12 @@ def cmd_start(args: argparse.Namespace) -> None:
 
     try:
         while True:
-            state = run_iteration(state, dry_run=args.dry_run)
+            state = loop.run_iteration(state, dry_run=args.dry_run)
             count += 1
 
             # Update README after each successful iteration
             if state.get("status") != "paused":
-                seed.update_readme(state)
+                update_readme(state)
 
             if args.once:
                 break
@@ -252,8 +195,8 @@ def cmd_start(args: argparse.Namespace) -> None:
     # Enter sleep state (unless paused by failures)
     if state["status"] != "paused":
         state["status"] = "sleep"
-    seed.save_state(state)
-    seed.update_readme(state)
+    save_state(state)
+    update_readme(state)
 
     # Commit and push final status change
     status_messages = {
@@ -261,11 +204,11 @@ def cmd_start(args: argparse.Namespace) -> None:
         "paused": "I'm stuck, need help",
     }
     msg = status_messages.get(state["status"], state["status"])
-    seed.git("add", "-A")
-    code, _ = seed.git("diff", "--cached", "--quiet")
+    git("add", "-A")
+    code, _ = git("diff", "--cached", "--quiet")
     if code != 0:
-        seed.git("commit", "-m", f"chore(anima): {msg}")
-        seed.git("push")
+        git("commit", "-m", f"chore(anima): {msg}")
+        git("push")
 
 
 # ---------------------------------------------------------------------------

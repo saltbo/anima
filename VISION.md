@@ -20,8 +20,10 @@ release will have been produced by itself.
 3. **Verify Before Commit**: Nothing is committed without passing the full
    verification pipeline (ruff + pyright + pytest). Failed iterations are
    rolled back and their failure is recorded as knowledge.
-4. **Seed Replacement**: Anima progressively replaces the seed script's primitive
-   logic with its own purpose-built modules. The seed is scaffolding, not architecture.
+4. **Self-Bootstrapping**: Anima starts with a seed — minimal implementations of each
+   pipeline step. It progressively replaces these with purpose-built modules, proving
+   each replacement through conformance tests. The seed is scaffolding for bootstrapping,
+   not architecture.
 5. **Human as Visionary**: Humans define *what* and *why*. Anima decides *how* and *when*.
 6. **Type Safety as Contract**: All code must have complete type annotations and
    pass strict static analysis. Types are the machine-enforceable form of contracts.
@@ -92,16 +94,16 @@ anima/
 │   └── local_fs.py            # LocalFileSystem implements FileSystemPort
 │
 ├── kernel/                    # IMMUTABLE — Anima cannot modify this
-│   ├── loop.py                # Iteration loop scheduler
-│   ├── rollback.py            # Rollback mechanism
-│   └── config.py              # System configuration
+│   ├── __init__.py
+│   ├── cli.py                 # CLI entry point (anima command)
+│   ├── loop.py                # Fixed iteration loop (calls through wiring)
+│   └── seed.py                # Seed implementations (initial/fallback)
 │
-├── cli/                       # User-facing command-line interface
-│   └── main.py                # anima init / start / status / instruct / pause / approve
-│
+├── wiring.py                  # Agent-modifiable step registry
 ├── inbox/                     # Human intent injection (drop .md files here)
 ├── iterations/                # Iteration logs (auto-generated)
-└── seed.py                    # Bootstrap script (to be replaced by modules)
+└── tests/
+    └── conformance/           # Conformance tests for module replacements
 ```
 
 ### Clean Architecture Rules

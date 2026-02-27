@@ -29,161 +29,59 @@ from pathlib import Path
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration — imported from kernel.config
 # ---------------------------------------------------------------------------
 
-ROOT = Path(__file__).parent.parent.resolve()
-VISION_FILE = ROOT / "VISION.md"
-STATE_FILE = ROOT / ".anima" / "state.json"
-ITERATIONS_DIR = ROOT / "iterations"
-INBOX_DIR = ROOT / "inbox"
-MODULES_DIR = ROOT / "modules"
-DOMAIN_DIR = ROOT / "domain"
-ADAPTERS_DIR = ROOT / "adapters"
-KERNEL_DIR = ROOT / "kernel"
-ROADMAP_DIR = ROOT / "roadmap"
-
-# How long to wait between iterations in continuous mode (seconds)
-ITERATION_COOLDOWN = 10
-
-# Max consecutive failures before pausing and waiting for human
-MAX_CONSECUTIVE_FAILURES = 3
-
-# Agent command — change this if using a different agent
-AGENT_CMD = "claude"
-
-# Protected paths that the agent must not modify
-PROTECTED_PATHS = [
-    "VISION.md",
-    "kernel/",
-]
+from kernel.config import (
+    ADAPTERS_DIR,
+    AGENT_CMD,
+    DOMAIN_DIR,
+    INBOX_DIR,
+    ITERATIONS_DIR,
+    KERNEL_DIR,
+    MAX_CONSECUTIVE_FAILURES,
+    MODULES_DIR,
+    PROTECTED_PATHS,
+    ROADMAP_DIR,
+    ROOT,
+    VISION_FILE,
+)
 
 # ---------------------------------------------------------------------------
-# Roadmap Helpers
+# Roadmap helpers — imported from kernel.roadmap
 # ---------------------------------------------------------------------------
 
-
-def _get_current_version() -> str:
-    """Return the first version that still has unchecked items (e.g. '0.2').
-
-    Scans roadmap/v*.md in sorted order. Returns the highest version if all
-    are complete.
-    """
-    if not ROADMAP_DIR.exists():
-        return "0.1"
-    versions: list[str] = []
-    for f in sorted(ROADMAP_DIR.glob("v*.md")):
-        ver = f.stem[1:]  # "v0.2" -> "0.2"
-        versions.append(ver)
-        content = f.read_text()
-        if "- [ ]" in content:
-            return ver
-    return versions[-1] if versions else "0.1"
-
-
-def _read_roadmap_file(version: str) -> str:
-    """Read the content of roadmap/v{version}.md."""
-    path = ROADMAP_DIR / f"v{version}.md"
-    if path.exists():
-        return path.read_text()
-    return ""
-
-
-def _parse_roadmap_items(content: str) -> tuple[list[str], list[str]]:
-    """Parse markdown checklist, return (unchecked, checked) item texts."""
-    unchecked: list[str] = []
-    checked: list[str] = []
-    for line in content.split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("- [ ]"):
-            unchecked.append(stripped[6:].strip())
-        elif stripped.startswith("- [x]") or stripped.startswith("- [X]"):
-            checked.append(stripped[6:].strip())
-    return unchecked, checked
-
-
-
+from kernel.roadmap import (
+    get_current_version as _get_current_version,
+    parse_roadmap_items as _parse_roadmap_items,
+    read_roadmap_file as _read_roadmap_file,
+)
 
 # ---------------------------------------------------------------------------
 # State Management
 # ---------------------------------------------------------------------------
-
-
-def load_state() -> dict:
-    """Load persistent state from disk."""
-    if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text())
-    return {
-        "iteration_count": 0,
-        "consecutive_failures": 0,
-        "last_iteration": None,
-        "completed_items": [],
-        "module_versions": {},
-        "status": "sleep",  # alive | sleep | paused
-    }
-
-
-def save_state(state: dict) -> None:
-    """Persist state to disk."""
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=False))
-
-
-# ---------------------------------------------------------------------------
-# Git Operations
+# State management — imported from kernel.state
 # ---------------------------------------------------------------------------
 
+from kernel.state import load_history, load_state, save_state
 
-def git(*args: str) -> tuple[int, str]:
-    """Run a git command and return (returncode, output)."""
-    result = subprocess.run(
-        ["git", *args],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode, (result.stdout + result.stderr).strip()
+# ---------------------------------------------------------------------------
+# Git operations — imported from kernel.git_ops
+# ---------------------------------------------------------------------------
 
+from kernel.git_ops import (
+    commit_iteration,
+    create_snapshot,
+    ensure_git,
+    git,
+    rollback_to,
+)
 
-def ensure_git() -> None:
-    """Initialize git repo if not already initialized."""
-    if not (ROOT / ".git").exists():
-        git("init")
-        gitignore = ROOT / ".gitignore"
-        if not gitignore.exists():
-            gitignore.write_text(
-                "__pycache__/\n*.pyc\n.anima/\n.pytest_cache/\n"
-                "venv/\n.venv/\nnode_modules/\n.ruff_cache/\n"
-            )
-        git("add", "-A")
-        git("commit", "-m", "chore(anima): initial commit")
-        print("[git] Initialized repository")
+# ---------------------------------------------------------------------------
+# Roadmap/milestone ops — imported from kernel.roadmap
+# ---------------------------------------------------------------------------
 
-
-def create_snapshot(label: str) -> str:
-    """Create a commit snapshot before iteration. Returns commit SHA."""
-    git("add", "-A")
-    code, _ = git("diff", "--cached", "--quiet")
-    if code != 0:
-        git("commit", "-m", f"chore(anima): pre-iteration snapshot {label}")
-    _, sha = git("rev-parse", "HEAD")
-    return sha
-
-
-def commit_iteration(iteration_id: str, summary: str) -> None:
-    """Commit changes from a successful iteration and push."""
-    git("add", "-A")
-    git("commit", "-m", f"feat(anima): [{iteration_id}] {summary}")
-    code, out = git("push")
-    if code != 0:
-        print(f"  [git] push failed: {out[:200]}")
-
-
-def rollback_to(ref: str) -> None:
-    """Rollback to a previous snapshot by commit SHA."""
-    git("reset", "--hard", ref)
-    git("clean", "-fd")
-    print(f"[git] Rolled back to {ref[:12]}")
+from kernel.roadmap import tag_milestone_if_advanced, update_readme
 
 
 # ---------------------------------------------------------------------------
@@ -191,8 +89,13 @@ def rollback_to(ref: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def scan_project_state() -> dict:
-    """Scan the current project to understand what exists."""
+def scan_project_state(*, skip_checks: bool = False) -> dict:
+    """Scan the current project to understand what exists.
+
+    Args:
+        skip_checks: If True, skip quality pipeline and test execution
+                     (useful for fast status display).
+    """
     state: dict = {
         "files": [],
         "modules": {},
@@ -243,12 +146,13 @@ def scan_project_state() -> dict:
     test_files = [f for f in state["files"] if "test_" in f and f.endswith(".py")]
     state["has_tests"] = len(test_files) > 0
 
-    # Run quality pipeline if tooling is available
-    state["quality_results"] = run_quality_checks()
+    # Run quality pipeline if tooling is available (skip for fast status)
+    if not skip_checks:
+        state["quality_results"] = run_quality_checks()
 
-    # Run tests if they exist
-    if state["has_tests"]:
-        state["test_results"] = run_tests()
+        # Run tests if they exist
+        if state["has_tests"]:
+            state["test_results"] = run_tests()
 
     # Scan inbox
     if INBOX_DIR.exists():
@@ -507,13 +411,19 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
 4. **ROADMAP TRACKING**: When you complete a roadmap item, check it off yourself
    by changing `- [ ]` to `- [x]` in the corresponding roadmap/v*.md file.
 
-5. **SELF-REPLACEMENT**: You may modify seed.py to delegate functions to modules
-   you have built. This is how Anima grows — replacing seed scaffolding with
-   purpose-built modules. Make sure tests still pass after any seed.py change.
+5. **SELF-REPLACEMENT via wiring.py**: To replace a seed function with your module:
+   a. Ensure your module passes its CONTRACT.md tests
+   b. Write a conformance test in tests/conformance/ that proves your module
+      produces equivalent or better output than the seed for the same inputs
+   c. Modify wiring.py to point the step to your implementation
+   d. The verification pipeline must pass with the new wiring
 
-6. **DO NOT MODIFY these files** (they are protected — violations cause rollback):
+6. **DO NOT MODIFY these files** (protected — violations cause rollback):
    - VISION.md
-   - Anything in kernel/ (if it exists)
+   - kernel/ (all files)
+   - roadmap/ (checked off by the system, not by you)
+
+7. **YOU MAY MODIFY**: wiring.py, modules/, adapters/, domain/, tests/conformance/
 
 Now execute. Create or modify files to address the most important gap.
 After making changes, verify them by running: ruff check . && pyright && python -m pytest
@@ -826,18 +736,6 @@ def _generate_summary(verification: dict) -> str:
     return "No significant changes"
 
 
-def load_history() -> list[dict]:
-    """Load all past iteration reports."""
-    history: list[dict] = []
-    if ITERATIONS_DIR.exists():
-        for log_file in sorted(ITERATIONS_DIR.glob("*.json")):
-            try:
-                history.append(json.loads(log_file.read_text()))
-            except (json.JSONDecodeError, IOError):
-                continue
-    return history
-
-
 # ---------------------------------------------------------------------------
 # Module Replacement Check
 # ---------------------------------------------------------------------------
@@ -845,260 +743,4 @@ def load_history() -> list[dict]:
 
 
 
-# ---------------------------------------------------------------------------
-# Main Iteration Cycle
-# ---------------------------------------------------------------------------
-
-
-def run_iteration(state: dict, dry_run: bool = False) -> dict:
-    """Execute a single iteration cycle."""
-    iteration_num = state["iteration_count"] + 1
-    iteration_id = f"{iteration_num:04d}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    iteration_start = time.time()
-
-    print(f"\n{'═'*60}")
-    print(f"  🌱 ANIMA — Iteration #{iteration_num}")
-    print(f"     {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'═'*60}")
-
-    # Step 1: Scan current state
-    print("\n[1/5] Scanning project state...")
-    project_state = scan_project_state()
-    print(f"  Files: {len(project_state['files'])}")
-    print(f"  Modules: {list(project_state['modules'].keys()) or '(none)'}")
-    print(f"  Domain: {'✓' if project_state['domain_exists'] else '✗'}")
-    print(f"  Tests: {'✓' if project_state['has_tests'] else '—'}")
-    print(f"  Inbox: {len(project_state['inbox_items'])} items")
-
-    # Step 2: Analyze gaps
-    print("\n[2/5] Analyzing gaps...")
-    vision = VISION_FILE.read_text()
-    history = load_history()
-    gaps = analyze_gaps(vision, project_state, history)
-
-    if gaps == "NO_GAPS":
-        print("  No gaps found. Anima is at rest. 🌿")
-        state["status"] = "sleep"
-        save_state(state)
-        return state
-
-    gap_lines = gaps.strip().split("\n")
-    print(f"  Found {len(gap_lines)} gap entries")
-
-    # Step 3: Plan + Snapshot
-    print("\n[3/5] Planning iteration...")
-    prompt = plan_iteration(vision, project_state, gaps, history, state["iteration_count"])
-    snapshot_ref = create_snapshot(iteration_id)
-
-    # Step 4: Execute
-    print("\n[4/5] Executing plan...")
-    exec_result = execute_plan(prompt, dry_run=dry_run)
-
-    if dry_run:
-        print("\n[dry-run] Skipping verification and commit")
-        return state
-
-    if not exec_result["success"]:
-        print(f"  Agent execution failed: {exec_result.get('errors', 'unknown error')[:200]}")
-
-    # Step 5: Verify
-    print("\n[5/5] Verifying results...")
-    verification = verify_iteration(project_state, scan_project_state())
-
-    # Report + commit/rollback
-    elapsed = time.time() - iteration_start
-    report = record_iteration(iteration_id, gaps, exec_result, verification, elapsed)
-
-    # Accumulate totals in state
-    state["total_cost_usd"] = state.get("total_cost_usd", 0) + report.get("cost_usd", 0)
-    state["total_tokens"] = state.get("total_tokens", 0) + report.get("total_tokens", 0)
-    state["total_elapsed_seconds"] = state.get("total_elapsed_seconds", 0) + elapsed
-
-    if verification["passed"]:
-        commit_iteration(iteration_id, report["summary"])
-        state["consecutive_failures"] = 0
-        state["completed_items"].extend(verification.get("improvements", []))
-
-        tag_milestone_if_advanced(state)
-    else:
-        print(f"\n[rollback] Rolling back to {snapshot_ref[:12]}")
-        rollback_to(snapshot_ref)
-        state["consecutive_failures"] += 1
-
-        if state["consecutive_failures"] >= MAX_CONSECUTIVE_FAILURES:
-            print(f"\n⚠️  {MAX_CONSECUTIVE_FAILURES} consecutive failures. Pausing.")
-            print("  Review iteration logs, then:")
-            print("    python seed.py --status     # see what went wrong")
-            print("    python seed.py --reset      # clear failures and resume")
-            state["status"] = "paused"
-
-    state["iteration_count"] = iteration_num
-    state["last_iteration"] = report["id"]
-    save_state(state)
-    return state
-
-
-# ---------------------------------------------------------------------------
-# README Status Badge
-# ---------------------------------------------------------------------------
-
-README_FILE = ROOT / "README.md"
-STATUS_START = "<!-- anima:status:start -->"
-STATUS_END = "<!-- anima:status:end -->"
-STAGE_START = "<!-- anima:stage:start -->"
-STAGE_END = "<!-- anima:stage:end -->"
-PROGRESS_START = "<!-- anima:progress:start -->"
-PROGRESS_END = "<!-- anima:progress:end -->"
-
-
-def _parse_version(v: str) -> tuple[int, ...]:
-    """Parse 'v0.4.0' or 'v0.4' into a comparable tuple like (0, 4, 0)."""
-    return tuple(int(x) for x in v.lstrip("v").split("."))
-
-
-def _detect_current_milestone(state: dict) -> str:
-    """Detect the current version milestone using roadmap files.
-
-    Scans roadmap/v*.md in order. The first version that still has unchecked
-    items is the *current target*; the previous version is the achieved
-    milestone. Requires roadmap/ directory to exist.
-    """
-    _ = state  # reserved for future use
-
-    if not ROADMAP_DIR.exists():
-        print("  [milestone] WARNING: roadmap/ directory missing, returning v0.0.0")
-        return "v0.0.0"
-
-    prev_version = "v0.0.0"
-    for f in sorted(ROADMAP_DIR.glob("v*.md")):
-        ver = f.stem  # "v0.2"
-        content = f.read_text()
-        if "- [ ]" in content:
-            return prev_version
-        prev_version = ver + ".0"  # "v0.2" -> "v0.2.0"
-    return prev_version  # all complete
-
-
-def tag_milestone_if_advanced(state: dict) -> None:
-    """Create a git tag when the milestone version advances (never downgrades)."""
-    new_milestone = _detect_current_milestone(state)
-    old_milestone = state.get("current_milestone", "v0.0.0")
-
-    if _parse_version(new_milestone) <= _parse_version(old_milestone):
-        return
-
-    state["current_milestone"] = new_milestone
-
-    # Check if this tag already exists (e.g. from a manual run)
-    code, _ = git("rev-parse", new_milestone)
-    if code == 0:
-        print(f"  [git] Tag {new_milestone} already exists, skipping")
-        return
-
-    git("tag", "-a", new_milestone, "-m", f"Milestone {new_milestone}")
-    code, out = git("push", "origin", new_milestone)
-    if code != 0:
-        print(f"  [git] push tag failed: {out[:200]}")
-    else:
-        print(f"  🏷️  Tagged {new_milestone} (was {old_milestone})")
-
-
-def _replace_block(content: str, start: str, end: str, block: str) -> str:
-    """Replace content between start/end markers, or return unchanged."""
-    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
-    if pattern.search(content):
-        return pattern.sub(block, content)
-    return content
-
-
-def _roadmap_progress() -> tuple[int, int]:
-    """Count checked and total roadmap items across all version files."""
-    checked = 0
-    total = 0
-    if ROADMAP_DIR.exists():
-        for f in sorted(ROADMAP_DIR.glob("v*.md")):
-            text = f.read_text()
-            total += text.count("- [x]") + text.count("- [ ]")
-            checked += text.count("- [x]")
-    return checked, total
-
-
-def update_readme(state: dict) -> None:
-    """Update README.md auto-generated blocks (status, stage, progress)."""
-    if not README_FILE.exists():
-        return
-
-    milestone = _detect_current_milestone(state)
-    content = README_FILE.read_text()
-
-    # --- Status block: agent status + milestone badges ---
-    status = state.get("status", "sleep")
-    status_color = {"alive": "brightgreen", "sleep": "yellow", "paused": "red"}.get(
-        status, "lightgrey"
-    )
-    # Format cumulative stats for badges
-    total_cost = state.get("total_cost_usd", 0)
-    total_tokens = state.get("total_tokens", 0)
-    total_seconds = state.get("total_elapsed_seconds", 0)
-
-    # Human-readable time: "1h_23m" or "45m" or "2m" (underscore for shields.io)
-    total_minutes = int(total_seconds // 60)
-    if total_minutes >= 60:
-        time_label = f"{total_minutes // 60}h_{total_minutes % 60}m"
-    else:
-        time_label = f"{total_minutes}m"
-
-    # Human-readable tokens: "123k" or "1.2M"
-    if total_tokens >= 1_000_000:
-        tokens_label = f"{total_tokens / 1_000_000:.1f}M"
-    elif total_tokens >= 1_000:
-        tokens_label = f"{total_tokens / 1_000:.0f}k"
-    else:
-        tokens_label = str(total_tokens)
-
-    cost_label = f"${total_cost:.2f}"
-
-    status_block = (
-        f"{STATUS_START}\n"
-        f"![status](https://img.shields.io/badge/status-{status}-{status_color})"
-        f" ![milestone](https://img.shields.io/badge/milestone-{milestone}-purple)"
-        f" ![time](https://img.shields.io/badge/time-{time_label}-blue)"
-        f" ![tokens](https://img.shields.io/badge/tokens-{tokens_label}-blue)"
-        f" ![cost](https://img.shields.io/badge/cost-{cost_label}-blue)\n"
-        f"{STATUS_END}"
-    )
-    content = _replace_block(content, STATUS_START, STATUS_END, status_block)
-
-    # --- Stage block: Growing vs Available ---
-    # Parse major version from milestone (e.g. "v0.4.0" -> 0)
-    major = 0
-    m = re.match(r"v(\d+)\.", milestone)
-    if m:
-        major = int(m.group(1))
-
-    if major >= 1:
-        stage_block = (
-            f"{STAGE_START}\n"
-            f"> **Status: Available** — Install Anima via pip: `pip install anima`\n"
-            f"{STAGE_END}"
-        )
-    else:
-        stage_block = (
-            f"{STAGE_START}\n"
-            f"> **Status: Growing** — Anima is building itself."
-            f" It is not yet available for external use.\n"
-            f"{STAGE_END}"
-        )
-    content = _replace_block(content, STAGE_START, STAGE_END, stage_block)
-
-    # --- Progress block: milestone + roadmap counts ---
-    checked, total = _roadmap_progress()
-    progress_block = (
-        f"{PROGRESS_START}\n"
-        f"**Milestone: {milestone}** — Roadmap: {checked} / {total} tasks complete\n"
-        f"{PROGRESS_END}"
-    )
-    content = _replace_block(content, PROGRESS_START, PROGRESS_END, progress_block)
-
-    README_FILE.write_text(content)
 

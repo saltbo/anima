@@ -1,5 +1,5 @@
 {
-  "include": ["domain", "modules", "adapters"],
+  "include": ["domain", "modules", "adapters", "wiring.py"],
   "exclude": [
     ".venv",
     ".git",
