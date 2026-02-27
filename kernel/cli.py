@@ -141,6 +141,16 @@ def cmd_start(args: argparse.Namespace) -> None:
         print("WARNING: roadmap/ directory not found. Roadmap tracking disabled.")
 
     ensure_git()
+
+    # Refuse to start with a dirty working tree (unless dry-run)
+    if not args.dry_run:
+        code, _ = git("diff", "--quiet")
+        _, untracked = git("ls-files", "--others", "--exclude-standard")
+        if code != 0 or untracked.strip():
+            print("ERROR: Working tree is not clean. Commit or stash your changes first.")
+            print("  git status  # see what's pending")
+            sys.exit(1)
+
     for d in [INBOX_DIR, ITERATIONS_DIR, MODULES_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
@@ -152,15 +162,17 @@ def cmd_start(args: argparse.Namespace) -> None:
         print("  anima reset     # clear and resume")
         sys.exit(1)
 
-    # Enter alive state — commit + push so remote reflects we're awake
-    state["status"] = "alive"
-    save_state(state)
-    update_readme(state)
-    git("add", "-A")
-    code, _ = git("diff", "--cached", "--quiet")
-    if code != 0:
-        git("commit", "-m", "chore(anima): I'm waking up")
-        git("push")
+    # In dry-run mode, skip all git commits and state changes
+    if not args.dry_run:
+        # Enter alive state — commit + push so remote reflects we're awake
+        state["status"] = "alive"
+        save_state(state)
+        update_readme(state)
+        git("add", "-A")
+        code, _ = git("diff", "--cached", "--quiet")
+        if code != 0:
+            git("commit", "-m", "chore(anima): I'm waking up")
+            git("push")
 
     count = 0
     if not args.once:
@@ -174,7 +186,7 @@ def cmd_start(args: argparse.Namespace) -> None:
             count += 1
 
             # Update README after each successful iteration
-            if state.get("status") != "paused":
+            if not args.dry_run and state.get("status") != "paused":
                 update_readme(state)
 
             if args.once:
@@ -191,6 +203,9 @@ def cmd_start(args: argparse.Namespace) -> None:
 
     except KeyboardInterrupt:
         print("\n\nInterrupted.")
+
+    if args.dry_run:
+        return
 
     # Enter sleep state (unless paused by failures)
     if state["status"] != "paused":
