@@ -383,9 +383,9 @@ MODULE STATUS:
   verifier: [empty]
 
 QUALITY PIPELINE:
-  ruff_lint: ✗ FAILING
+  ruff_lint: ✓
   ruff_format: ✓
-  pyright: ✗ FAILING
+  pyright: ✓
 
 
 RECENT ITERATIONS:
@@ -467,36 +467,6 @@ MODULE 'planner' INCOMPLETE: missing CONTRACT.md, missing SPEC.md, missing core.
 MODULE 'reporter' INCOMPLETE: missing CONTRACT.md, missing SPEC.md, missing core.py, missing tests
 
 MODULE 'verifier' INCOMPLETE: missing CONTRACT.md, missing SPEC.md, missing core.py, missing tests
-
-RUFF LINT FAILURES:
-to type-checking block
-
-TC001 Move application import `domain.models.IterationPlan` into a type-checking block
-  --> domain/ports.py:16:5
-   |
-14 |     ExecutionResult,
-15 |     FileInfo,
-16 |     IterationPlan,
-   |     ^^^^^^^^^^^^^
-17 |     IterationRecord,
-18 |     QualityResult,
-   |
-help: Move into type-checking block
-
-TC001 Move application import `domain.models.IterationRecord` into a type-checking block
-  --> domain/ports.py:17:5
-   |
-15 |     FileInfo,
-16 |     IterationPlan,
-17 |     
-
-PYRIGHT TYPE ERRORS:
-/Users/saltbo/Develop/bogit/anima/domain/models.py
-  /Users/saltbo/Develop/bogit/anima/domain/models.py:9:36 - error: Import "field" is not accessed (reportUnusedImport)
-  /Users/saltbo/Develop/bogit/anima/domain/models.py:10:22 - error: Import "datetime" is not accessed (reportUnusedImport)
-2 errors, 0 warnings, 0 informations
-Config contains unrecognized setting "reportMissingReturnType".
-
 
 HUMAN REQUEST (20260227-120000-bootstrap-foundation.md):
 # Bootstrap project foundation

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(uv pip:*)",
       "Bash(uv:*)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(env:*)"
     ]
   }
 }
