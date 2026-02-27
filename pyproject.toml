@@ -7,6 +7,9 @@ license = { file = "LICENSE" }
 requires-python = ">=3.12"
 dependencies = []
 
+[project.scripts]
+anima = "kernel.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
@@ -17,14 +20,17 @@ dev = [
 
 [build-system]
 requires = ["hatchling"]
-build-backend = "hatchling.backends"
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kernel", "modules", "domain", "adapters"]
 
 # ── ruff ────────────────────────────────────────────────────────────────────
 [tool.ruff]
 target-version = "py312"
 line-length = 99
 src = ["."]
-exclude = ["seed.py"]
+exclude = ["kernel/seed.py"]
 
 [tool.ruff.lint]
 select = [

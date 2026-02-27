@@ -1,35 +1,28 @@
 #!/usr/bin/env python3
 """
-SEED — The bootstrap script for Anima.
+SEED — Function library for Anima.
 
 Anima is an Autonomous Iteration Engine that gives software projects a life
 of their own. This seed script is the initial spark — every function here
 is meant to be replaced by a purpose-built module that Anima creates for itself.
 
-The seed does exactly five things in a loop:
-  1. Analyze gaps between vision and current state
-  2. Plan the next iteration
-  3. Execute the plan via an AI agent
-  4. Verify the results (ruff + pyright + pytest + contract checks)
-  5. Report and commit (or rollback)
+The seed provides the core functions for the five iteration steps:
+  1. analyze_gaps() — find gaps between vision and current state
+  2. plan_iteration() — plan the next iteration
+  3. execute_plan() — execute the plan via an AI agent
+  4. verify_iteration() — verify results (ruff + pyright + pytest + contract checks)
+  5. record_iteration() — report and commit (or rollback)
 
-Usage:
-  python seed.py                  # Run continuous iterations (default)
-  python seed.py --once           # Run a single iteration then sleep
-  python seed.py --max 10         # Run up to 10 iterations then sleep
-  python seed.py --dry-run        # Show what would be done without executing
-  python seed.py --status         # Show current project state and gaps
-  python seed.py --cleanup-tags   # Delete all iter-* tags from git history
+CLI entry point: kernel/cli.py (installed as 'anima' command)
+Backward compat: python seed.py [args] still works (redirects to kernel.cli)
 """
 
 import subprocess
 import json
 import os
 import re
-import sys
 import time
 import hashlib
-import argparse
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,7 +32,7 @@ from typing import Optional
 # Configuration
 # ---------------------------------------------------------------------------
 
-ROOT = Path(__file__).parent.resolve()
+ROOT = Path(__file__).parent.parent.resolve()
 VISION_FILE = ROOT / "VISION.md"
 STATE_FILE = ROOT / ".anima" / "state.json"
 ITERATIONS_DIR = ROOT / "iterations"
@@ -61,10 +54,8 @@ AGENT_CMD = "claude"
 
 # Protected paths that the agent must not modify
 PROTECTED_PATHS = [
-    "seed.py",
     "VISION.md",
     "kernel/",
-    "roadmap/",
 ]
 
 # ---------------------------------------------------------------------------
@@ -111,129 +102,6 @@ def _parse_roadmap_items(content: str) -> tuple[list[str], list[str]]:
     return unchecked, checked
 
 
-def _is_item_complete(item_text: str) -> bool:
-    """Check whether a roadmap checklist item is satisfied by the filesystem.
-
-    Uses conservative pattern matching — returns False if no pattern matches.
-    """
-    text = item_text.lower()
-
-    # "Create complete directory structure"
-    if "directory structure" in text:
-        return all(
-            d.exists()
-            for d in [DOMAIN_DIR, MODULES_DIR, ADAPTERS_DIR, INBOX_DIR]
-        )
-
-    # "Create pyproject.toml ..."
-    if "pyproject.toml" in text:
-        return (ROOT / "pyproject.toml").exists()
-
-    # "Create pyrightconfig.json ..."
-    if "pyrightconfig.json" in text:
-        return (ROOT / "pyrightconfig.json").exists()
-
-    # "Implement domain/models.py ..."
-    if "domain/models.py" in text:
-        return (DOMAIN_DIR / "models.py").exists()
-
-    # "Implement domain/ports.py ..."
-    if "domain/ports.py" in text:
-        return (DOMAIN_DIR / "ports.py").exists()
-
-    # "CONTRACT.md for each module"
-    if "contract.md" in text and "each module" in text:
-        expected = ["gap_analyzer", "planner", "executor", "verifier", "reporter"]
-        return all((MODULES_DIR / m / "CONTRACT.md").exists() for m in expected)
-
-    # "SPEC.md for each module"
-    if "spec.md" in text and "each module" in text:
-        expected = ["gap_analyzer", "planner", "executor", "verifier", "reporter"]
-        return all((MODULES_DIR / m / "SPEC.md").exists() for m in expected)
-
-    # "Implement adapters/local_fs.py"
-    if "adapters/local_fs.py" in text:
-        return (ADAPTERS_DIR / "local_fs.py").exists()
-
-    # "Implement adapters/git_vc.py"
-    if "adapters/git_vc.py" in text:
-        return (ADAPTERS_DIR / "git_vc.py").exists()
-
-    # "Set up pytest with conftest.py"
-    if "conftest.py" in text:
-        return (ROOT / "conftest.py").exists() or any(ROOT.rglob("conftest.py"))
-
-    # "All code passes" quality pipeline
-    if "all code passes" in text:
-        qr = run_quality_checks()
-        for tool_result in qr.values():
-            if tool_result and not tool_result["passed"]:
-                return False
-        return True
-
-    # "domain/ has zero external imports"
-    if "domain/" in text and "zero external imports" in text:
-        return check_domain_imports() is None
-
-    # "Implement <module>/core.py" patterns
-    core_match = re.search(r"implement\s+(\w+)/core\.py", text)
-    if core_match:
-        module_name = core_match.group(1)
-        return (MODULES_DIR / module_name / "core.py").exists()
-
-    # "Tests for <module>"
-    test_match = re.search(r"tests for (\w+)", text)
-    if test_match:
-        module_name = test_match.group(1)
-        test_dir = MODULES_DIR / module_name / "tests"
-        return test_dir.exists() and any(test_dir.rglob("test_*.py"))
-
-    # "Implement adapters/agents/claude_code.py"
-    if "adapters/agents/claude_code.py" in text:
-        return (ADAPTERS_DIR / "agents" / "claude_code.py").exists()
-
-    # "Implement adapters/pytest_runner.py"
-    if "adapters/pytest_runner.py" in text:
-        return (ADAPTERS_DIR / "pytest_runner.py").exists()
-
-    # "Implement adapters/quality_checker.py"
-    if "adapters/quality_checker.py" in text:
-        return (ADAPTERS_DIR / "quality_checker.py").exists()
-
-    # "Extract kernel/*.py"
-    kernel_match = re.search(r"extract kernel/(\w+\.py)", text)
-    if kernel_match:
-        return (KERNEL_DIR / kernel_match.group(1)).exists()
-
-    # Conservative default: not complete
-    return False
-
-
-def auto_check_roadmap_items(version: str) -> list[str]:
-    """Auto-check completed items in a roadmap file. Returns newly checked items."""
-    content = _read_roadmap_file(version)
-    if not content:
-        return []
-
-    newly_checked: list[str] = []
-    lines = content.split("\n")
-    changed = False
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("- [ ]"):
-            item_text = stripped[6:].strip()
-            if _is_item_complete(item_text):
-                # Replace "- [ ]" with "- [x]" preserving indentation
-                lines[i] = line.replace("- [ ]", "- [x]", 1)
-                newly_checked.append(item_text)
-                changed = True
-
-    if changed:
-        path = ROADMAP_DIR / f"v{version}.md"
-        path.write_text("\n".join(lines))
-
-    return newly_checked
 
 
 # ---------------------------------------------------------------------------
@@ -636,45 +504,16 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    d. If inbox has items → incorporate into specs/plans
    e. If all items in current version are done → advance to next roadmap version
 
-4. **ARCHITECTURE RULES** (enforced — violations cause rollback):
-   - domain/ must have ZERO external imports (only stdlib + typing)
-   - modules/*/core.py must only import from domain/
-   - adapters/ implement Protocols defined in domain/ports.py
-   - Use @dataclass(frozen=True) for domain models
-   - Use typing.Protocol for all port interfaces
-   - Complete type annotations on ALL functions (params + return types)
-   - No `Any` type in domain models
+4. **ROADMAP TRACKING**: When you complete a roadmap item, check it off yourself
+   by changing `- [ ]` to `- [x]` in the corresponding roadmap/v*.md file.
 
-5. **FILE LOCATIONS**:
-   - Domain types: domain/models.py
-   - Port interfaces: domain/ports.py
-   - Module logic: modules/<name>/core.py
-   - Module contracts: modules/<name>/CONTRACT.md
-   - Module specs: modules/<name>/SPEC.md
-   - Module tests: modules/<name>/tests/test_<name>.py
-   - Adapters: adapters/<name>.py or adapters/<category>/<name>.py
-   - Config: pyproject.toml, pyrightconfig.json (project root)
+5. **SELF-REPLACEMENT**: You may modify seed.py to delegate functions to modules
+   you have built. This is how Anima grows — replacing seed scaffolding with
+   purpose-built modules. Make sure tests still pass after any seed.py change.
 
-6. **CONTRACT.md FORMAT**:
-   ```
-   # <Module Name> Contract
-   ## Purpose
-   One sentence.
-   ## Input
-   What this module receives (with Python types from domain/models.py).
-   ## Output
-   What this module produces (with Python types from domain/models.py).
-   ## Dependencies
-   Which Ports (from domain/ports.py) this module requires.
-   ## Constraints
-   Rules and invariants.
-   ```
-
-6. **DO NOT MODIFY these files** (they are protected):
-   - seed.py
+6. **DO NOT MODIFY these files** (they are protected — violations cause rollback):
    - VISION.md
    - Anything in kernel/ (if it exists)
-   - Anything in roadmap/ (managed by seed.py auto-check)
 
 Now execute. Create or modify files to address the most important gap.
 After making changes, verify them by running: ruff check . && pyright && python -m pytest
@@ -862,21 +701,26 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
     Verify that the iteration produced valid results.
 
     Checks:
-    1. Protected files not modified
+    1. Protected files not modified (VISION.md, kernel/)
     2. Quality pipeline passes (ruff + pyright)
     3. Tests pass
-    4. Architecture rules not violated (domain/ has no external imports)
 
     Will be replaced by modules/verifier/core.py.
     """
     issues: list[str] = []
     improvements: list[str] = []
 
-    # --- Protected file checks ---
-    protected_files = ["seed.py", "VISION.md"]
-    if ROADMAP_DIR.exists():
-        for f in sorted(ROADMAP_DIR.glob("*.md")):
-            protected_files.append(str(f.relative_to(ROOT)))
+    # --- Protected file checks (use PROTECTED_PATHS) ---
+    protected_files: list[str] = []
+    for p in PROTECTED_PATHS:
+        path = ROOT / p
+        if path.is_file():
+            protected_files.append(p)
+        elif path.is_dir():
+            for f in path.rglob("*"):
+                if f.is_file():
+                    protected_files.append(str(f.relative_to(ROOT)))
+
     protected_hashes_before = {
         p: _file_hash(ROOT / p)
         for p in protected_files
@@ -888,11 +732,6 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
         hash_after = _file_hash(ROOT / path)
         if hash_before != hash_after:
             issues.append(f"CRITICAL: {path} was modified by the agent")
-
-    # --- Architecture rule: domain/ has no external imports ---
-    domain_violation = check_domain_imports()
-    if domain_violation:
-        issues.append(f"ARCHITECTURE VIOLATION: {domain_violation}")
 
     # --- Quality pipeline ---
     qr = current_state.get("quality_results", {})
@@ -914,26 +753,6 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
     if new_files:
         improvements.append(f"New files: {len(new_files)}")
 
-    new_modules = set(current_state["modules"].keys()) - set(pre_state["modules"].keys())
-    if new_modules:
-        improvements.append(f"New modules: {', '.join(new_modules)}")
-
-    for name, info in current_state.get("modules", {}).items():
-        old_info = pre_state.get("modules", {}).get(name)
-        if old_info:
-            for field in ["has_contract", "has_spec", "has_core", "has_tests"]:
-                if info.get(field) and not old_info.get(field):
-                    improvements.append(
-                        f"Module '{name}' gained {field.replace('has_', '')}"
-                    )
-
-    if not pre_state.get("domain_exists") and current_state.get("domain_exists"):
-        improvements.append("domain/ layer created")
-    if not pre_state.get("has_pyproject") and current_state.get("has_pyproject"):
-        improvements.append("pyproject.toml created")
-    if not pre_state.get("has_pyrightconfig") and current_state.get("has_pyrightconfig"):
-        improvements.append("pyrightconfig.json created")
-
     return {
         "passed": len(issues) == 0,
         "issues": issues,
@@ -942,46 +761,6 @@ def verify_iteration(pre_state: dict, post_state: dict) -> dict:
     }
 
 
-def check_domain_imports() -> Optional[str]:
-    """Check that domain/ only imports from stdlib and typing."""
-    if not DOMAIN_DIR.exists():
-        return None
-
-    # Known stdlib top-level modules (subset — enough for our purposes)
-    stdlib_modules = {
-        "abc", "asyncio", "collections", "copy", "dataclasses", "datetime",
-        "enum", "functools", "hashlib", "io", "itertools", "json", "logging",
-        "math", "os", "pathlib", "re", "secrets", "string", "subprocess",
-        "sys", "time", "typing", "typing_extensions", "uuid",
-        "__future__",
-    }
-
-    for py_file in DOMAIN_DIR.rglob("*.py"):
-        # Skip test files — they are allowed to import pytest etc.
-        rel_parts = py_file.relative_to(DOMAIN_DIR).parts
-        if "tests" in rel_parts or py_file.name.startswith("test_"):
-            continue
-        try:
-            content = py_file.read_text()
-        except (IOError, UnicodeDecodeError):
-            continue
-        for line in content.split("\n"):
-            stripped = line.strip()
-            if stripped.startswith("import ") or stripped.startswith("from "):
-                # Extract the top-level module name
-                if stripped.startswith("from .") or stripped.startswith("from domain"):
-                    continue  # relative imports within domain/ are fine
-                if stripped.startswith("import ."):
-                    continue
-                parts = stripped.replace("from ", "").replace("import ", "").split()
-                if parts:
-                    top_module = parts[0].split(".")[0]
-                    if top_module not in stdlib_modules and top_module != "domain":
-                        return (
-                            f"{py_file.relative_to(ROOT)} imports '{top_module}' "
-                            f"— domain/ must only use stdlib"
-                        )
-    return None
 
 
 def _file_hash(path: Path) -> Optional[str]:
@@ -1064,30 +843,6 @@ def load_history() -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def check_module_replacement() -> dict:
-    """
-    Check if any seed functions can be replaced by built modules.
-    Returns a dict of {function_name: module_path} for available replacements.
-    """
-    replacements: dict[str, str] = {}
-    module_map = {
-        "gap_analyzer": "analyze_gaps",
-        "planner": "plan_iteration",
-        "executor": "execute_plan",
-        "verifier": "verify_iteration",
-        "reporter": "record_iteration",
-    }
-
-    for module_name, func_name in module_map.items():
-        core_file = MODULES_DIR / module_name / "core.py"
-        if core_file.exists():
-            replacements[func_name] = f"modules/{module_name}/core.py"
-
-    if replacements:
-        print(f"[seed] Module replacements available: {list(replacements.keys())}")
-        print("[seed] (Dynamic replacement not yet active)")
-
-    return replacements
 
 
 # ---------------------------------------------------------------------------
@@ -1105,9 +860,6 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
     print(f"  🌱 ANIMA — Iteration #{iteration_num}")
     print(f"     {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'═'*60}")
-
-    # Step 0: Check module replacements
-    check_module_replacement()
 
     # Step 1: Scan current state
     print("\n[1/5] Scanning project state...")
@@ -1167,23 +919,6 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
         state["consecutive_failures"] = 0
         state["completed_items"].extend(verification.get("improvements", []))
 
-        # Auto-check roadmap items across all incomplete versions
-        total_checked: list[str] = []
-        if ROADMAP_DIR.exists():
-            for f in sorted(ROADMAP_DIR.glob("v*.md")):
-                ver = f.stem[1:]  # "v0.2" -> "0.2"
-                content = f.read_text()
-                if "- [ ]" not in content:
-                    continue
-                newly_checked = auto_check_roadmap_items(ver)
-                if newly_checked:
-                    print(f"  [roadmap] Auto-checked {len(newly_checked)} items in v{ver}")
-                    git("add", f"roadmap/v{ver}.md")
-                    total_checked.extend(newly_checked)
-        if total_checked:
-            git("commit", "-m", f"docs(anima): auto-check {len(total_checked)} roadmap items")
-            git("push")
-
         tag_milestone_if_advanced(state)
     else:
         print(f"\n[rollback] Rolling back to {snapshot_ref[:12]}")
@@ -1201,82 +936,6 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
     state["last_iteration"] = report["id"]
     save_state(state)
     return state
-
-
-# ---------------------------------------------------------------------------
-# Status Display
-# ---------------------------------------------------------------------------
-
-
-def show_status() -> None:
-    """Display current project state."""
-    state = load_state()
-    project_state = scan_project_state()
-    vision = VISION_FILE.read_text()
-    history = load_history()
-    gaps = analyze_gaps(vision, project_state, history)
-
-    print(f"\n{'═'*60}")
-    print(f"  🌱 ANIMA — Status")
-    print(f"{'═'*60}")
-    print(f"\n  Iterations: {state['iteration_count']}")
-    print(f"  Status: {state['status']}")
-    print(f"  Failures (consecutive): {state['consecutive_failures']}")
-    print(f"  Last iteration: {state.get('last_iteration', '—')}")
-
-    # Roadmap progress
-    current_version = _get_current_version()
-    roadmap_content = _read_roadmap_file(current_version)
-    unchecked, checked = _parse_roadmap_items(roadmap_content)
-    total = len(unchecked) + len(checked)
-    print(f"\n  Roadmap target: v{current_version}")
-    print(f"  Roadmap progress: {len(checked)}/{total} items checked")
-
-    print(f"\n  Architecture:")
-    print(f"    domain/:          {'✓' if project_state['domain_exists'] else '✗ missing'}")
-    print(f"    adapters/:        {'✓' if project_state['adapters_exist'] else '— not yet'}")
-    print(f"    kernel/:          {'✓' if project_state['kernel_exists'] else '— not yet'}")
-    print(f"    pyproject.toml:   {'✓' if project_state['has_pyproject'] else '✗ missing'}")
-    print(f"    pyrightconfig.json: {'✓' if project_state['has_pyrightconfig'] else '✗ missing'}")
-
-    print(f"\n  Modules:")
-    if project_state["modules"]:
-        for name, info in project_state["modules"].items():
-            flags = []
-            for field, label in [("has_contract", "contract"), ("has_spec", "spec"),
-                                 ("has_core", "core"), ("has_tests", "tests")]:
-                flags.append(f"{'✓' if info.get(field) else '✗'}{label}")
-            print(f"    {name}: {' '.join(flags)}")
-    else:
-        print(f"    (none)")
-
-    qr = project_state.get("quality_results", {})
-    if qr:
-        print(f"\n  Quality Pipeline:")
-        for tool in ["ruff_lint", "ruff_format", "pyright"]:
-            if qr.get(tool):
-                print(f"    {tool}: {'✓' if qr[tool]['passed'] else '✗ failing'}")
-            else:
-                print(f"    {tool}: — not installed")
-
-    if project_state.get("test_results"):
-        tr = project_state["test_results"]
-        print(f"\n  Tests: {'✓ passing' if tr['passed'] else '✗ failing'}")
-
-    print(f"\n  Inbox: {len(project_state['inbox_items'])} items")
-    for item in project_state["inbox_items"]:
-        print(f"    - {item['filename']}")
-
-    gap_count = 0 if gaps == "NO_GAPS" else len(gaps.splitlines())
-    print(f"\n  Gaps: {gap_count if gap_count else 'none — system at rest 🌿'}")
-
-    if history:
-        print(f"\n  Recent iterations:")
-        for h in history[-5:]:
-            status = "✓" if h.get("success") else "✗"
-            print(f"    [{status}] {h['id']}: {h.get('summary', '—')[:60]}")
-
-    print()
 
 
 # ---------------------------------------------------------------------------
@@ -1443,128 +1102,3 @@ def update_readme(state: dict) -> None:
 
     README_FILE.write_text(content)
 
-
-# ---------------------------------------------------------------------------
-# Entry Point
-# ---------------------------------------------------------------------------
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="🌱 Anima Seed — Bootstrap for the Autonomous Iteration Engine"
-    )
-    parser.add_argument("--once", action="store_true", help="Run a single iteration then sleep")
-    parser.add_argument("--max", type=int, default=0, help="Max iterations (0=unlimited)")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without executing")
-    parser.add_argument("--status", action="store_true", help="Show project state and gaps")
-    parser.add_argument("--reset", action="store_true", help="Reset failure count")
-    parser.add_argument("--cooldown", type=int, default=ITERATION_COOLDOWN,
-                        help=f"Seconds between iterations (default: {ITERATION_COOLDOWN})")
-    parser.add_argument("--cleanup-tags", action="store_true",
-                        help="Delete all iter-* tags from git history")
-
-    args = parser.parse_args()
-
-    if not VISION_FILE.exists():
-        print("ERROR: VISION.md not found. Anima cannot iterate without a vision.")
-        sys.exit(1)
-
-    if args.status:
-        show_status()
-        return
-
-    if args.reset:
-        state = load_state()
-        state["consecutive_failures"] = 0
-        state["status"] = "sleep"
-        save_state(state)
-        print("State reset. Anima is ready to iterate.")
-        return
-
-    if args.cleanup_tags:
-        _, tags_output = git("tag", "-l", "iter-*")
-        if not tags_output.strip():
-            print("No iter-* tags found.")
-            return
-        tags = tags_output.strip().split("\n")
-        for tag in tags:
-            git("tag", "-d", tag.strip())
-        print(f"Deleted {len(tags)} iter-* tags.")
-        return
-
-    if not ROADMAP_DIR.exists():
-        print("WARNING: roadmap/ directory not found. Roadmap tracking disabled.")
-
-    ensure_git()
-    for d in [INBOX_DIR, ITERATIONS_DIR, MODULES_DIR]:
-        d.mkdir(parents=True, exist_ok=True)
-
-    state = load_state()
-
-    if state["status"] == "paused":
-        print("⚠️  Anima is paused due to consecutive failures.")
-        print("  python seed.py --status   # see what happened")
-        print("  python seed.py --reset    # clear and resume")
-        sys.exit(1)
-
-    # Enter alive state — commit + push so remote reflects we're awake
-    state["status"] = "alive"
-    save_state(state)
-    update_readme(state)
-    git("add", "-A")
-    code, _ = git("diff", "--cached", "--quiet")
-    if code != 0:
-        git("commit", "-m", "chore(anima): I'm waking up")
-        git("push")
-
-    count = 0
-    if not args.once:
-        print(f"🌱 Anima entering continuous iteration (cooldown: {args.cooldown}s)")
-        if args.max:
-            print(f"   Will stop after {args.max} iterations")
-
-    try:
-        while True:
-            state = run_iteration(state, dry_run=args.dry_run)
-            count += 1
-
-            # Update README after each successful iteration
-            if state.get("status") != "paused":
-                update_readme(state)
-
-            if args.once:
-                break
-            if args.max and count >= args.max:
-                print(f"\nReached max iterations ({args.max}). Stopping.")
-                break
-            if state["status"] in ("paused", "sleep"):
-                print(f"\nAnima entered '{state['status']}' state. Stopping.")
-                break
-
-            print(f"\n⏳ Cooling down {args.cooldown}s...")
-            time.sleep(args.cooldown)
-
-    except KeyboardInterrupt:
-        print("\n\nInterrupted.")
-
-    # Enter sleep state (unless paused by failures)
-    if state["status"] != "paused":
-        state["status"] = "sleep"
-    save_state(state)
-    update_readme(state)
-
-    # Commit and push final status change
-    status_messages = {
-        "sleep": "I'm going to sleep",
-        "paused": "I'm stuck, need help",
-    }
-    msg = status_messages.get(state["status"], state["status"])
-    git("add", "-A")
-    code, _ = git("diff", "--cached", "--quiet")
-    if code != 0:
-        git("commit", "-m", f"chore(anima): {msg}")
-        git("push")
-
-
-if __name__ == "__main__":
-    main()
