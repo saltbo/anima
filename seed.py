@@ -28,6 +28,7 @@ import sys
 import time
 import hashlib
 import argparse
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -545,7 +546,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
         print("=" * 60)
         return {"success": True, "output": "(dry run)", "dry_run": True}
 
-    print(f"[executor] Calling {AGENT_CMD} (streaming output)...")
+    print(f"[executor] Calling {AGENT_CMD} (streaming)...")
     start_time = time.time()
 
     # Save prompt to file for debugging / reference
@@ -556,9 +557,10 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
     try:
         # Remove CLAUDECODE env var to allow nested invocation in --print mode
         env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
-        # Pass prompt as positional arg; use Popen for real-time streaming
         proc = subprocess.Popen(
-            [AGENT_CMD, "--print", "--dangerously-skip-permissions", prompt],
+            [AGENT_CMD, "--print", "--verbose", "--dangerously-skip-permissions",
+             "--output-format", "stream-json", "--include-partial-messages",
+             prompt],
             cwd=ROOT,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -566,25 +568,49 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
             env=env,
         )
 
-        # Read stdout in real-time, line by line
-        output_lines: list[str] = []
+        # Parse stream-json NDJSON and print text deltas in real-time
+        result_text = ""
         assert proc.stdout is not None
         for line in proc.stdout:
-            print(f"  [agent] {line}", end="")
-            output_lines.append(line)
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
-        # Wait for process to finish and collect stderr
+            etype = event.get("type", "")
+
+            # Real-time text output
+            if etype == "stream_event":
+                inner = event.get("event", {})
+                if inner.get("type") == "content_block_delta":
+                    delta = inner.get("delta", {})
+                    if delta.get("type") == "text_delta":
+                        text = delta.get("text", "")
+                        print(text, end="", flush=True)
+
+            # Final result
+            elif etype == "result":
+                result_text = event.get("result", "")
+                is_error = event.get("is_error", False)
+                cost = event.get("total_cost_usd", 0)
+                duration = event.get("duration_ms", 0)
+                print(f"\n  [executor] Done in {duration/1000:.1f}s, cost: ${cost:.4f}")
+
+        print()  # newline after streaming
         proc.wait(timeout=600)
+
         assert proc.stderr is not None
         stderr_output = proc.stderr.read()
         if stderr_output:
             print(f"  [agent stderr] {stderr_output[:500]}")
 
         elapsed = time.time() - start_time
-        full_output = "".join(output_lines)
         return {
             "success": proc.returncode == 0,
-            "output": full_output[-5000:] if full_output else "",
+            "output": result_text[-5000:] if result_text else "",
             "errors": stderr_output[-2000:] if stderr_output else "",
             "exit_code": proc.returncode,
             "elapsed_seconds": round(elapsed, 1),

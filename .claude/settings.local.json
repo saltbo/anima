@@ -4,7 +4,8 @@
       "Bash(uv pip:*)",
       "Bash(uv:*)",
       "Bash(source:*)",
-      "Bash(env:*)"
+      "Bash(env:*)",
+      "Bash(cat:*)"
     ]
   }
 }
