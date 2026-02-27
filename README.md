@@ -1,7 +1,7 @@
 # Anima
 
 <!-- anima:status:start -->
-![status](https://img.shields.io/badge/status-alive-brightgreen) ![milestone](https://img.shields.io/badge/milestone-v0.0.0-purple)
+![status](https://img.shields.io/badge/status-sleep-yellow) ![milestone](https://img.shields.io/badge/milestone-v0.0.0-purple)
 <!-- anima:status:end -->
 
 **Give your project a soul.**
