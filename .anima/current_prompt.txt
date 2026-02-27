@@ -1,5 +1,5 @@
 You are the AI agent driving Anima, an Autonomous Iteration Engine.
-Anima builds itself through iterative development cycles. You are in iteration #5.
+Anima builds itself through iterative development cycles. You are in iteration #6.
 
 ======== VISION (read VISION.md for full details) ========
 # VISION: Anima
@@ -374,18 +374,23 @@ FILES:
   inbox/20260227-120000-bootstrap-foundation.md
   modules/__init__.py
   modules/executor/CONTRACT.md
+  modules/executor/SPEC.md
   modules/executor/__init__.py
   modules/executor/tests/__init__.py
   modules/gap_analyzer/CONTRACT.md
+  modules/gap_analyzer/SPEC.md
   modules/gap_analyzer/__init__.py
   modules/gap_analyzer/tests/__init__.py
   modules/planner/CONTRACT.md
+  modules/planner/SPEC.md
   modules/planner/__init__.py
   modules/planner/tests/__init__.py
   modules/reporter/CONTRACT.md
+  modules/reporter/SPEC.md
   modules/reporter/__init__.py
   modules/reporter/tests/__init__.py
   modules/verifier/CONTRACT.md
+  modules/verifier/SPEC.md
   modules/verifier/__init__.py
   modules/verifier/tests/__init__.py
 
@@ -397,11 +402,11 @@ ARCHITECTURE STATUS:
   pyrightconfig.json: exists
 
 MODULE STATUS:
-  executor: [contract]
-  gap_analyzer: [contract]
-  planner: [contract]
-  reporter: [contract]
-  verifier: [contract]
+  executor: [contract, spec]
+  gap_analyzer: [contract, spec]
+  planner: [contract, spec]
+  reporter: [contract, spec]
+  verifier: [contract, spec]
 
 QUALITY PIPELINE:
   ruff_lint: ✓
@@ -412,6 +417,7 @@ QUALITY PIPELINE:
 RECENT ITERATIONS:
   [✓] No significant changes
   [✓] New files: 20; Module 'executor' gained contract; Module 'gap_analyzer' gained contract
+  [✓] New files: 5; Module 'executor' gained spec; Module 'gap_analyzer' gained spec
 
 ======== GAPS TO ADDRESS ========
 UNCOMPLETED ROADMAP ITEMS (64):
@@ -480,15 +486,15 @@ UNCOMPLETED ROADMAP ITEMS (64):
   - Comprehensive documentation (generated from system's own specs)
   - Stable release on PyPI
 
-MODULE 'executor' INCOMPLETE: missing SPEC.md, missing core.py, missing tests
+MODULE 'executor' INCOMPLETE: missing core.py, missing tests
 
-MODULE 'gap_analyzer' INCOMPLETE: missing SPEC.md, missing core.py, missing tests
+MODULE 'gap_analyzer' INCOMPLETE: missing core.py, missing tests
 
-MODULE 'planner' INCOMPLETE: missing SPEC.md, missing core.py, missing tests
+MODULE 'planner' INCOMPLETE: missing core.py, missing tests
 
-MODULE 'reporter' INCOMPLETE: missing SPEC.md, missing core.py, missing tests
+MODULE 'reporter' INCOMPLETE: missing core.py, missing tests
 
-MODULE 'verifier' INCOMPLETE: missing SPEC.md, missing core.py, missing tests
+MODULE 'verifier' INCOMPLETE: missing core.py, missing tests
 
 HUMAN REQUEST (20260227-120000-bootstrap-foundation.md):
 # Bootstrap project foundation
