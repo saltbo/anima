@@ -542,29 +542,57 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
         print("=" * 60)
         return {"success": True, "output": "(dry run)", "dry_run": True}
 
-    print(f"[executor] Calling {AGENT_CMD}...")
+    print(f"[executor] Calling {AGENT_CMD} (streaming output)...")
     start_time = time.time()
+
+    # Write prompt to a temp file so we don't hit CLI arg length limits
+    prompt_file = ROOT / ".anima" / "current_prompt.txt"
+    prompt_file.parent.mkdir(parents=True, exist_ok=True)
+    prompt_file.write_text(prompt)
 
     try:
         # Remove CLAUDECODE env var to allow nested invocation in --print mode
         env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
-        result = subprocess.run(
-            [AGENT_CMD, "--print", "--dangerously-skip-permissions", prompt],
+        # Stream output in real-time while also capturing it
+        proc = subprocess.Popen(
+            [AGENT_CMD, "--print", "--dangerously-skip-permissions"],
             cwd=ROOT,
-            capture_output=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=600,
             env=env,
         )
+        # Send prompt via stdin
+        assert proc.stdin is not None
+        proc.stdin.write(prompt)
+        proc.stdin.close()
+
+        # Read stdout in real-time, line by line
+        output_lines: list[str] = []
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            print(f"  [agent] {line}", end="")
+            output_lines.append(line)
+
+        # Wait for process to finish and collect stderr
+        proc.wait(timeout=600)
+        assert proc.stderr is not None
+        stderr_output = proc.stderr.read()
+        if stderr_output:
+            print(f"  [agent stderr] {stderr_output[:500]}")
+
         elapsed = time.time() - start_time
+        full_output = "".join(output_lines)
         return {
-            "success": result.returncode == 0,
-            "output": result.stdout[-5000:] if result.stdout else "",
-            "errors": result.stderr[-2000:] if result.stderr else "",
-            "exit_code": result.returncode,
+            "success": proc.returncode == 0,
+            "output": full_output[-5000:] if full_output else "",
+            "errors": stderr_output[-2000:] if stderr_output else "",
+            "exit_code": proc.returncode,
             "elapsed_seconds": round(elapsed, 1),
         }
     except subprocess.TimeoutExpired:
+        proc.kill()
         return {
             "success": False,
             "output": "",
