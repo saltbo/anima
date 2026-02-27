@@ -1,5 +1,5 @@
 You are the AI agent driving Anima, an Autonomous Iteration Engine.
-Anima builds itself through iterative development cycles. You are in iteration #6.
+Anima builds itself through iterative development cycles. You are in iteration #7.
 
 ======== VISION (read VISION.md for full details) ========
 # VISION: Anima
@@ -214,7 +214,7 @@ and quality foundation.
 - [ ] Create pyproject.toml with project metadata, ruff config, pytest config
 - [ ] Create pyrightconfig.json with strict mode enabled
 - [ ] Implement domain/models.py with all core dataclasses (fully typed, frozen)
-- [ ] Implement domain/ports.py with all Protocol definitions
+- [ ] Implement domain/ports.py with all Protocol definitions (VersionControlPort must include commit_and_push + tag_milestone)
 - [ ] Create CONTRACT.md for each module (gap_analyzer, planner, executor, verifier, reporter)
 - [ ] Create SPEC.md for each module defining v0.1 target functionality
 - [ ] Implement adapters/local_fs.py (LocalFileSystem implements FileSystemPort)
@@ -269,6 +269,11 @@ Extract the kernel and achieve complete seed replacement.
 - [ ] Extract kernel/config.py from seed.py configuration
 - [ ] Seed script is now a thin entry point that calls kernel/loop.py
 - [ ] System can iterate on its own modules (excluding kernel/)
+- [ ] Lifecycle state machine: alive (iterating) / sleep (idle) / paused (failed)
+- [ ] Continuous iteration by default; --once flag for single run
+- [ ] Auto-detect milestone advancement and create semver git tags (v0.1.0, v0.2.0, ...)
+- [ ] Commit and push to remote after every successful iteration
+- [ ] Update README.md status badges (shields.io) on state transitions
 - [ ] inbox/ monitoring: system detects and incorporates new .md files
 - [ ] Gate mechanism: pause and request human approval on high-risk changes
 - [ ] Iteration rate limiting and cost tracking
@@ -380,7 +385,9 @@ FILES:
   modules/gap_analyzer/CONTRACT.md
   modules/gap_analyzer/SPEC.md
   modules/gap_analyzer/__init__.py
+  modules/gap_analyzer/core.py
   modules/gap_analyzer/tests/__init__.py
+  modules/gap_analyzer/tests/test_gap_analyzer.py
   modules/planner/CONTRACT.md
   modules/planner/SPEC.md
   modules/planner/__init__.py
@@ -402,8 +409,9 @@ ARCHITECTURE STATUS:
   pyrightconfig.json: exists
 
 MODULE STATUS:
+  __pycache__: [empty]
   executor: [contract, spec]
-  gap_analyzer: [contract, spec]
+  gap_analyzer: [contract, spec, core, tests]
   planner: [contract, spec]
   reporter: [contract, spec]
   verifier: [contract, spec]
@@ -413,19 +421,20 @@ QUALITY PIPELINE:
   ruff_format: ✓
   pyright: ✓
 
+TESTS: ✓ passing
 
 RECENT ITERATIONS:
-  [✓] No significant changes
   [✓] New files: 20; Module 'executor' gained contract; Module 'gap_analyzer' gained contract
   [✓] New files: 5; Module 'executor' gained spec; Module 'gap_analyzer' gained spec
+  [✓] All tests passing; New files: 2; New modules: __pycache__
 
 ======== GAPS TO ADDRESS ========
-UNCOMPLETED ROADMAP ITEMS (64):
+UNCOMPLETED ROADMAP ITEMS (69):
   - Create complete directory structure matching the architecture above
   - Create pyproject.toml with project metadata, ruff config, pytest config
   - Create pyrightconfig.json with strict mode enabled
   - Implement domain/models.py with all core dataclasses (fully typed, frozen)
-  - Implement domain/ports.py with all Protocol definitions
+  - Implement domain/ports.py with all Protocol definitions (VersionControlPort must include commit_and_push + tag_milestone)
   - Create CONTRACT.md for each module (gap_analyzer, planner, executor, verifier, reporter)
   - Create SPEC.md for each module defining v0.1 target functionality
   - Implement adapters/local_fs.py (LocalFileSystem implements FileSystemPort)
@@ -460,6 +469,11 @@ UNCOMPLETED ROADMAP ITEMS (64):
   - Extract kernel/config.py from seed.py configuration
   - Seed script is now a thin entry point that calls kernel/loop.py
   - System can iterate on its own modules (excluding kernel/)
+  - Lifecycle state machine: alive (iterating) / sleep (idle) / paused (failed)
+  - Continuous iteration by default; --once flag for single run
+  - Auto-detect milestone advancement and create semver git tags (v0.1.0, v0.2.0, ...)
+  - Commit and push to remote after every successful iteration
+  - Update README.md status badges (shields.io) on state transitions
   - inbox/ monitoring: system detects and incorporates new .md files
   - Gate mechanism: pause and request human approval on high-risk changes
   - Iteration rate limiting and cost tracking
@@ -486,9 +500,9 @@ UNCOMPLETED ROADMAP ITEMS (64):
   - Comprehensive documentation (generated from system's own specs)
   - Stable release on PyPI
 
-MODULE 'executor' INCOMPLETE: missing core.py, missing tests
+MODULE '__pycache__' INCOMPLETE: missing CONTRACT.md, missing SPEC.md, missing core.py, missing tests
 
-MODULE 'gap_analyzer' INCOMPLETE: missing core.py, missing tests
+MODULE 'executor' INCOMPLETE: missing core.py, missing tests
 
 MODULE 'planner' INCOMPLETE: missing core.py, missing tests
 
