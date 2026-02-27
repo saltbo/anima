@@ -356,18 +356,17 @@ to `inbox/.archive/`.
 
 ======== CURRENT STATE ========
 FILES:
-  .claude/settings.local.json
   .gitignore
   LICENSE
   README.md
   VISION.md
-  domain/models.py
-  domain/ports.py
-  inbox/20260227-120000-bootstrap-foundation.md
-  iterations/0001-20260227-105759.json
   pyproject.toml
   pyrightconfig.json
   seed.py
+  .claude/settings.local.json
+  domain/models.py
+  domain/ports.py
+  inbox/20260227-120000-bootstrap-foundation.md
 
 ARCHITECTURE STATUS:
   domain/ layer: exists
@@ -385,7 +384,7 @@ MODULE STATUS:
 
 QUALITY PIPELINE:
   ruff_lint: ✗ FAILING
-  ruff_format: ✗ FAILING
+  ruff_format: ✓
   pyright: ✗ FAILING
 
 
@@ -470,28 +469,26 @@ MODULE 'reporter' INCOMPLETE: missing CONTRACT.md, missing SPEC.md, missing core
 MODULE 'verifier' INCOMPLETE: missing CONTRACT.md, missing SPEC.md, missing core.py, missing tests
 
 RUFF LINT FAILURES:
+to type-checking block
 
-967 |         print(f"    (none)")
-    |               ^^^^^^^^^^^^^
-968 |
-969 |     qr = project_state.get("quality_results", {})
-    |
-help: Remove extraneous `f` prefix
+TC001 Move application import `domain.models.IterationPlan` into a type-checking block
+  --> domain/ports.py:16:5
+   |
+14 |     ExecutionResult,
+15 |     FileInfo,
+16 |     IterationPlan,
+   |     ^^^^^^^^^^^^^
+17 |     IterationRecord,
+18 |     QualityResult,
+   |
+help: Move into type-checking block
 
-F541 [*] f-string without any placeholders
-   --> seed.py:971:15
-    |
-969 |     qr = project_state.get("quality_results", {})
-970 |     if qr:
-971 |         print(f"\n  Quality Pipeline:")
-    |               ^^^^^^^^^^^^^^^^^^^^^^^^
-972 |         for tool in ["ruff_lint", "ruff_format", "pyright"]:
-973 |             if qr.
-
-RUFF FORMAT FAILURES:
-Would reformat: seed.py
-1 file would be reformatted, 2 files already formatted
-
+TC001 Move application import `domain.models.IterationRecord` into a type-checking block
+  --> domain/ports.py:17:5
+   |
+15 |     FileInfo,
+16 |     IterationPlan,
+17 |     
 
 PYRIGHT TYPE ERRORS:
 /Users/saltbo/Develop/bogit/anima/domain/models.py

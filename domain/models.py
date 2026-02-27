@@ -6,8 +6,7 @@ This module has ZERO external imports — only stdlib and typing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from enum import Enum
 
 

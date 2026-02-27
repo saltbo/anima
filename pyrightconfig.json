@@ -12,6 +12,5 @@
   "reportUnusedImport": true,
   "reportUnusedVariable": true,
   "reportMissingParameterType": true,
-  "reportMissingReturnType": true,
   "reportUnnecessaryTypeIgnoreComment": true
 }

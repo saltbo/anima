@@ -8,15 +8,16 @@ This module has ZERO external imports — only stdlib and typing.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from domain.models import (
-    ExecutionResult,
-    FileInfo,
-    IterationPlan,
-    IterationRecord,
-    QualityResult,
-)
+if TYPE_CHECKING:
+    from domain.models import (
+        ExecutionResult,
+        FileInfo,
+        IterationPlan,
+        IterationRecord,
+        QualityResult,
+    )
 
 
 class FileSystemPort(Protocol):

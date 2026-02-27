@@ -548,7 +548,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
     print(f"[executor] Calling {AGENT_CMD} (streaming output)...")
     start_time = time.time()
 
-    # Write prompt to a temp file so we don't hit CLI arg length limits
+    # Save prompt to file for debugging / reference
     prompt_file = ROOT / ".anima" / "current_prompt.txt"
     prompt_file.parent.mkdir(parents=True, exist_ok=True)
     prompt_file.write_text(prompt)
@@ -556,20 +556,15 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict:
     try:
         # Remove CLAUDECODE env var to allow nested invocation in --print mode
         env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
-        # Stream output in real-time while also capturing it
+        # Pass prompt as positional arg; use Popen for real-time streaming
         proc = subprocess.Popen(
-            [AGENT_CMD, "--print", "--dangerously-skip-permissions"],
+            [AGENT_CMD, "--print", "--dangerously-skip-permissions", prompt],
             cwd=ROOT,
-            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             env=env,
         )
-        # Send prompt via stdin
-        assert proc.stdin is not None
-        proc.stdin.write(prompt)
-        proc.stdin.close()
 
         # Read stdout in real-time, line by line
         output_lines: list[str] = []
