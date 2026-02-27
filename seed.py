@@ -491,35 +491,14 @@ def analyze_gaps(vision: str, project_state: dict, history: list[dict]) -> str:
         for item in unchecked:
             gaps.append(f"  - {item}")
 
-    # Check architectural layers
-    if not project_state.get("domain_exists"):
+    # Only flag infrastructure gaps if they're in the current roadmap version
+    roadmap_text = roadmap_content.lower()
+    if not project_state.get("domain_exists") and "domain/" in roadmap_text:
         gaps.append("\nMISSING: domain/ layer (models.py + ports.py)")
-    if not project_state.get("has_pyproject"):
+    if not project_state.get("has_pyproject") and "pyproject.toml" in roadmap_text:
         gaps.append("\nMISSING: pyproject.toml (project config, ruff config, pytest config)")
-    if not project_state.get("has_pyrightconfig"):
+    if not project_state.get("has_pyrightconfig") and "pyrightconfig.json" in roadmap_text:
         gaps.append("\nMISSING: pyrightconfig.json (strict type checking config)")
-
-    # Check modules
-    expected_modules = ["planner", "executor", "verifier", "reporter", "gap_analyzer"]
-    existing_modules = list(project_state.get("modules", {}).keys())
-    missing_modules = [m for m in expected_modules if m not in existing_modules]
-
-    if missing_modules:
-        gaps.append(f"\nMISSING MODULES: {', '.join(missing_modules)}")
-
-    # Check module completeness
-    for name, info in project_state.get("modules", {}).items():
-        issues: list[str] = []
-        if not info["has_contract"]:
-            issues.append("missing CONTRACT.md")
-        if not info.get("has_spec"):
-            issues.append("missing SPEC.md")
-        if not info.get("has_core"):
-            issues.append("missing core.py")
-        if not info["has_tests"]:
-            issues.append("missing tests")
-        if issues:
-            gaps.append(f"\nMODULE '{name}' INCOMPLETE: {', '.join(issues)}")
 
     # Check quality pipeline results
     qr = project_state.get("quality_results", {})
@@ -646,19 +625,18 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
 1. **ONE THING WELL.** Pick the highest-priority gap and address it thoroughly.
    Do not attempt multiple unrelated changes.
 
-2. **PRIORITY ORDER** (do the first applicable item):
-   a. If pyproject.toml or pyrightconfig.json is missing → create them
-   b. If domain/models.py or domain/ports.py is missing → create them
-   c. If a module directory is missing → create the directory + CONTRACT.md
-   d. If a module has CONTRACT.md but no SPEC.md → write SPEC.md
-   e. If a module has SPEC.md but no core.py → implement core.py
-   f. If a module has core.py but no tests → write tests
-   g. If quality checks are failing (ruff/pyright) → fix the issues
-   h. If tests are failing → fix them
-   i. If inbox has items → incorporate into specs/plans
-   j. If all above are done → advance to next roadmap version
+2. **FINISH THE CURRENT VERSION FIRST.** Only work on items listed in the
+   CURRENT ROADMAP TARGET (v{current_version}) above. Do NOT start tasks from
+   later versions until all items in v{current_version} are checked off.
 
-3. **ARCHITECTURE RULES** (enforced — violations cause rollback):
+3. **PRIORITY ORDER** (do the first applicable item from the current version):
+   a. If quality checks are failing (ruff/pyright) → fix the issues
+   b. If tests are failing → fix them
+   c. Pick the next unchecked roadmap item and implement it
+   d. If inbox has items → incorporate into specs/plans
+   e. If all items in current version are done → advance to next roadmap version
+
+4. **ARCHITECTURE RULES** (enforced — violations cause rollback):
    - domain/ must have ZERO external imports (only stdlib + typing)
    - modules/*/core.py must only import from domain/
    - adapters/ implement Protocols defined in domain/ports.py
@@ -667,7 +645,7 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    - Complete type annotations on ALL functions (params + return types)
    - No `Any` type in domain models
 
-4. **FILE LOCATIONS**:
+5. **FILE LOCATIONS**:
    - Domain types: domain/models.py
    - Port interfaces: domain/ports.py
    - Module logic: modules/<name>/core.py
@@ -677,7 +655,7 @@ Execute THE SINGLE MOST IMPORTANT next step to advance Anima. Rules:
    - Adapters: adapters/<name>.py or adapters/<category>/<name>.py
    - Config: pyproject.toml, pyrightconfig.json (project root)
 
-5. **CONTRACT.md FORMAT**:
+6. **CONTRACT.md FORMAT**:
    ```
    # <Module Name> Contract
    ## Purpose
@@ -1174,13 +1152,21 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
         state["consecutive_failures"] = 0
         state["completed_items"].extend(verification.get("improvements", []))
 
-        # Auto-check roadmap items after successful iteration
-        current_version = _get_current_version()
-        newly_checked = auto_check_roadmap_items(current_version)
-        if newly_checked:
-            print(f"  [roadmap] Auto-checked {len(newly_checked)} items in v{current_version}")
-            git("add", f"roadmap/v{current_version}.md")
-            git("commit", "-m", f"docs(anima): auto-check roadmap v{current_version}")
+        # Auto-check roadmap items across all incomplete versions
+        total_checked: list[str] = []
+        if ROADMAP_DIR.exists():
+            for f in sorted(ROADMAP_DIR.glob("v*.md")):
+                ver = f.stem[1:]  # "v0.2" -> "0.2"
+                content = f.read_text()
+                if "- [ ]" not in content:
+                    continue
+                newly_checked = auto_check_roadmap_items(ver)
+                if newly_checked:
+                    print(f"  [roadmap] Auto-checked {len(newly_checked)} items in v{ver}")
+                    git("add", f"roadmap/v{ver}.md")
+                    total_checked.extend(newly_checked)
+        if total_checked:
+            git("commit", "-m", f"docs(anima): auto-check {len(total_checked)} roadmap items")
             git("push")
 
         tag_milestone_if_advanced(state)
