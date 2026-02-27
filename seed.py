@@ -1291,76 +1291,40 @@ PROGRESS_START = "<!-- anima:progress:start -->"
 PROGRESS_END = "<!-- anima:progress:end -->"
 
 
+def _parse_version(v: str) -> tuple[int, ...]:
+    """Parse 'v0.4.0' or 'v0.4' into a comparable tuple like (0, 4, 0)."""
+    return tuple(int(x) for x in v.lstrip("v").split("."))
+
+
 def _detect_current_milestone(state: dict) -> str:
     """Detect the current version milestone using roadmap files.
 
     Scans roadmap/v*.md in order. The first version that still has unchecked
     items is the *current target*; the previous version is the achieved
-    milestone. Falls back to filesystem heuristics if roadmap/ is missing.
+    milestone. Requires roadmap/ directory to exist.
     """
     _ = state  # reserved for future use
 
-    # Primary: use roadmap files
-    if ROADMAP_DIR.exists():
-        prev_version = "v0.0.0"
-        for f in sorted(ROADMAP_DIR.glob("v*.md")):
-            ver = f.stem  # "v0.2"
-            content = f.read_text()
-            if "- [ ]" in content:
-                return prev_version
-            prev_version = ver + ".0"  # "v0.2" -> "v0.2.0"
-        return prev_version  # all complete
-
-    # Fallback: filesystem scan (legacy)
-    expected_modules = {"gap_analyzer", "planner", "executor", "verifier", "reporter"}
-    modules: dict[str, dict[str, bool]] = {}
-    if MODULES_DIR.exists():
-        for d in sorted(MODULES_DIR.iterdir()):
-            if d.is_dir() and d.name in expected_modules:
-                modules[d.name] = {
-                    "contract": (d / "CONTRACT.md").exists(),
-                    "spec": (d / "SPEC.md").exists(),
-                    "core": (d / "core.py").exists(),
-                    "tests": (d / "tests").exists()
-                    and any((d / "tests").rglob("test_*.py")),
-                }
-
-    has_domain = (
-        DOMAIN_DIR.exists()
-        and (DOMAIN_DIR / "models.py").exists()
-        and (DOMAIN_DIR / "ports.py").exists()
-    )
-    has_pyproject = (ROOT / "pyproject.toml").exists()
-    has_pyrightconfig = (ROOT / "pyrightconfig.json").exists()
-    all_contracts = all(modules.get(m, {}).get("contract") for m in expected_modules)
-    all_specs = all(modules.get(m, {}).get("spec") for m in expected_modules)
-
-    if not (has_domain and has_pyproject and has_pyrightconfig and all_contracts and all_specs):
+    if not ROADMAP_DIR.exists():
+        print("  [milestone] WARNING: roadmap/ directory missing, returning v0.0.0")
         return "v0.0.0"
 
-    v02 = {"gap_analyzer", "reporter"}
-    if not all(modules.get(m, {}).get("core") and modules.get(m, {}).get("tests") for m in v02):
-        return "v0.1.0"
-
-    v03 = {"planner", "executor"}
-    if not all(modules.get(m, {}).get("core") and modules.get(m, {}).get("tests") for m in v03):
-        return "v0.2.0"
-
-    if not (modules.get("verifier", {}).get("core") and modules.get("verifier", {}).get("tests")):
-        return "v0.3.0"
-
-    if not (KERNEL_DIR.exists() and any(KERNEL_DIR.rglob("*.py"))):
-        return "v0.4.0"
-
-    return "v0.5.0"
+    prev_version = "v0.0.0"
+    for f in sorted(ROADMAP_DIR.glob("v*.md")):
+        ver = f.stem  # "v0.2"
+        content = f.read_text()
+        if "- [ ]" in content:
+            return prev_version
+        prev_version = ver + ".0"  # "v0.2" -> "v0.2.0"
+    return prev_version  # all complete
 
 
 def tag_milestone_if_advanced(state: dict) -> None:
-    """Create a git tag when the milestone version advances."""
+    """Create a git tag when the milestone version advances (never downgrades)."""
     new_milestone = _detect_current_milestone(state)
     old_milestone = state.get("current_milestone", "v0.0.0")
 
-    if new_milestone == old_milestone:
+    if _parse_version(new_milestone) <= _parse_version(old_milestone):
         return
 
     state["current_milestone"] = new_milestone
