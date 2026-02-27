@@ -288,7 +288,7 @@ def ensure_git() -> None:
                 "venv/\n.venv/\nnode_modules/\n.ruff_cache/\n"
             )
         git("add", "-A")
-        git("commit", "-m", "Initial commit: Anima seed + vision")
+        git("commit", "-m", "chore(anima): initial commit")
         print("[git] Initialized repository")
 
 
@@ -297,7 +297,7 @@ def create_snapshot(label: str) -> str:
     git("add", "-A")
     code, _ = git("diff", "--cached", "--quiet")
     if code != 0:
-        git("commit", "-m", f"Pre-iteration snapshot: {label}")
+        git("commit", "-m", f"chore(anima): pre-iteration snapshot {label}")
     _, sha = git("rev-parse", "HEAD")
     return sha
 
@@ -305,7 +305,7 @@ def create_snapshot(label: str) -> str:
 def commit_iteration(iteration_id: str, summary: str) -> None:
     """Commit changes from a successful iteration and push."""
     git("add", "-A")
-    git("commit", "-m", f"[iter-{iteration_id}] {summary}")
+    git("commit", "-m", f"feat(anima): [{iteration_id}] {summary}")
     code, out = git("push")
     if code != 0:
         print(f"  [git] push failed: {out[:200]}")
@@ -1097,7 +1097,7 @@ def check_module_replacement() -> dict:
 
     if replacements:
         print(f"[seed] Module replacements available: {list(replacements.keys())}")
-        print("[seed] (Dynamic replacement coming in v0.5)")
+        print("[seed] (Dynamic replacement not yet active)")
 
     return replacements
 
@@ -1180,7 +1180,7 @@ def run_iteration(state: dict, dry_run: bool = False) -> dict:
         if newly_checked:
             print(f"  [roadmap] Auto-checked {len(newly_checked)} items in v{current_version}")
             git("add", f"roadmap/v{current_version}.md")
-            git("commit", "-m", f"[seed] auto-check roadmap v{current_version}")
+            git("commit", "-m", f"docs(anima): auto-check roadmap v{current_version}")
             git("push")
 
         tag_milestone_if_advanced(state)
@@ -1481,10 +1481,15 @@ def main() -> None:
         print("  python seed.py --reset    # clear and resume")
         sys.exit(1)
 
-    # Enter alive state
+    # Enter alive state — commit + push so remote reflects we're awake
     state["status"] = "alive"
     save_state(state)
     update_readme(state)
+    git("add", "-A")
+    code, _ = git("diff", "--cached", "--quiet")
+    if code != 0:
+        git("commit", "-m", "chore(anima): I'm waking up")
+        git("push")
 
     count = 0
     if not args.once:
@@ -1523,10 +1528,15 @@ def main() -> None:
     update_readme(state)
 
     # Commit and push final status change
+    status_messages = {
+        "sleep": "I'm going to sleep",
+        "paused": "I'm stuck, need help",
+    }
+    msg = status_messages.get(state["status"], state["status"])
     git("add", "-A")
     code, _ = git("diff", "--cached", "--quiet")
     if code != 0:
-        git("commit", "-m", f"[anima] {state['status']}")
+        git("commit", "-m", f"chore(anima): {msg}")
         git("push")
 
 
