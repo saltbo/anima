@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Anima CLI — Stable entry point for the Autonomous Iteration Engine.
+Anima CLI -- Stable entry point for the Autonomous Iteration Engine.
 
 This file is human-maintained and protected. Pipeline step dispatch
 is handled by wiring.py (agent-modifiable) via kernel/loop.py.
@@ -25,6 +25,8 @@ import sys
 import time
 from datetime import UTC, datetime
 
+from kernel.console import configure, console
+
 logger = logging.getLogger("anima")
 
 # ---------------------------------------------------------------------------
@@ -45,31 +47,40 @@ def cmd_status() -> None:
     history = load_history()
     gaps = wiring.analyze_gaps(vision, project_state, history)
 
-    print(f"\n{'=' * 60}")
-    print("  ANIMA -- Status")
-    print(f"{'=' * 60}")
-    print(f"\n  Iterations: {state['iteration_count']}")
-    print(f"  Status: {state['status']}")
-    print(f"  Failures (consecutive): {state['consecutive_failures']}")
-    print(f"  Last iteration: {state.get('last_iteration', '--')}")
-
     # Roadmap progress
     current_version = get_current_version()
     roadmap_content = read_roadmap_file(current_version)
     unchecked, checked = parse_roadmap_items(roadmap_content)
     total = len(unchecked) + len(checked)
-    print(f"\n  Roadmap target: v{current_version}")
-    print(f"  Roadmap progress: {len(checked)}/{total} items checked")
 
-    print("\n  Architecture:")
-    print(f"    domain/:          {'ok' if project_state['domain_exists'] else 'missing'}")
-    print(f"    adapters/:        {'ok' if project_state['adapters_exist'] else 'not yet'}")
-    print(f"    kernel/:          {'ok' if project_state['kernel_exists'] else 'not yet'}")
-    print(f"    pyproject.toml:   {'ok' if project_state['has_pyproject'] else 'missing'}")
-    print(f"    pyrightconfig.json: {'ok' if project_state['has_pyrightconfig'] else 'missing'}")
+    console.panel("ANIMA -- Status", title="Anima", style="green")
 
-    print("\n  Modules:")
+    console.kv(
+        {
+            "Iterations": str(state["iteration_count"]),
+            "Status": state["status"],
+            "Failures (consecutive)": str(state["consecutive_failures"]),
+            "Last iteration": state.get("last_iteration", "--") or "--",
+            "Roadmap target": f"v{current_version}",
+            "Roadmap progress": f"{len(checked)}/{total} items checked",
+        },
+        title="Overview",
+    )
+
+    console.table(
+        ["Layer", "Status"],
+        [
+            ["domain/", "ok" if project_state["domain_exists"] else "missing"],
+            ["adapters/", "ok" if project_state["adapters_exist"] else "not yet"],
+            ["kernel/", "ok" if project_state["kernel_exists"] else "not yet"],
+            ["pyproject.toml", "ok" if project_state["has_pyproject"] else "missing"],
+            ["pyrightconfig.json", "ok" if project_state["has_pyrightconfig"] else "missing"],
+        ],
+        title="Architecture",
+    )
+
     if project_state["modules"]:
+        module_rows: list[list[str]] = []
         for name, info in project_state["modules"].items():
             flags: list[str] = []
             for field, label in [
@@ -79,37 +90,38 @@ def cmd_status() -> None:
                 ("has_tests", "tests"),
             ]:
                 flags.append(f"{'ok' if info.get(field) else 'no'}-{label}")
-            print(f"    {name}: {' '.join(flags)}")
+            module_rows.append([name, " ".join(flags)])
+        console.table(["Module", "Components"], module_rows, title="Modules")
     else:
-        print("    (none)")
+        console.info("Modules: (none)")
 
     qr = project_state.get("quality_results", {})
     if qr:
-        print("\n  Quality Pipeline:")
+        quality_rows: list[list[str]] = []
         for tool in ["ruff_lint", "ruff_format", "pyright"]:
             if qr.get(tool):
-                print(f"    {tool}: {'ok' if qr[tool]['passed'] else 'failing'}")
+                quality_rows.append([tool, "ok" if qr[tool]["passed"] else "failing"])
             else:
-                print(f"    {tool}: not installed")
+                quality_rows.append([tool, "not installed"])
+        console.table(["Tool", "Status"], quality_rows, title="Quality Pipeline")
 
     if project_state.get("test_results"):
         tr = project_state["test_results"]
-        print(f"\n  Tests: {'passing' if tr['passed'] else 'failing'}")
+        console.info(f"Tests: {'passing' if tr['passed'] else 'failing'}")
 
-    print(f"\n  Inbox: {len(project_state['inbox_items'])} items")
+    console.info(f"Inbox: {len(project_state['inbox_items'])} items")
     for item in project_state["inbox_items"]:
-        print(f"    - {item['filename']}")
+        console.step_detail(f"- {item['filename']}")
 
     gap_count = 0 if gaps == "NO_GAPS" else len(gaps.splitlines())
-    print(f"\n  Gaps: {gap_count if gap_count else 'none -- system at rest'}")
+    console.info(f"Gaps: {gap_count if gap_count else 'none -- system at rest'}")
 
     if history:
-        print("\n  Recent iterations:")
+        history_rows: list[list[str]] = []
         for h in history[-5:]:
             ok = "ok" if h.get("success") else "fail"
-            print(f"    [{ok}] {h['id']}: {h.get('summary', '--')[:60]}")
-
-    print()
+            history_rows.append([ok, h["id"], h.get("summary", "--")[:60]])
+        console.table(["Status", "ID", "Summary"], history_rows, title="Recent Iterations")
 
 
 def cmd_reset() -> None:
@@ -120,7 +132,7 @@ def cmd_reset() -> None:
     state["consecutive_failures"] = 0
     state["status"] = "sleep"
     save_state(state)
-    print("State reset. Anima is ready to iterate.")
+    console.success("State reset. Anima is ready to iterate.")
 
 
 def cmd_log(args: argparse.Namespace) -> None:
@@ -129,16 +141,19 @@ def cmd_log(args: argparse.Namespace) -> None:
 
     history = load_history()
     if not history:
-        print("No iterations yet.")
+        console.info("No iterations yet.")
         return
 
     entries = history[-args.last :] if args.last else history
+    rows: list[list[str]] = []
     for h in entries:
         ok = "ok" if h.get("success") else "FAIL"
         cost = h.get("cost_usd", 0)
         elapsed = h.get("elapsed_seconds", 0)
         summary = h.get("summary", "--")[:80]
-        print(f"  [{ok}] {h['id']}  ${cost:.4f}  {elapsed:.0f}s  {summary}")
+        rows.append([ok, h["id"], f"${cost:.4f}", f"{elapsed:.0f}s", summary])
+
+    console.table(["Status", "ID", "Cost", "Time", "Summary"], rows)
 
 
 def cmd_instruct(args: argparse.Namespace) -> None:
@@ -156,8 +171,8 @@ def cmd_instruct(args: argparse.Namespace) -> None:
     path = INBOX_DIR / filename
     content = f"# Instruction\n\n{args.message}\n"
     path.write_text(content)
-    print(f"  Instruction saved to inbox/{filename}")
-    print("  It will be picked up on the next iteration.")
+    console.success(f"Instruction saved to inbox/{filename}")
+    console.info("It will be picked up on the next iteration.")
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -179,13 +194,13 @@ def cmd_start(args: argparse.Namespace) -> None:
     from kernel.config import LOCK_FILE, ROADMAP_DIR, VISION_FILE
 
     if not VISION_FILE.exists():
-        print("ERROR: VISION.md not found. Anima cannot iterate without a vision.")
+        console.error("VISION.md not found. Anima cannot iterate without a vision.")
         sys.exit(1)
 
     if not ROADMAP_DIR.exists():
-        print("WARNING: roadmap/ directory not found. Roadmap tracking disabled.")
+        console.warning("roadmap/ directory not found. Roadmap tracking disabled.")
 
-    # Acquire exclusive process lock (skip for dry-run — no side effects)
+    # Acquire exclusive process lock (skip for dry-run -- no side effects)
     lock_fd = None
     if not args.dry_run:
         LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -194,8 +209,8 @@ def cmd_start(args: argparse.Namespace) -> None:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             lock_fd.close()
-            print("ERROR: Another anima process is already running.")
-            print(f"  Lock file: {LOCK_FILE}")
+            console.error("Another anima process is already running.")
+            console.info(f"Lock file: {LOCK_FILE}")
             sys.exit(1)
         lock_fd.write(str(os.getpid()))
         lock_fd.flush()
@@ -222,11 +237,11 @@ def _run_start(args: argparse.Namespace) -> None:
     if not args.dry_run:
         code, porcelain = git("status", "--porcelain")
         if code != 0:
-            print(f"ERROR: git status failed: {porcelain}")
+            console.error(f"git status failed: {porcelain}")
             sys.exit(1)
         if porcelain.strip():
-            print("ERROR: Working tree is not clean. Commit or stash your changes first.")
-            print("  git status  # see what's pending")
+            console.error("Working tree is not clean. Commit or stash your changes first.")
+            console.info("git status  # see what's pending")
             sys.exit(1)
 
     for d in [INBOX_DIR, ITERATIONS_DIR, MODULES_DIR]:
@@ -235,14 +250,14 @@ def _run_start(args: argparse.Namespace) -> None:
     state = load_state()
 
     if state["status"] == "paused":
-        print("  Anima is paused due to consecutive failures.")
-        print("  anima status    # see what happened")
-        print("  anima reset     # clear and resume")
+        console.warning("Anima is paused due to consecutive failures.")
+        console.info("anima status    # see what happened")
+        console.info("anima reset     # clear and resume")
         sys.exit(1)
 
     # In dry-run mode, skip all git commits and state changes
     if not args.dry_run:
-        # Enter alive state — commit + push so remote reflects we're awake
+        # Enter alive state -- commit + push so remote reflects we're awake
         state["status"] = "alive"
         save_state(state)
         update_readme(state)
@@ -255,9 +270,9 @@ def _run_start(args: argparse.Namespace) -> None:
 
     count = 0
     if not args.once:
-        logger.info("  Anima entering continuous iteration (cooldown: %ds)", args.cooldown)
+        console.info(f"Anima entering continuous iteration (cooldown: {args.cooldown}s)")
         if args.max:
-            logger.info("   Will stop after %d iterations", args.max)
+            console.info(f"Will stop after {args.max} iterations")
 
     try:
         while True:
@@ -271,17 +286,17 @@ def _run_start(args: argparse.Namespace) -> None:
             if args.once:
                 break
             if args.max and count >= args.max:
-                logger.info("\nReached max iterations (%d). Stopping.", args.max)
+                console.info(f"Reached max iterations ({args.max}). Stopping.")
                 break
             if state["status"] in ("paused", "sleep"):
-                logger.info("\nAnima entered '%s' state. Stopping.", state["status"])
+                console.info(f"Anima entered '{state['status']}' state. Stopping.")
                 break
 
-            logger.info("\n  Cooling down %ds...", args.cooldown)
+            console.info(f"Cooling down {args.cooldown}s...")
             time.sleep(args.cooldown)
 
     except KeyboardInterrupt:
-        logger.warning("\n\nInterrupted.")
+        console.warning("Interrupted.")
 
     if args.dry_run:
         return
@@ -314,7 +329,7 @@ def _run_start(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="anima",
-        description="Anima — Autonomous Iteration Engine",
+        description="Anima -- Autonomous Iteration Engine",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -360,7 +375,10 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Configure logging for the start command
+    # -- Console configuration (TUI output) ---------------------------------
+    configure(backend="auto")
+
+    # -- Logging configuration (file-based audit log) -----------------------
     if args.command == "start":
         if args.verbose:
             level = logging.DEBUG
@@ -368,7 +386,16 @@ def main() -> None:
             level = logging.WARNING
         else:
             level = logging.INFO
-        logging.basicConfig(format="%(message)s", level=level)
+
+        from kernel.config import ROOT
+
+        log_dir = ROOT / ".anima"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(
+            filename=str(log_dir / "anima.log"),
+            format="%(asctime)s %(name)s %(levelname)s %(message)s",
+            level=level,
+        )
 
     if args.command == "start":
         cmd_start(args)

@@ -1,4 +1,4 @@
-"""Reporter module — Record iteration results as structured JSON log entries.
+"""Reporter module -- Record iteration results as structured JSON log entries.
 
 Replaces kernel.seed.record_iteration with structured output.
 See CONTRACT.md for the interface and SPEC.md for the implementation details.
@@ -10,6 +10,8 @@ import json
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+
+from kernel.console import console
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -64,16 +66,16 @@ def record(
     except OSError:
         logger.error("Failed to write iteration log for %s", iteration_id)
 
-    # CLI output (print is allowed here — reporter is CLI output context)
-    print(f"\n{'─' * 50}")
-    print(f"  Iteration {iteration_id}")
-    print(f"  Status: {'✓ PASSED' if report['success'] else '✗ FAILED'}")
-    print(f"  Time: {elapsed:.1f}s")
-    for imp in verification.get("improvements", []):
-        print(f"  ✓ {imp}")
-    for issue in verification.get("issues", []):
-        print(f"  ✗ {str(issue)[:120]}")
-    print(f"{'─' * 50}")
+    # CLI output via console
+    console.iteration_result(
+        iteration_id,
+        report["success"],
+        elapsed,
+        verification.get("improvements", []),
+        verification.get("issues", []),
+        execution_result.get("cost_usd", 0),
+        execution_result.get("total_tokens", 0),
+    )
 
     return report
 

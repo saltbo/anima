@@ -383,15 +383,18 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
     Will be replaced by modules/executor/core.py with AgentPort abstraction.
     """
     if dry_run:
-        print("\n[dry-run] Would send the following prompt to agent:")
-        print("=" * 60)
-        print(prompt[:3000])
-        if len(prompt) > 3000:
-            print(f"\n... ({len(prompt) - 3000} more characters)")
-        print("=" * 60)
+        from kernel.console import console
+
+        console.info("[dry-run] Would send the following prompt to agent:")
+        console.panel(
+            prompt[:3000] + (f"\n... ({len(prompt) - 3000} more characters)" if len(prompt) > 3000 else ""),
+            title="Dry Run Prompt",
+        )
         return {"success": True, "output": "(dry run)", "dry_run": True}
 
-    print(f"[executor] Calling {AGENT_CMD} (streaming)...")
+    from kernel.console import console
+
+    console.info(f"Calling {AGENT_CMD} (streaming)...")
     start_time = time.time()
 
     # Save prompt to file for debugging / reference
@@ -459,7 +462,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
                 if inner_type == "content_block_delta":
                     delta = inner.get("delta", {})
                     if delta.get("type") == "text_delta":
-                        print(delta.get("text", ""), end="", flush=True)
+                        console.stream_text(delta.get("text", ""))
                     elif delta.get("type") == "input_json_delta":
                         # Accumulate tool input JSON chunks
                         tool_input_chunks.append(delta.get("partial_json", ""))
@@ -468,17 +471,17 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
                 elif inner_type == "content_block_start":
                     block = inner.get("content_block", {})
                     if block.get("type") == "tool_use":
-                        print("", flush=True)  # newline after preceding text
+                        console.stream_end()  # newline after preceding text
                         current_tool = block.get("name", "unknown")
                         tool_input_chunks = []
                     elif block.get("type") == "text":
-                        print("", flush=True)  # newline after preceding tool output
+                        console.stream_end()  # newline after preceding tool output
 
-                # Tool use end — parse accumulated input and show summary
+                # Tool use end -- parse accumulated input and show summary
                 elif inner_type == "content_block_stop":
                     if current_tool:
                         summary = _summarize_tool_input(current_tool, "".join(tool_input_chunks))
-                        print(f"  ▶ [{current_tool}] {summary}", flush=True)
+                        console.stream_tool(current_tool, summary)
                         current_tool = None
                         tool_input_chunks = []
 
@@ -493,15 +496,14 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
                 cache_read = usage.get("cache_read_input_tokens", 0)
                 cache_creation = usage.get("cache_creation_input_tokens", 0)
                 total_tokens = input_tokens + output_tokens + cache_read + cache_creation
-                print(
-                    f"\n  [executor] Done in {duration / 1000:.1f}s, cost: ${cost:.4f}, tokens: {total_tokens}"
-                )
+                console.stream_result(duration / 1000, cost, total_tokens)
 
-        print()  # newline after streaming
+        console.stream_end()
         proc.wait(timeout=600)
 
     except KeyboardInterrupt:
-        print("\n\n[executor] Interrupted — killing agent process...")
+        console.stream_end()
+        console.warning("Interrupted -- killing agent process...")
         proc.terminate()
         try:
             proc.wait(timeout=5)
@@ -524,7 +526,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
     assert proc.stderr is not None
     stderr_output = proc.stderr.read()
     if stderr_output:
-        print(f"  [agent stderr] {stderr_output[:500]}")
+        console.warning(f"[agent stderr] {stderr_output[:500]}")
 
     elapsed = time.time() - start_time
     return {
@@ -648,15 +650,17 @@ def record_iteration(
     log_file = ITERATIONS_DIR / f"{iteration_id}.json"
     log_file.write_text(json.dumps(report, indent=2, ensure_ascii=False))
 
-    print(f"\n{'─' * 50}")
-    print(f"  Iteration {iteration_id}")
-    print(f"  Status: {'✓ PASSED' if report['success'] else '✗ FAILED'}")
-    print(f"  Time: {elapsed:.1f}s")
-    for imp in verification.get("improvements", []):
-        print(f"  ✓ {imp}")
-    for issue in verification.get("issues", []):
-        print(f"  ✗ {str(issue)[:120]}")
-    print(f"{'─' * 50}")
+    from kernel.console import console
+
+    console.iteration_result(
+        iteration_id,
+        bool(report["success"]),
+        elapsed,
+        verification.get("improvements", []),
+        verification.get("issues", []),
+        float(execution_result.get("cost_usd", 0)),
+        int(execution_result.get("total_tokens", 0)),
+    )
 
     return report
 
@@ -676,14 +680,18 @@ def _generate_summary(verification: dict[str, Any]) -> str:
 
 
 def init_project(template: str | None = None) -> None:
-    """Initialize Anima in an existing project. Seed stub — not yet implemented."""
-    print("anima init is not yet implemented.")
-    print("This command will be available in v0.7.")
-    print("See roadmap/v0.7.md for the design.")
+    """Initialize Anima in an existing project. Seed stub -- not yet implemented."""
+    from kernel.console import console
+
+    console.info("anima init is not yet implemented.")
+    console.info("This command will be available in v0.7.")
+    console.info("See roadmap/v0.7.md for the design.")
 
 
 def approve_iteration(iteration_id: str) -> None:
-    """Approve a gated iteration. Seed stub — not yet implemented."""
-    print("anima approve is not yet implemented.")
-    print("This command requires the gate mechanism from v0.6.")
-    print("See roadmap/v0.7.md for the design.")
+    """Approve a gated iteration. Seed stub -- not yet implemented."""
+    from kernel.console import console
+
+    console.info("anima approve is not yet implemented.")
+    console.info("This command requires the gate mechanism from v0.6.")
+    console.info("See roadmap/v0.7.md for the design.")

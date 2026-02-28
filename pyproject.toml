@@ -5,7 +5,7 @@ description = "Autonomous Iteration Engine — gives software projects a life of
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["rich>=13.0"]
 
 [project.scripts]
 anima = "kernel.cli:main"

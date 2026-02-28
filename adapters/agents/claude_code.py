@@ -16,6 +16,7 @@ from typing import Any
 
 from domain.models import ExecutionResult, QuotaState, QuotaStatus
 from kernel.config import AGENT_CMD, ROOT
+from kernel.console import console
 
 logger = logging.getLogger("anima.adapters.agents")
 
@@ -117,7 +118,9 @@ class ClaudeCodeAdapter:
                 elapsed_seconds=0.0,
             )
 
-        result_text, cost, total_tokens, stream_quota_state, stream_error = self._stream_output(proc)
+        result_text, cost, total_tokens, stream_quota_state, stream_error = self._stream_output(
+            proc
+        )
         elapsed = time.time() - start_time
 
         assert proc.stderr is not None
@@ -126,7 +129,9 @@ class ClaudeCodeAdapter:
             logger.debug("Agent stderr: %s", stderr_output[:500])
 
         combined = (result_text + " " + stderr_output).lower()
-        quota_state = stream_quota_state or self._detect_quota_state(combined, proc.returncode or 0)
+        quota_state = stream_quota_state or self._detect_quota_state(
+            combined, proc.returncode or 0
+        )
         if quota_state is not None:
             logger.warning(
                 "Quota signal detected: %s — %s", quota_state.status.value, quota_state.message
@@ -209,14 +214,9 @@ class ClaudeCodeAdapter:
                     cache_read = usage.get("cache_read_input_tokens", 0)
                     cache_creation = usage.get("cache_creation_input_tokens", 0)
                     total_tokens = input_tokens + output_tokens + cache_read + cache_creation
-                    logger.info(
-                        "Done in %.1fs, cost: $%.4f, tokens: %d",
-                        duration / 1000,
-                        cost,
-                        total_tokens,
-                    )
+                    console.stream_result(duration / 1000, cost, total_tokens)
 
-            print()  # newline after streaming
+            console.stream_end()
             proc.wait(timeout=self._timeout)
 
         except KeyboardInterrupt:
@@ -326,7 +326,7 @@ class ClaudeCodeAdapter:
             delta_type: str = delta.get("type", "")
             if delta_type == "text_delta":
                 text: str = delta.get("text", "")
-                print(text, end="", flush=True)
+                console.stream_text(text)
             elif delta_type == "input_json_delta":
                 partial: str = delta.get("partial_json", "")
                 tool_input_chunks.append(partial)
@@ -335,16 +335,16 @@ class ClaudeCodeAdapter:
             block: dict[str, Any] = inner.get("content_block") or {}
             block_type: str = block.get("type", "")
             if block_type == "tool_use":
-                print("", flush=True)
+                console.stream_end()
                 current_tool = str(block.get("name", "unknown"))
                 tool_input_chunks = []
             elif block_type == "text":
-                print("", flush=True)
+                console.stream_end()
 
         elif inner_type == "content_block_stop":
             if current_tool:
                 summary = _summarize_tool_input(current_tool, "".join(tool_input_chunks))
-                print(f"  \u25b6 [{current_tool}] {summary}", flush=True)
+                console.stream_tool(current_tool, summary)
                 current_tool = None
                 tool_input_chunks = []
 
