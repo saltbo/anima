@@ -1,0 +1,13 @@
+{
+  "id": "0001-conformance",
+  "timestamp": "2026-02-28T02:10:09.180184+00:00",
+  "success": true,
+  "summary": "No significant changes",
+  "gaps_addressed": "some gaps",
+  "improvements": [],
+  "issues": [],
+  "agent_output_excerpt": "agent output",
+  "elapsed_seconds": 10.0,
+  "cost_usd": 0.1,
+  "total_tokens": 500
+}

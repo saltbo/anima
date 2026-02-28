@@ -3,20 +3,19 @@ You are Anima. Read these files to understand yourself and your mission:
 - VISION.md — the project vision and architecture
 - roadmap/v0.2.md — current version target
 
-Iteration #8. Current roadmap target: v0.2.
+Iteration #9. Current roadmap target: v0.2.
 
 GAPS TO ADDRESS:
-UNCOMPLETED ROADMAP ITEMS for v0.2 (5):
-  - Wire scan_project_state into wiring.py with conformance test validating CONTRACT.md (interface)
+UNCOMPLETED ROADMAP ITEMS for v0.2 (4):
   - Implement modules/reporter/core.py with structured IterationRecord
   - Tests for reporter validating SPEC.md (behavior)
   - Wire record_iteration into wiring.py with conformance test validating CONTRACT.md (interface)
   - All code passes full quality pipeline
 
 RECENT ITERATIONS:
-  [✓] New files: 6
   [✓] New files: 1
   [✓] New files: 3
+  [✓] New files: 2
 
 STATE SUMMARY:
   Modules: ['__pycache__', 'executor', 'gap_analyzer', 'planner', 'reporter', 'scanner', 'verifier']

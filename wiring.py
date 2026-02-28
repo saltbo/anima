@@ -19,6 +19,7 @@ self-replacement protocol.
 
 from __future__ import annotations
 
+from adapters.reporter_bridge import record_iteration as record_iteration
 from adapters.scanner_bridge import scan_project_state as scan_project_state
 from kernel import seed
 
@@ -30,7 +31,6 @@ analyze_gaps = seed.analyze_gaps
 plan_iteration = seed.plan_iteration
 execute_plan = seed.execute_plan
 verify_iteration = seed.verify_iteration
-record_iteration = seed.record_iteration
 
 # ---------------------------------------------------------------------------
 # Replaceable CLI command implementations
