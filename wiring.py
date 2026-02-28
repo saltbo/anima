@@ -302,6 +302,45 @@ def analyze_gaps(
         logger.info("[gate] Pending gate detected — returning NO_GAPS to sleep")
         return "NO_GAPS"
 
+    # Enrich project_state with module health for auto-rewrite detection.
+    if _health_module_available:
+        modules_raw: object = project_state.get("modules", {})
+        if isinstance(modules_raw, dict) and modules_raw:
+            import datetime
+            from typing import cast
+
+            from domain.models import ModuleInfo
+
+            typed_modules = cast("dict[str, Any]", modules_raw)
+            module_infos_list: list[ModuleInfo] = []
+            for mod_name, mod_data in typed_modules.items():
+                if not isinstance(mod_data, dict):
+                    continue
+                d = cast("dict[str, Any]", mod_data)
+                module_infos_list.append(
+                    ModuleInfo(
+                        name=mod_name,
+                        has_contract=bool(d.get("has_contract", False)),
+                        has_spec=bool(d.get("has_spec", False)),
+                        has_core=bool(d.get("has_core", False)),
+                        has_tests=bool(d.get("has_tests", False)),
+                        files=tuple(str(f) for f in d.get("files", [])),
+                    )
+                )
+            module_infos = tuple(module_infos_list)
+            ts = datetime.datetime.now(datetime.UTC).isoformat()
+            health_report = _score_health(module_infos, get_health_stats(), ts)
+            health_data = [
+                {
+                    "module_name": m.module_name,
+                    "score": m.score,
+                    "status": m.status.value,
+                    "issues": list(m.issues),
+                }
+                for m in health_report.modules
+            ]
+            project_state = {**project_state, "module_health": health_data}
+
     if _analyze_fn is not None:
         try:
             return _analyze_fn(vision, project_state, history)

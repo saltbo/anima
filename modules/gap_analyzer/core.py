@@ -86,6 +86,20 @@ def analyze(
     for item in project_state.get("inbox_items", []):
         gaps.append(f"\nHUMAN REQUEST ({item['filename']}):\n{item['content']}")
 
+    # 6. Module health — auto-rewrite trigger
+    module_health: list[dict[str, Any]] = project_state.get("module_health", [])
+    degraded = [m for m in module_health if m.get("status") in ("degraded", "critical")]
+    if degraded:
+        gaps.append("\nAUTO-REWRITE TRIGGER — degraded modules detected:")
+        for m in degraded:
+            status = str(m["status"]).upper()
+            score = float(m["score"])
+            issues = ", ".join(str(i) for i in m.get("issues", []))
+            label = f"  - {m['module_name']}: {status} (score={score:.3f})"
+            if issues:
+                label += f" — {issues}"
+            gaps.append(label)
+
     if not gaps:
         return "NO_GAPS"
 

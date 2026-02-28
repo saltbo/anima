@@ -306,3 +306,96 @@ def test_fresh_gap_not_annotated(_parse: Any, _read: Any, _ver: Any) -> None:
     result = analyze("vision", _empty_state(), [])
     assert "STUCK" not in result
     assert "  - Fresh item" in result
+
+
+# ---------------------------------------------------------------------------
+# Auto-rewrite trigger (v0.8)
+# ---------------------------------------------------------------------------
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="99.0")
+@patch("modules.gap_analyzer.core.read_roadmap_file", return_value="")
+@patch("modules.gap_analyzer.core.parse_roadmap_items", return_value=([], []))
+def test_degraded_module_triggers_rewrite(_parse: Any, _read: Any, _ver: Any) -> None:
+    """A degraded module appears in the gap report as an auto-rewrite trigger."""
+    state = _empty_state(
+        module_health=[
+            {
+                "module_name": "executor",
+                "score": 0.55,
+                "status": "degraded",
+                "issues": ["fallback rate: 30% (3/10)"],
+            },
+        ]
+    )
+    result = analyze("vision", state, [])
+    assert "AUTO-REWRITE TRIGGER" in result
+    assert "executor: DEGRADED (score=0.550)" in result
+    assert "fallback rate: 30% (3/10)" in result
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="99.0")
+@patch("modules.gap_analyzer.core.read_roadmap_file", return_value="")
+@patch("modules.gap_analyzer.core.parse_roadmap_items", return_value=([], []))
+def test_critical_module_triggers_rewrite(_parse: Any, _read: Any, _ver: Any) -> None:
+    """A critical module appears in the gap report as an auto-rewrite trigger."""
+    state = _empty_state(
+        module_health=[
+            {
+                "module_name": "scanner",
+                "score": 0.25,
+                "status": "critical",
+                "issues": ["high fallback rate: 80% (8/10)", "missing: SPEC.md"],
+            },
+        ]
+    )
+    result = analyze("vision", state, [])
+    assert "AUTO-REWRITE TRIGGER" in result
+    assert "scanner: CRITICAL (score=0.250)" in result
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="99.0")
+@patch("modules.gap_analyzer.core.read_roadmap_file", return_value="")
+@patch("modules.gap_analyzer.core.parse_roadmap_items", return_value=([], []))
+def test_healthy_modules_no_rewrite(_parse: Any, _read: Any, _ver: Any) -> None:
+    """Healthy modules do not trigger auto-rewrite."""
+    state = _empty_state(
+        module_health=[
+            {
+                "module_name": "scanner",
+                "score": 0.85,
+                "status": "healthy",
+                "issues": [],
+            },
+        ]
+    )
+    result = analyze("vision", state, [])
+    assert result == "NO_GAPS"
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="99.0")
+@patch("modules.gap_analyzer.core.read_roadmap_file", return_value="")
+@patch("modules.gap_analyzer.core.parse_roadmap_items", return_value=([], []))
+def test_no_health_data_no_rewrite(_parse: Any, _read: Any, _ver: Any) -> None:
+    """When no module_health data is present, no auto-rewrite is triggered."""
+    result = analyze("vision", _empty_state(), [])
+    assert result == "NO_GAPS"
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="99.0")
+@patch("modules.gap_analyzer.core.read_roadmap_file", return_value="")
+@patch("modules.gap_analyzer.core.parse_roadmap_items", return_value=([], []))
+def test_multiple_degraded_modules(_parse: Any, _read: Any, _ver: Any) -> None:
+    """Multiple degraded modules all appear in the auto-rewrite section."""
+    state = _empty_state(
+        module_health=[
+            {"module_name": "executor", "score": 0.55, "status": "degraded", "issues": []},
+            {"module_name": "scanner", "score": 0.30, "status": "critical", "issues": []},
+            {"module_name": "planner", "score": 0.85, "status": "healthy", "issues": []},
+        ]
+    )
+    result = analyze("vision", state, [])
+    assert "AUTO-REWRITE TRIGGER" in result
+    assert "executor: DEGRADED" in result
+    assert "scanner: CRITICAL" in result
+    assert "planner" not in result
