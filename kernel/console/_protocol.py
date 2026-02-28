@@ -117,3 +117,9 @@ class ConsoleProtocol(Protocol):
     def stream_result(self, elapsed: float, cost: float, tokens: int) -> None:
         """Display the post-stream execution summary."""
         ...
+
+    # -- Interactive prompt -------------------------------------------------
+
+    def prompt(self, label: str = "Annie", timeout: float | None = None) -> str | None:
+        """Show interactive prompt. Returns user input or None on timeout."""
+        ...

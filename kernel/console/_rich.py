@@ -6,8 +6,13 @@ Lazily imports Rich sub-modules so that startup cost is minimal.
 
 from __future__ import annotations
 
+import select
+import sys
+
 from rich import box
 from rich.console import Console
+from rich.panel import Panel
+from rich.rule import Rule
 from rich.theme import Theme
 
 _THEME = Theme(
@@ -20,6 +25,7 @@ _THEME = Theme(
         "step.desc": "default",
         "tool": "magenta",
         "dim": "dim",
+        "prompt.label": "bold cyan",
     }
 )
 
@@ -82,16 +88,11 @@ class RichBackend:
     # -- Iteration lifecycle ------------------------------------------------
 
     def iteration_header(self, num: int, timestamp: str) -> None:
-        from rich.panel import Panel
-
         self._con.print()
         self._con.print(
-            Panel(
-                f"\U0001f331 ANIMA \u2014 Iteration #{num}\n   {timestamp} UTC",
-                border_style="green",
-                box=box.DOUBLE,
-            ),
+            Rule(f" Iteration #{num} ", style="bold", align="left"),
         )
+        self._con.print(f"  [dim]{timestamp} UTC[/]")
 
     def step(self, current: int, total: int, description: str) -> None:
         self._con.print(f"\n  [step.num]\\[{current}/{total}][/] {description}")
@@ -109,20 +110,22 @@ class RichBackend:
         cost_usd: float,
         total_tokens: int,
     ) -> None:
-        from rich.panel import Panel
-
-        status = "[success]\u2713 PASSED[/]" if success else "[error]\u2717 FAILED[/]"
-        lines = [
-            f"  Iteration [bold]{iteration_id}[/]",
-            f"  Status: {status}",
-            f"  Time: {elapsed:.1f}s  Cost: ${cost_usd:.4f}  Tokens: {total_tokens}",
-        ]
         for imp in improvements:
-            lines.append(f"  [success]\u2713[/] {imp}")
+            self._con.print(f"  [success]\u2713[/] {imp}")
         for issue in issues:
-            lines.append(f"  [error]\u2717[/] {str(issue)[:120]}")
-        border = "green" if success else "red"
-        self._con.print(Panel("\n".join(lines), border_style=border, box=box.ROUNDED))
+            self._con.print(f"  [error]\u2717[/] {str(issue)[:120]}")
+
+        icon = "\u2713" if success else "\u2717"
+        word = "passed" if success else "failed"
+        style = "green" if success else "red"
+        self._con.print()
+        self._con.print(
+            Rule(
+                f" {icon} Iteration #{iteration_id} {word} "
+                f"\u2500\u2500 {elapsed:.1f}s \u00b7 ${cost_usd:.4f} \u00b7 {total_tokens:,} ",
+                style=style,
+            ),
+        )
 
     # -- Agent streaming ----------------------------------------------------
 
@@ -131,13 +134,40 @@ class RichBackend:
         self._con.out(text, end="", highlight=False)
 
     def stream_tool(self, tool_name: str, summary: str) -> None:
-        self._con.print(f"\n  [tool]\u25b6 [{tool_name}][/] {summary}")
+        self._con.print()
+        panel = Panel(
+            f"  {summary}",
+            title=f"{tool_name}",
+            title_align="left",
+            border_style="dim",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+        self._con.print(panel)
 
     def stream_end(self) -> None:
         self._con.print()
 
     def stream_result(self, elapsed: float, cost: float, tokens: int) -> None:
         self._con.print(
-            f"\n  [dim][executor][/] Done in {elapsed:.1f}s, "
-            f"cost: [bold]${cost:.4f}[/], tokens: {tokens}"
+            f"\n  [dim]\u23f1 {elapsed:.1f}s \u00b7 ${cost:.4f} \u00b7 {tokens:,} tokens[/]"
         )
+
+    # -- Interactive prompt -------------------------------------------------
+
+    def prompt(self, label: str = "Annie", timeout: float | None = None) -> str | None:
+        """Show interactive prompt. Returns user input or None on timeout."""
+        try:
+            self._con.print()
+            self._con.print(f"[prompt.label]{label}>[/] ", end="")
+            if timeout is not None and timeout > 0:
+                ready, _, _ = select.select([sys.stdin], [], [], timeout)
+                if not ready:
+                    self._con.print()
+                    return None
+            line = sys.stdin.readline()
+            if not line:
+                return None
+            return line.rstrip("\n")
+        except EOFError:
+            return None

@@ -329,9 +329,8 @@ def verify_iteration(
 
     exec_result = _last_execution_result
     if exec_result is not None and not exec_result.get("success", True):
-        issue = (
-            "EXECUTION: agent execution failed"
-            + (f" (exit {exec_result.get('exit_code')})" if "exit_code" in exec_result else "")
+        issue = "EXECUTION: agent execution failed" + (
+            f" (exit {exec_result.get('exit_code')})" if "exit_code" in exec_result else ""
         )
         errors = str(exec_result.get("errors", "")).strip()
         if errors:

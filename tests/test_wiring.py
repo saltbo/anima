@@ -406,7 +406,9 @@ class TestExecutionFailureVerificationGate:
             with patch.object(wiring, "_verify_fn", None):
                 result = wiring.verify_iteration({}, {})
             assert result["passed"] is True
-            assert not any("EXECUTION: agent execution failed" in issue for issue in result["issues"])
+            assert not any(
+                "EXECUTION: agent execution failed" in issue for issue in result["issues"]
+            )
         finally:
             wiring._last_execution_result = original_last
 

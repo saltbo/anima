@@ -42,7 +42,7 @@ def configure(*, backend: str = "auto") -> None:
                  ``"auto"`` (default) -- Rich when available **and** stdout
                  is a TTY; plain otherwise.
     """
-    global _backend  # noqa: PLW0603
+    global _backend
 
     if backend == "plain":
         _backend = PlainBackend()

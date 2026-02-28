@@ -292,8 +292,7 @@ def _run_start(args: argparse.Namespace) -> None:
                 console.info(f"Anima entered '{state['status']}' state. Stopping.")
                 break
 
-            console.info(f"Cooling down {args.cooldown}s...")
-            time.sleep(args.cooldown)
+            _interactive_cooldown(args.cooldown, state)
 
     except KeyboardInterrupt:
         console.warning("Interrupted.")
@@ -319,6 +318,68 @@ def _run_start(args: argparse.Namespace) -> None:
         git("commit", "-m", f"chore(anima): {msg}")
         if AUTO_PUSH:
             git("push")
+
+
+# ---------------------------------------------------------------------------
+# Interactive cooldown
+# ---------------------------------------------------------------------------
+
+
+def _interactive_cooldown(cooldown: int, state: dict[str, object]) -> None:
+    """Replace sleep with an interactive prompt during cooldown."""
+    deadline = time.monotonic() + cooldown
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        user_input = console.prompt("Annie", timeout=remaining)
+        if user_input is None:
+            break  # timeout — start next iteration
+        text = user_input.strip()
+        if not text:
+            continue
+        if text.startswith("/"):
+            _handle_prompt_command(text, state)
+        else:
+            _create_inbox_item(text)
+            console.success("Sent to inbox")
+
+
+def _handle_prompt_command(command: str, state: dict[str, object]) -> None:
+    """Handle slash-commands entered at the Annie> prompt."""
+    cmd = command.lower().split()[0]
+    if cmd == "/status":
+        console.kv(
+            {
+                "Status": str(state.get("status", "unknown")),
+                "Iterations": str(state.get("iteration_count", 0)),
+            }
+        )
+    elif cmd == "/pause":
+        from kernel.state import save_state
+
+        state["status"] = "paused"
+        save_state(state)
+        console.warning("Paused. Run 'anima reset' to resume.")
+    elif cmd == "/help":
+        console.info("Commands: /status  /pause  /help")
+        console.info("Or type text to send a message to inbox.")
+    else:
+        console.warning(f"Unknown command: {cmd}")
+        console.info("Try /help for available commands.")
+
+
+def _create_inbox_item(message: str) -> None:
+    """Write a message to the inbox directory."""
+    from kernel.config import INBOX_DIR
+
+    INBOX_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    slug = message[:40].lower().replace(" ", "-")
+    slug = "".join(c for c in slug if c.isalnum() or c == "-").strip("-")
+    filename = f"{timestamp}-{slug}.md"
+    path = INBOX_DIR / filename
+    path.write_text(f"# Instruction\n\n{message}\n")
 
 
 # ---------------------------------------------------------------------------

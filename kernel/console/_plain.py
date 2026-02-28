@@ -6,6 +6,7 @@ Used when Rich is not installed or stdout is not a TTY.
 
 from __future__ import annotations
 
+import select
 import sys
 
 
@@ -51,10 +52,12 @@ class PlainBackend:
             for i in range(len(headers))
         ]
         # Ensure minimum width
-        col_widths = [max(w, len(h)) for w, h in zip(col_widths, headers)]
+        col_widths = [max(w, len(h)) for w, h in zip(col_widths, headers, strict=True)]
 
         # Header
-        header_line = "  " + "  ".join(h.ljust(w) for h, w in zip(headers, col_widths))
+        header_line = "  " + "  ".join(
+            h.ljust(w) for h, w in zip(headers, col_widths, strict=True)
+        )
         print(header_line)
         print("  " + "  ".join("-" * w for w in col_widths))
 
@@ -78,17 +81,16 @@ class PlainBackend:
     # -- Iteration lifecycle ------------------------------------------------
 
     def iteration_header(self, num: int, timestamp: str) -> None:
-        border = "=" * 60
-        print(f"\n{border}")
-        print(f"  \U0001f331 ANIMA -- Iteration #{num}")
-        print(f"     {timestamp} UTC")
-        print(border)
+        rule = "\u2501" * 60
+        print(f"\n{rule}")
+        print(f"  Iteration #{num}  \u2500  {timestamp} UTC")
+        print(rule)
 
     def step(self, current: int, total: int, description: str) -> None:
-        print(f"\n[{current}/{total}] {description}")
+        print(f"\n  [{current}/{total}] {description}")
 
     def step_detail(self, message: str) -> None:
-        print(f"  {message}")
+        print(f"    {message}")
 
     def iteration_result(
         self,
@@ -100,17 +102,18 @@ class PlainBackend:
         cost_usd: float,
         total_tokens: int,
     ) -> None:
-        sep = "\u2500" * 50
-        status = "\u2713 PASSED" if success else "\u2717 FAILED"
-        print(f"\n{sep}")
-        print(f"  Iteration {iteration_id}")
-        print(f"  Status: {status}")
-        print(f"  Time: {elapsed:.1f}s  Cost: ${cost_usd:.4f}  Tokens: {total_tokens}")
         for imp in improvements:
             print(f"  \u2713 {imp}")
         for issue in issues:
             print(f"  \u2717 {str(issue)[:120]}")
-        print(sep)
+
+        icon = "\u2713" if success else "\u2717"
+        word = "passed" if success else "failed"
+        print()
+        print(
+            f"\u2501\u2501 {icon} Iteration #{iteration_id} {word} "
+            f"\u2500\u2500 {elapsed:.1f}s \u00b7 ${cost_usd:.4f} \u00b7 {total_tokens:,} \u2501\u2501"
+        )
 
     # -- Agent streaming ----------------------------------------------------
 
@@ -118,13 +121,35 @@ class PlainBackend:
         print(text, end="", flush=True)
 
     def stream_tool(self, tool_name: str, summary: str) -> None:
-        print(f"\n  \u25b6 [{tool_name}] {summary}", flush=True)
+        width = 70
+        header = f"\u250c\u2500 {tool_name} " + "\u2500" * max(0, width - 5 - len(tool_name)) + "\u2510"
+        print(f"\n  {header}", flush=True)
+        print(f"  \u2502 {summary.ljust(width - 2)}\u2502", flush=True)
+        print("  \u2514" + "\u2500" * (width - 1) + "\u2518", flush=True)
 
     def stream_end(self) -> None:
         print(flush=True)
 
     def stream_result(self, elapsed: float, cost: float, tokens: int) -> None:
-        print(f"\n  [executor] Done in {elapsed:.1f}s, cost: ${cost:.4f}, tokens: {tokens}")
+        print(f"\n  \u23f1 {elapsed:.1f}s \u00b7 ${cost:.4f} \u00b7 {tokens:,} tokens")
+
+    # -- Interactive prompt -------------------------------------------------
+
+    def prompt(self, label: str = "Annie", timeout: float | None = None) -> str | None:
+        """Show interactive prompt. Returns user input or None on timeout."""
+        try:
+            print(f"\n{label}> ", end="", flush=True)
+            if timeout is not None and timeout > 0:
+                ready, _, _ = select.select([sys.stdin], [], [], timeout)
+                if not ready:
+                    print()
+                    return None
+            line = sys.stdin.readline()
+            if not line:
+                return None
+            return line.rstrip("\n")
+        except EOFError:
+            return None
 
     # -- Utility (for test/introspection) -----------------------------------
 

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from adapters.agents.claude_code import ClaudeCodeAdapter
 from domain.models import QuotaStatus
