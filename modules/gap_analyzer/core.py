@@ -1,9 +1,7 @@
-"""
-modules/gap_analyzer/core.py — Gap analysis between vision/roadmap and project state.
+"""Gap analysis between vision/roadmap and project state.
 
-v0.1: Seed-equivalent implementation. Accepts and returns untyped
-dicts/strings matching the seed interface. Uses kernel.roadmap helpers
-for roadmap parsing.
+v0.6: Adds failure pattern detection — annotates stuck gaps so the
+planner can skip or re-approach them.
 """
 
 from __future__ import annotations
@@ -11,9 +9,22 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from domain.models import FailureAction
 from kernel.roadmap import get_current_version, parse_roadmap_items, read_roadmap_file
+from modules.failure_analyzer.core import analyze_patterns
 
 logger = logging.getLogger("anima.gap_analyzer")
+
+
+def _annotate_stuck_gaps(
+    unchecked: list[str],
+    history: list[dict[str, Any]],
+) -> dict[str, FailureAction]:
+    """Return a map of gap_text → recommended action for stuck items."""
+    if not unchecked or not history:
+        return {}
+    patterns = analyze_patterns(history, unchecked, threshold=3)
+    return {p.gap_text: p.action for p in patterns}
 
 
 def analyze(
@@ -33,10 +44,19 @@ def analyze(
     roadmap_content = read_roadmap_file(current_version)
     unchecked, _checked = parse_roadmap_items(roadmap_content)
 
+    # Detect stuck gaps using failure pattern analysis
+    stuck = _annotate_stuck_gaps(unchecked, history)
+
     if unchecked:
         gaps.append(f"UNCOMPLETED ROADMAP ITEMS for v{current_version} ({len(unchecked)}):")
         for item in unchecked:
-            gaps.append(f"  - {item}")
+            action = stuck.get(item)
+            if action == FailureAction.SKIP:
+                gaps.append(f"  - {item}  [STUCK — skip this, work on something else]")
+            elif action == FailureAction.REAPPROACH:
+                gaps.append(f"  - {item}  [STUCK — try a different approach]")
+            else:
+                gaps.append(f"  - {item}")
 
     # 2. Infrastructure gaps (only if mentioned in current roadmap)
     roadmap_text = roadmap_content.lower()

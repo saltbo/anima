@@ -184,3 +184,24 @@ class IterationRecord:
     elapsed_seconds: float
     cost_usd: float = 0.0
     total_tokens: int = 0
+
+
+class FailureAction(Enum):
+    """Recommended action for a stuck gap."""
+
+    SKIP = "skip"
+    REAPPROACH = "re-approach"
+
+
+@dataclass(frozen=True)
+class FailurePattern:
+    """A detected pattern of repeated failure on a specific gap.
+
+    Tracks how many iterations a gap has persisted and whether
+    those iterations failed, to recommend skipping or re-approaching.
+    """
+
+    gap_text: str
+    occurrences: int
+    failed_attempts: int
+    action: FailureAction

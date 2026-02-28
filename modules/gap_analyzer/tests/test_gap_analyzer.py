@@ -244,3 +244,65 @@ def test_multiple_gap_types_combined(_parse: Any, _read: Any, _ver: Any) -> None
     assert "UNCOMPLETED ROADMAP ITEMS" in result
     assert "RUFF LINT FAILURES:" in result
     assert "HUMAN REQUEST" in result
+
+
+# ---------------------------------------------------------------------------
+# Failure pattern annotations (v0.6)
+# ---------------------------------------------------------------------------
+
+
+def _history_record(gaps_addressed: str, success: bool = True) -> dict[str, Any]:
+    """Build a minimal history record."""
+    return {"gaps_addressed": gaps_addressed, "success": success, "summary": "test"}
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="0.6")
+@patch("modules.gap_analyzer.core.read_roadmap_file", return_value="- [ ] Stuck item")
+@patch(
+    "modules.gap_analyzer.core.parse_roadmap_items",
+    return_value=(["Stuck item"], []),
+)
+def test_stuck_gap_annotated_reapproach(_parse: Any, _read: Any, _ver: Any) -> None:
+    """A gap present in 3+ consecutive iterations (all success) is marked REAPPROACH."""
+    history = [
+        _history_record("Stuck item"),
+        _history_record("Stuck item"),
+        _history_record("Stuck item"),
+    ]
+    result = analyze("vision", _empty_state(), history)
+    assert "[STUCK" in result
+    assert "try a different approach" in result
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="0.6")
+@patch("modules.gap_analyzer.core.read_roadmap_file", return_value="- [ ] Bad item")
+@patch(
+    "modules.gap_analyzer.core.parse_roadmap_items",
+    return_value=(["Bad item"], []),
+)
+def test_stuck_gap_annotated_skip(_parse: Any, _read: Any, _ver: Any) -> None:
+    """A gap with 2+ failures is marked SKIP."""
+    history = [
+        _history_record("Bad item", success=False),
+        _history_record("Bad item", success=False),
+        _history_record("Bad item", success=True),
+    ]
+    result = analyze("vision", _empty_state(), history)
+    assert "[STUCK" in result
+    assert "skip this" in result
+
+
+@patch("modules.gap_analyzer.core.get_current_version", return_value="0.6")
+@patch(
+    "modules.gap_analyzer.core.read_roadmap_file",
+    return_value="- [ ] Fresh item",
+)
+@patch(
+    "modules.gap_analyzer.core.parse_roadmap_items",
+    return_value=(["Fresh item"], []),
+)
+def test_fresh_gap_not_annotated(_parse: Any, _read: Any, _ver: Any) -> None:
+    """A gap appearing for the first time has no annotation."""
+    result = analyze("vision", _empty_state(), [])
+    assert "STUCK" not in result
+    assert "  - Fresh item" in result
