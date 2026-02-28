@@ -1,0 +1,72 @@
+"""
+modules/gap_analyzer/core.py — Gap analysis between vision/roadmap and project state.
+
+v0.1: Seed-equivalent implementation. Accepts and returns untyped
+dicts/strings matching the seed interface. Uses kernel.roadmap helpers
+for roadmap parsing.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from kernel.roadmap import get_current_version, parse_roadmap_items, read_roadmap_file
+
+logger = logging.getLogger("anima.gap_analyzer")
+
+
+def analyze(
+    vision: str,
+    project_state: dict[str, Any],
+    history: list[dict[str, Any]],
+) -> str:
+    """Analyze gaps between the roadmap/vision and current project state.
+
+    Returns a newline-joined gap report string, or the literal "NO_GAPS"
+    if nothing needs attention.
+    """
+    gaps: list[str] = []
+
+    # 1. Current roadmap unchecked items
+    current_version = get_current_version()
+    roadmap_content = read_roadmap_file(current_version)
+    unchecked, _checked = parse_roadmap_items(roadmap_content)
+
+    if unchecked:
+        gaps.append(f"UNCOMPLETED ROADMAP ITEMS for v{current_version} ({len(unchecked)}):")
+        for item in unchecked:
+            gaps.append(f"  - {item}")
+
+    # 2. Infrastructure gaps (only if mentioned in current roadmap)
+    roadmap_text = roadmap_content.lower()
+    if not project_state.get("domain_exists") and "domain/" in roadmap_text:
+        gaps.append("\nMISSING: domain/ layer (models.py + ports.py)")
+    if not project_state.get("has_pyproject") and "pyproject.toml" in roadmap_text:
+        gaps.append("\nMISSING: pyproject.toml (project config, ruff config, pytest config)")
+    if not project_state.get("has_pyrightconfig") and "pyrightconfig.json" in roadmap_text:
+        gaps.append("\nMISSING: pyrightconfig.json (strict type checking config)")
+
+    # 3. Quality failures
+    qr = project_state.get("quality_results", {})
+    if qr:
+        if qr.get("ruff_lint") and not qr["ruff_lint"]["passed"]:
+            gaps.append(f"\nRUFF LINT FAILURES:\n{qr['ruff_lint']['output'][:500]}")
+        if qr.get("ruff_format") and not qr["ruff_format"]["passed"]:
+            gaps.append(f"\nRUFF FORMAT FAILURES:\n{qr['ruff_format']['output'][:500]}")
+        if qr.get("pyright") and not qr["pyright"]["passed"]:
+            gaps.append(f"\nPYRIGHT TYPE ERRORS:\n{qr['pyright']['output'][:500]}")
+
+    # 4. Test failures
+    test_results = project_state.get("test_results")
+    if test_results and not test_results["passed"]:
+        gaps.append(f"\nFAILING TESTS:\n{test_results['output']}")
+
+    # 5. Inbox items
+    for item in project_state.get("inbox_items", []):
+        gaps.append(f"\nHUMAN REQUEST ({item['filename']}):\n{item['content']}")
+
+    if not gaps:
+        return "NO_GAPS"
+
+    return "\n".join(gaps)
