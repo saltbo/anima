@@ -213,3 +213,4 @@ __marimo__/
 .anima/*.lock
 .anima/*.tmp
 .anima/current_prompt.txt
+.anima/health.json
