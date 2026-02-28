@@ -25,6 +25,14 @@ class Priority(Enum):
     LOW = "low"
 
 
+class QuotaStatus(Enum):
+    """API quota/rate-limit state reported by an agent."""
+
+    OK = "ok"
+    RATE_LIMITED = "rate_limited"
+    QUOTA_EXHAUSTED = "quota_exhausted"
+
+
 # ---------------------------------------------------------------------------
 # Supporting types
 # ---------------------------------------------------------------------------
@@ -55,6 +63,15 @@ class QualityReport:
     ruff_lint: QualityCheckResult | None = None
     ruff_format: QualityCheckResult | None = None
     pyright: QualityCheckResult | None = None
+
+
+@dataclass(frozen=True)
+class QuotaState:
+    """Snapshot of API quota/rate-limit state from an agent execution."""
+
+    status: QuotaStatus
+    retry_after_seconds: float | None = None
+    message: str = ""
 
 
 @dataclass(frozen=True)
@@ -140,6 +157,7 @@ class ExecutionResult:
     cost_usd: float = 0.0
     total_tokens: int = 0
     dry_run: bool = False
+    quota_state: QuotaState | None = None
 
 
 @dataclass(frozen=True)

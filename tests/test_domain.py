@@ -21,6 +21,8 @@ from domain.models import (
     ProjectState,
     QualityCheckResult,
     QualityReport,
+    QuotaState,
+    QuotaStatus,
     TestResult,
     VerificationReport,
     Vision,
@@ -36,6 +38,7 @@ ALL_MODELS = [
     QualityReport,
     InboxItem,
     ModuleInfo,
+    QuotaState,
     Vision,
     ProjectState,
     GapReport,
@@ -127,6 +130,30 @@ def test_execution_result_defaults() -> None:
     assert r.cost_usd == 0.0
     assert r.total_tokens == 0
     assert r.dry_run is False
+    assert r.quota_state is None
+
+
+def test_execution_result_with_quota_state() -> None:
+    """ExecutionResult can carry a QuotaState."""
+    qs = QuotaState(status=QuotaStatus.RATE_LIMITED, retry_after_seconds=60.0, message="429")
+    r = ExecutionResult(
+        success=False,
+        output="",
+        errors="rate limit",
+        exit_code=1,
+        elapsed_seconds=2.0,
+        quota_state=qs,
+    )
+    assert r.quota_state is not None
+    assert r.quota_state.status == QuotaStatus.RATE_LIMITED
+    assert r.quota_state.retry_after_seconds == 60.0
+
+
+def test_quota_state_defaults() -> None:
+    """QuotaState has sensible defaults."""
+    qs = QuotaState(status=QuotaStatus.OK)
+    assert qs.retry_after_seconds is None
+    assert qs.message == ""
 
 
 def test_iteration_record_construction() -> None:
@@ -162,6 +189,13 @@ def test_priority_values() -> None:
     assert Priority.HIGH.value == "high"
     assert Priority.MEDIUM.value == "medium"
     assert Priority.LOW.value == "low"
+
+
+def test_quota_status_values() -> None:
+    """QuotaStatus has expected values."""
+    assert QuotaStatus.OK.value == "ok"
+    assert QuotaStatus.RATE_LIMITED.value == "rate_limited"
+    assert QuotaStatus.QUOTA_EXHAUSTED.value == "quota_exhausted"
 
 
 # ---------------------------------------------------------------------------

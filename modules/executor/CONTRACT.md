@@ -29,6 +29,7 @@ Returns `domain.models.ExecutionResult`:
 - `cost_usd` — monetary cost reported by the agent (default `0.0`)
 - `total_tokens` — token usage reported by the agent (default `0`)
 - `dry_run` — reflects the `dry_run` input flag
+- `quota_state` — optional `QuotaState` with API quota/rate-limit info (default `None`)
 
 ## Dependencies
 
@@ -44,3 +45,5 @@ Returns `domain.models.ExecutionResult`:
 4. Must save the prompt to `.anima/current_prompt.txt` before execution for debugging.
 5. Must stream agent output in real-time when possible.
 6. Must capture and report cost/token metrics when the agent provides them.
+7. Must propagate `quota_state` from the agent result without modification.
+8. Must not retry when `quota_state` indicates rate limiting or quota exhaustion.

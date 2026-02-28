@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from domain.models import ExecutionResult, IterationPlan
+from domain.models import ExecutionResult, IterationPlan, QuotaState, QuotaStatus
 from modules.executor.core import Executor
 
 if TYPE_CHECKING:
@@ -185,3 +185,79 @@ class TestMetrics:
 
         assert result.cost_usd == 0.05
         assert result.total_tokens == 1000
+
+
+# ---------------------------------------------------------------------------
+# Quota awareness
+# ---------------------------------------------------------------------------
+
+
+def _rate_limited_result() -> ExecutionResult:
+    return ExecutionResult(
+        success=False,
+        output="",
+        errors="rate limit exceeded",
+        exit_code=1,
+        elapsed_seconds=1.0,
+        quota_state=QuotaState(
+            status=QuotaStatus.RATE_LIMITED,
+            retry_after_seconds=60.0,
+            message="Detected: rate limit",
+        ),
+    )
+
+
+def _quota_exhausted_result() -> ExecutionResult:
+    return ExecutionResult(
+        success=False,
+        output="",
+        errors="quota exceeded",
+        exit_code=1,
+        elapsed_seconds=1.0,
+        quota_state=QuotaState(
+            status=QuotaStatus.QUOTA_EXHAUSTED,
+            message="Detected: quota exceeded",
+        ),
+    )
+
+
+class TestQuotaAwareness:
+    """Executor skips retries when quota/rate-limit signals are detected."""
+
+    def test_no_retry_on_rate_limited(self, tmp_path: Path) -> None:
+        """Rate-limited result should not trigger retries."""
+        agent = FakeAgent([_rate_limited_result()])
+        executor = Executor(agent, max_retries=2, base_delay=0.0)
+
+        with patch("modules.executor.core.ROOT", tmp_path):
+            result = executor.execute(_make_plan())
+
+        assert result.success is False
+        assert result.quota_state is not None
+        assert result.quota_state.status == QuotaStatus.RATE_LIMITED
+        assert len(agent.calls) == 1  # no retries
+
+    def test_no_retry_on_quota_exhausted(self, tmp_path: Path) -> None:
+        """Quota-exhausted result should not trigger retries."""
+        agent = FakeAgent([_quota_exhausted_result()])
+        executor = Executor(agent, max_retries=2, base_delay=0.0)
+
+        with patch("modules.executor.core.ROOT", tmp_path):
+            result = executor.execute(_make_plan())
+
+        assert result.success is False
+        assert result.quota_state is not None
+        assert result.quota_state.status == QuotaStatus.QUOTA_EXHAUSTED
+        assert len(agent.calls) == 1  # no retries
+
+    def test_quota_state_none_allows_retry(self, tmp_path: Path) -> None:
+        """Normal failure (no quota signal) still retries."""
+        agent = FakeAgent([_failure_result(), _success_result()])
+        executor = Executor(agent, max_retries=2, base_delay=0.0)
+
+        with patch("modules.executor.core.ROOT", tmp_path):
+            result = executor.execute(_make_plan())
+
+        assert result.success is True
+        assert result.quota_state is None
+        assert len(agent.calls) == 2

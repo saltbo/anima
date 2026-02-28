@@ -10,7 +10,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from domain.models import ExecutionResult, IterationPlan
+from domain.models import ExecutionResult, IterationPlan, QuotaStatus
 from kernel.config import ROOT
 
 if TYPE_CHECKING:
@@ -84,6 +84,17 @@ class Executor:
 
             # exit_code -1 means agent not found — no point retrying
             if result.exit_code == -1:
+                return result
+
+            # Quota exhaustion or rate limiting — don't retry
+            if result.quota_state is not None and result.quota_state.status in (
+                QuotaStatus.QUOTA_EXHAUSTED,
+                QuotaStatus.RATE_LIMITED,
+            ):
+                logger.warning(
+                    "Quota signal: %s — skipping retries",
+                    result.quota_state.message,
+                )
                 return result
 
             if attempt < self._max_retries:

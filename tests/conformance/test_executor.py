@@ -47,7 +47,7 @@ def test_dry_run_success() -> None:
 def test_dry_run_has_required_keys() -> None:
     """Dry-run result must contain all keys expected by kernel/loop.py."""
     result = wiring.execute_plan("test prompt", dry_run=True)
-    required_keys = {"success", "output", "errors", "exit_code", "elapsed_seconds"}
+    required_keys = {"success", "output", "errors", "exit_code", "elapsed_seconds", "quota_state"}
     assert required_keys.issubset(result.keys())
 
 

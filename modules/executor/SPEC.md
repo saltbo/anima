@@ -1,6 +1,6 @@
-# Executor — v0.4 Spec
+# Executor — v0.6 Spec
 
-Robust agent execution with retry logic and structured output.
+Robust agent execution with retry logic, structured output, and quota awareness.
 
 ## Behavior
 
@@ -13,7 +13,9 @@ Robust agent execution with retry logic and structured output.
    b. Delegate execution to the injected `AgentPort`.
    c. On transient failure (non-zero exit, agent error), retry up to
       `max_retries` times with exponential backoff (base 2s, capped at 30s).
-   d. Return the final `ExecutionResult`.
+   d. **Skip retries** when the result carries a `quota_state` with status
+      `RATE_LIMITED` or `QUOTA_EXHAUSTED` — retrying won't help.
+   e. Return the final `ExecutionResult` (including `quota_state` if detected).
 4. Handle `KeyboardInterrupt` by re-raising without retry.
 
 ## Constructor
@@ -32,11 +34,21 @@ def execute(self, plan: IterationPlan, dry_run: bool = False) -> ExecutionResult
 
 - Only retry when `ExecutionResult.success` is `False` and exit_code != -1
   (exit_code -1 means the agent command was not found — no point retrying).
+- **Do not retry** when `quota_state` indicates `RATE_LIMITED` or
+  `QUOTA_EXHAUSTED` — the failure is not transient within the retry window.
 - Delay between retries: `min(base_delay * 2^attempt, 30.0)` seconds.
 - Log each retry attempt at WARNING level.
 - Return the result of the last attempt.
+
+## Quota Awareness
+
+The `ExecutionResult.quota_state` field (optional `QuotaState`) is populated
+by the `AgentPort` adapter when it detects rate-limit or quota signals in
+the agent's output.  The executor propagates this field unchanged so the
+kernel can inspect it and decide whether to sleep or pause.
 
 ## Not in Scope
 
 - Configurable agent command (handled by adapter).
 - Multiple agent backend selection (future work).
+- Auto-sleep/resume on quota exhaustion (kernel responsibility, v0.6).

@@ -13,12 +13,15 @@ import subprocess
 import time
 from typing import Any
 
-from domain.models import ExecutionResult
+from domain.models import ExecutionResult, QuotaState, QuotaStatus
 from kernel.config import AGENT_CMD, ROOT
 
 logger = logging.getLogger("anima.adapters.agents")
 
 _DEFAULT_TIMEOUT = 600  # seconds
+
+_EXHAUSTION_PATTERNS = ("quota exceeded", "quota exhausted", "billing", "spending limit")
+_RATE_LIMIT_PATTERNS = ("rate limit", "rate_limit", "429", "too many requests", "overloaded")
 
 
 def _summarize_tool_input(tool_name: str, raw_json: str) -> str:
@@ -113,6 +116,13 @@ class ClaudeCodeAdapter:
         if stderr_output:
             logger.debug("Agent stderr: %s", stderr_output[:500])
 
+        combined = (result_text + " " + stderr_output).lower()
+        quota_state = self._detect_quota_state(combined, proc.returncode or 0)
+        if quota_state is not None:
+            logger.warning(
+                "Quota signal detected: %s — %s", quota_state.status.value, quota_state.message
+            )
+
         return ExecutionResult(
             success=proc.returncode == 0,
             output=result_text[-5000:] if result_text else "",
@@ -121,6 +131,7 @@ class ClaudeCodeAdapter:
             elapsed_seconds=round(elapsed, 1),
             cost_usd=cost,
             total_tokens=total_tokens,
+            quota_state=quota_state,
         )
 
     # ------------------------------------------------------------------
@@ -193,6 +204,30 @@ class ClaudeCodeAdapter:
             return "", 0.0, 0
 
         return result_text, cost, total_tokens
+
+    @staticmethod
+    def _detect_quota_state(combined_output: str, exit_code: int) -> QuotaState | None:
+        """Detect rate-limit or quota-exhaustion signals from agent output.
+
+        Scans the combined stdout+stderr (lowercased) for known patterns
+        returned by the Anthropic API and Claude CLI.
+        """
+        for pattern in _EXHAUSTION_PATTERNS:
+            if pattern in combined_output:
+                return QuotaState(
+                    status=QuotaStatus.QUOTA_EXHAUSTED,
+                    message=f"Detected: {pattern}",
+                )
+
+        for pattern in _RATE_LIMIT_PATTERNS:
+            if pattern in combined_output:
+                return QuotaState(
+                    status=QuotaStatus.RATE_LIMITED,
+                    retry_after_seconds=60.0,
+                    message=f"Detected: {pattern}",
+                )
+
+        return None
 
     @staticmethod
     def _handle_stream_event(
