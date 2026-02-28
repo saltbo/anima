@@ -55,6 +55,28 @@ ruff check . && ruff format --check . && pyright && pytest
 6. Use `@dataclass(frozen=True)` for domain models
 7. Constructor injection for dependencies
 
+## Logging
+
+All output uses Python `logging` through the `"anima"` logger hierarchy. **Never use `print()` for operational messages.**
+
+```python
+import logging
+
+logger = logging.getLogger("anima")           # kernel/ modules
+logger = logging.getLogger("anima.planner")   # modules/planner/
+logger = logging.getLogger("anima.adapters")  # adapters/
+```
+
+Level guidelines:
+- `logger.debug()` — verbose details (file counts, module lists, skipped items)
+- `logger.info()` — normal progress (step banners, milestones, state transitions)
+- `logger.warning()` — recoverable problems (push failed, rollback, missing optional files)
+- `logger.error()` — failures that affect iteration outcome
+
+`print()` is only allowed for direct CLI command output (`cmd_status`, `cmd_log`, `cmd_reset`, `cmd_instruct`) where the printed text **is** the command's purpose.
+
+Logging is configured once in `cli.py:main()`. Controlled by `--verbose` (DEBUG) and `--quiet` (WARNING) flags on `anima start`.
+
 ## File Conventions
 
 - Module specs: `modules/<name>/SPEC.md`

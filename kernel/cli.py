@@ -16,9 +16,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import fcntl
+import logging
+import os
 import sys
 import time
 from datetime import UTC, datetime
+
+logger = logging.getLogger("anima")
 
 # ---------------------------------------------------------------------------
 # CLI commands
@@ -156,7 +161,15 @@ def cmd_instruct(args: argparse.Namespace) -> None:
 def cmd_start(args: argparse.Namespace) -> None:
     """Run iteration loop."""
     from kernel import loop
-    from kernel.config import INBOX_DIR, ITERATIONS_DIR, MODULES_DIR, ROADMAP_DIR, VISION_FILE
+    from kernel.config import (
+        AUTO_PUSH,
+        INBOX_DIR,
+        ITERATIONS_DIR,
+        LOCK_FILE,
+        MODULES_DIR,
+        ROADMAP_DIR,
+        VISION_FILE,
+    )
     from kernel.git_ops import ensure_git, git
     from kernel.roadmap import update_readme
     from kernel.state import load_state, save_state
@@ -168,11 +181,27 @@ def cmd_start(args: argparse.Namespace) -> None:
     if not ROADMAP_DIR.exists():
         print("WARNING: roadmap/ directory not found. Roadmap tracking disabled.")
 
+    # Acquire exclusive process lock
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = open(LOCK_FILE, "w")  # noqa: SIM115
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock_fd.close()
+        print("ERROR: Another anima process is already running.")
+        print(f"  Lock file: {LOCK_FILE}")
+        sys.exit(1)
+    lock_fd.write(str(os.getpid()))
+    lock_fd.flush()
+
     ensure_git()
 
     # Refuse to start with a dirty working tree (unless dry-run)
     if not args.dry_run:
-        _, porcelain = git("status", "--porcelain")
+        code, porcelain = git("status", "--porcelain")
+        if code != 0:
+            print(f"ERROR: git status failed: {porcelain}")
+            sys.exit(1)
         if porcelain.strip():
             print("ERROR: Working tree is not clean. Commit or stash your changes first.")
             print("  git status  # see what's pending")
@@ -199,13 +228,14 @@ def cmd_start(args: argparse.Namespace) -> None:
         code, _ = git("diff", "--cached", "--quiet")
         if code != 0:
             git("commit", "-m", "chore(anima): I'm waking up")
-            git("push")
+            if AUTO_PUSH:
+                git("push")
 
     count = 0
     if not args.once:
-        print(f"  Anima entering continuous iteration (cooldown: {args.cooldown}s)")
+        logger.info("  Anima entering continuous iteration (cooldown: %ds)", args.cooldown)
         if args.max:
-            print(f"   Will stop after {args.max} iterations")
+            logger.info("   Will stop after %d iterations", args.max)
 
     try:
         while True:
@@ -219,17 +249,17 @@ def cmd_start(args: argparse.Namespace) -> None:
             if args.once:
                 break
             if args.max and count >= args.max:
-                print(f"\nReached max iterations ({args.max}). Stopping.")
+                logger.info("\nReached max iterations (%d). Stopping.", args.max)
                 break
             if state["status"] in ("paused", "sleep"):
-                print(f"\nAnima entered '{state['status']}' state. Stopping.")
+                logger.info("\nAnima entered '%s' state. Stopping.", state["status"])
                 break
 
-            print(f"\n  Cooling down {args.cooldown}s...")
+            logger.info("\n  Cooling down %ds...", args.cooldown)
             time.sleep(args.cooldown)
 
     except KeyboardInterrupt:
-        print("\n\nInterrupted.")
+        logger.warning("\n\nInterrupted.")
 
     if args.dry_run:
         return
@@ -250,7 +280,8 @@ def cmd_start(args: argparse.Namespace) -> None:
     code, _ = git("diff", "--cached", "--quiet")
     if code != 0:
         git("commit", "-m", f"chore(anima): {msg}")
-        git("push")
+        if AUTO_PUSH:
+            git("push")
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +307,8 @@ def main() -> None:
         default=10,
         help="Seconds between iterations (default: 10)",
     )
+    start_p.add_argument("--verbose", action="store_true", help="Enable debug logging")
+    start_p.add_argument("--quiet", action="store_true", help="Only show warnings and errors")
 
     # anima status
     sub.add_parser("status", help="Show project state and gaps")
@@ -292,6 +325,16 @@ def main() -> None:
     instruct_p.add_argument("message", help="The instruction text")
 
     args = parser.parse_args()
+
+    # Configure logging for the start command
+    if args.command == "start":
+        if args.verbose:
+            level = logging.DEBUG
+        elif args.quiet:
+            level = logging.WARNING
+        else:
+            level = logging.INFO
+        logging.basicConfig(format="%(message)s", level=level)
 
     if args.command == "start":
         cmd_start(args)

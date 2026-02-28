@@ -7,11 +7,13 @@ roadmap and reflecting that progress in git tags and README badges.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 from urllib.parse import quote
 
 from kernel.config import (
+    AUTO_PUSH,
     PROGRESS_END,
     PROGRESS_START,
     README_FILE,
@@ -22,6 +24,8 @@ from kernel.config import (
     STATUS_START,
 )
 from kernel.git_ops import git
+
+logger = logging.getLogger("anima")
 
 # ---------------------------------------------------------------------------
 # Roadmap parsing
@@ -77,17 +81,15 @@ def _parse_version(v: str) -> tuple[int, ...]:
     return tuple(int(x) for x in v.lstrip("v").split("."))
 
 
-def detect_current_milestone(state: dict[str, Any]) -> str:
+def detect_current_milestone() -> str:
     """Detect the current version milestone using roadmap files.
 
     Scans roadmap/v*.md in order. The first version that still has unchecked
     items is the *current target*; the previous version is the achieved
     milestone. Requires roadmap/ directory to exist.
     """
-    _ = state  # reserved for future use
-
     if not ROADMAP_DIR.exists():
-        print("  [milestone] WARNING: roadmap/ directory missing, returning v0.0.0")
+        logger.warning("  [milestone] WARNING: roadmap/ directory missing, returning v0.0.0")
         return "v0.0.0"
 
     prev_version = "v0.0.0"
@@ -102,7 +104,7 @@ def detect_current_milestone(state: dict[str, Any]) -> str:
 
 def tag_milestone_if_advanced(state: dict[str, Any]) -> None:
     """Create a git tag when the milestone version advances (never downgrades)."""
-    new_milestone = detect_current_milestone(state)
+    new_milestone = detect_current_milestone()
     old_milestone = state.get("current_milestone", "v0.0.0")
 
     if _parse_version(new_milestone) <= _parse_version(old_milestone):
@@ -113,15 +115,15 @@ def tag_milestone_if_advanced(state: dict[str, Any]) -> None:
     # Check if this tag already exists (e.g. from a manual run)
     code, _ = git("rev-parse", new_milestone)
     if code == 0:
-        print(f"  [git] Tag {new_milestone} already exists, skipping")
+        logger.debug("  [git] Tag %s already exists, skipping", new_milestone)
         return
 
     git("tag", "-a", new_milestone, "-m", f"Milestone {new_milestone}")
-    code, out = git("push", "origin", new_milestone, timeout=120)
-    if code != 0:
-        print(f"  [git] push tag failed: {out[:200]}")
-    else:
-        print(f"  🏷️  Tagged {new_milestone} (was {old_milestone})")
+    if AUTO_PUSH:
+        code, out = git("push", "origin", new_milestone, timeout=120)
+        if code != 0:
+            logger.warning("  [git] push tag failed: %s", out[:200])
+    logger.info("  🏷️  Tagged %s (was %s)", new_milestone, old_milestone)
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +157,7 @@ def update_readme(state: dict[str, Any]) -> None:
     if not README_FILE.exists():
         return
 
-    milestone = detect_current_milestone(state)
+    milestone = detect_current_milestone()
     content = README_FILE.read_text()
 
     # --- Status block: agent status + milestone badges ---
