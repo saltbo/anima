@@ -1,6 +1,6 @@
-# Planner — v0.1 Spec
+# Planner — v0.2 Spec
 
-Seed-equivalent implementation: construct an agent prompt from gaps and project state.
+Structured implementation: returns `IterationPlan` dataclass instead of raw string.
 
 ## Behavior
 
@@ -15,15 +15,22 @@ Seed-equivalent implementation: construct an agent prompt from gaps and project 
    - Instruction to run verification after changes.
 3. State summary must NOT include full file listings.
 4. Current version is obtained via `kernel.roadmap.get_current_version()`.
+5. Return an `IterationPlan` dataclass with:
+   - `prompt` — the assembled prompt string
+   - `iteration_number` — `iteration_count + 1`
+   - `target_version` — current roadmap version string (e.g. `"0.3"`)
+   - `gaps_summary` — first 200 characters of gap text (truncated with `...` if longer)
 
-## v0.1 Scope
+## v0.2 Scope
 
-- Returns a plain prompt string (not yet `IterationPlan` dataclass).
+- Returns typed `IterationPlan` dataclass from `domain.models`.
 - Reads roadmap version via `kernel.roadmap` helpers.
-- Accepts and returns untyped dicts/strings matching seed interface.
+- Accepts untyped dicts/strings matching seed interface for input.
+- Bridge adapter extracts `.prompt` for kernel/loop.py compatibility.
 
-## Not in v0.1
+## Not in v0.2
 
-- Returning typed `IterationPlan` dataclass (seed returns raw string).
 - Intelligent prompt optimization or token budgeting.
 - Adaptive planning based on failure patterns.
+- Strategy selection (fix vs build vs refactor).
+- Risk assessment or scope control.
