@@ -17,6 +17,7 @@ from adapters.gap_analyzer_bridge import analyze_gaps as analyze_gaps
 from adapters.planner_bridge import plan_iteration as plan_iteration
 from adapters.reporter_bridge import record_iteration as record_iteration
 from adapters.scanner_bridge import scan_project_state as scan_project_state
+from adapters.verifier_bridge import verify_iteration as verify_iteration
 from kernel import seed
 
 # ---------------------------------------------------------------------------
@@ -25,7 +26,7 @@ from kernel import seed
 # analyze_gaps: wired to modules/gap_analyzer via adapters/gap_analyzer_bridge
 # plan_iteration: wired to modules/planner via adapters/planner_bridge
 # execute_plan: wired to modules/executor via adapters/executor_bridge
-verify_iteration = seed.verify_iteration
+# verify_iteration: wired to modules/verifier via adapters/verifier_bridge
 
 # ---------------------------------------------------------------------------
 # Replaceable CLI command implementations
