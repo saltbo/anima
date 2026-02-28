@@ -118,13 +118,11 @@ class ClaudeCodeAdapter:
                 elapsed_seconds=0.0,
             )
 
-        result_text, cost, total_tokens, stream_quota_state, stream_error = self._stream_output(
-            proc
+        result_text, cost, total_tokens, stream_quota_state, stream_error, stderr_output = (
+            self._stream_output(proc)
         )
         elapsed = time.time() - start_time
 
-        assert proc.stderr is not None
-        stderr_output = proc.stderr.read()
         if stderr_output:
             logger.debug("Agent stderr: %s", stderr_output[:500])
 
@@ -161,8 +159,8 @@ class ClaudeCodeAdapter:
 
     def _stream_output(
         self, proc: subprocess.Popen[str]
-    ) -> tuple[str, float, int, QuotaState | None, str]:
-        """Parse NDJSON stream, display events, return (result_text, cost, tokens).
+    ) -> tuple[str, float, int, QuotaState | None, str, str]:
+        """Parse NDJSON stream, display events, return (result_text, cost, tokens, quota, error, stderr).
 
         Raises ``KeyboardInterrupt`` after terminating the subprocess if
         the user interrupts.
@@ -174,6 +172,7 @@ class ClaudeCodeAdapter:
         total_tokens = 0
         quota_state: QuotaState | None = None
         stream_error = ""
+        stderr_output = ""
 
         try:
             assert proc.stdout is not None
@@ -218,11 +217,14 @@ class ClaudeCodeAdapter:
                     break  # result is the final event; stop reading stdout
 
             console.stream_end()
-            # Drain stderr before wait to prevent pipe deadlock: if the
-            # subprocess is blocked writing to a full stderr buffer while
-            # we wait on stdout EOF, both sides hang forever.
+            # Close stdout so the subprocess gets SIGPIPE if it tries
+            # to write more after the result event.  Without this, the
+            # parent blocks on stderr.read() while the child blocks
+            # writing to a full stdout buffer — a pipe deadlock.
+            if proc.stdout:
+                proc.stdout.close()
             if proc.stderr:
-                proc.stderr.read()
+                stderr_output = proc.stderr.read()
             proc.wait(timeout=self._timeout)
 
         except KeyboardInterrupt:
@@ -238,9 +240,9 @@ class ClaudeCodeAdapter:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
-            return "", 0.0, 0, None, ""
+            return "", 0.0, 0, None, "", ""
 
-        return result_text, cost, total_tokens, quota_state, stream_error
+        return result_text, cost, total_tokens, quota_state, stream_error, stderr_output
 
     @staticmethod
     def _detect_quota_state(combined_output: str, exit_code: int) -> QuotaState | None:
