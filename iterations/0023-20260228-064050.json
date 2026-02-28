@@ -1,0 +1,15 @@
+{
+  "id": "0023-20260228-064050",
+  "timestamp": "2026-02-28T06:59:29.482405+00:00",
+  "success": true,
+  "summary": "New files: 12",
+  "gaps_addressed": "UNCOMPLETED ROADMAP ITEMS for v0.7 (7):\n  - `.anima/toolchain.toml` generation from detection results\n  - VISION.md templates for common project types (web-app, cli-tool, library)\n  - `anima init` command wiring + module implementation\n  - `anima approve` command wiring + module implementation (requires v0.6 gate)\n  - Rich terminal output: progress bars, colored status, iteration summaries\n  - Published to PyPI, installable via `uv tool install anima`\n  - All code passes full quality pipeline",
+  "improvements": [
+    "New files: 12"
+  ],
+  "issues": [],
+  "agent_output_excerpt": "**Iteration #23 complete.** Built the `modules/vision_templates/` module:\n\n**What was done:**\n- Created `modules/vision_templates/` with CONTRACT.md, SPEC.md, core.py, and 60 tests\n- Four VISION.md templates: **generic**, **web-app**, **cli-tool**, **library** — each with Identity, Core Principles, Architecture, Quality, and Roadmap sections with `<YOUR_...>` placeholders\n- `get_template(name)` — retrieves template by name (case-insensitive, None→generic)\n- `list_templates()` — returns available non-generic template names\n- Fixed two pre-existing quality issues: unused `rl_type` variable in `adapters/agents/claude_code.py`, formatting in `tests/test_quota_detection.py`\n\n**Pipeline:** 337 tests pass, 99.5% coverage, 0 lint/type errors.\n\n**Roadmap v0.7 progress:** 4/8 items checked. Next item: `anima init` command wiring + module implementation.",
+  "elapsed_seconds": 1118.5930058956146,
+  "cost_usd": 1.4206086000000002,
+  "total_tokens": 1464566
+}

@@ -22,17 +22,6 @@ logger = logging.getLogger("anima.adapters.agents")
 
 _DEFAULT_TIMEOUT = 600  # seconds
 
-_EXHAUSTION_PATTERNS = (
-    "quota exceeded",
-    "quota exhausted",
-    "billing",
-    "spending limit",
-    "usage limit",
-    "out of usage",
-    "out of extra usage",
-)
-_RATE_LIMIT_PATTERNS = ("rate limit", "rate_limit", "429", "too many requests", "overloaded")
-
 
 def _summarize_tool_input(tool_name: str, raw_json: str) -> str:
     """Extract a brief summary from tool input JSON for display."""
@@ -126,10 +115,7 @@ class ClaudeCodeAdapter:
         if stderr_output:
             logger.debug("Agent stderr: %s", stderr_output[:500])
 
-        combined = (result_text + " " + stderr_output).lower()
-        quota_state = stream_quota_state or self._detect_quota_state(
-            combined, proc.returncode or 0
-        )
+        quota_state = stream_quota_state
         if quota_state is not None:
             logger.warning(
                 "Quota signal detected: %s — %s", quota_state.status.value, quota_state.message
@@ -245,30 +231,6 @@ class ClaudeCodeAdapter:
         return result_text, cost, total_tokens, quota_state, stream_error, stderr_output
 
     @staticmethod
-    def _detect_quota_state(combined_output: str, exit_code: int) -> QuotaState | None:
-        """Detect rate-limit or quota-exhaustion signals from agent output.
-
-        Scans the combined stdout+stderr (lowercased) for known patterns
-        returned by the Anthropic API and Claude CLI.
-        """
-        for pattern in _EXHAUSTION_PATTERNS:
-            if pattern in combined_output:
-                return QuotaState(
-                    status=QuotaStatus.QUOTA_EXHAUSTED,
-                    message=f"Detected: {pattern}",
-                )
-
-        for pattern in _RATE_LIMIT_PATTERNS:
-            if pattern in combined_output:
-                return QuotaState(
-                    status=QuotaStatus.RATE_LIMITED,
-                    retry_after_seconds=60.0,
-                    message=f"Detected: {pattern}",
-                )
-
-        return None
-
-    @staticmethod
     def _format_reset_time(resets_at: int | float | None) -> str | None:
         """Format a reset timestamp into a concise UTC string."""
         if resets_at is None:
@@ -288,15 +250,20 @@ class ClaudeCodeAdapter:
         info = cast("dict[str, Any]", raw_info)
 
         status = str(info.get("status", "")).lower()
-        rl_type = str(info.get("rateLimitType", "")).lower()
         overage_status = str(info.get("overageStatus", "")).lower()
         resets_at = info.get("resetsAt")
         reset_text = cls._format_reset_time(resets_at)
 
-        if status == "rejected" and overage_status in ("rejected", "disabled"):
-            retry_after: float | None = None
-            if isinstance(resets_at, (int, float)):
-                retry_after = max(0.0, float(resets_at) - time.time())
+        # Only "rejected" is actionable; "limited" is informational — ignore it.
+        if status != "rejected":
+            return None
+
+        retry_after: float | None = None
+        if isinstance(resets_at, (int, float)):
+            retry_after = max(0.0, float(resets_at) - time.time())
+
+        # Quota exhaustion: rejected + overage blocked
+        if overage_status in ("rejected", "disabled"):
             message = "Detected structured rate_limit_event: quota exhausted"
             if reset_text:
                 message = f"{message}; resets {reset_text}"
@@ -306,20 +273,15 @@ class ClaudeCodeAdapter:
                 message=message,
             )
 
-        if status in ("limited", "rejected") or rl_type:
-            retry_after: float | None = None
-            if isinstance(resets_at, (int, float)):
-                retry_after = max(0.0, float(resets_at) - time.time())
-            message = "Detected structured rate_limit_event: rate limited"
-            if reset_text:
-                message = f"{message}; resets {reset_text}"
-            return QuotaState(
-                status=QuotaStatus.RATE_LIMITED,
-                retry_after_seconds=retry_after if retry_after and retry_after > 0 else 60.0,
-                message=message,
-            )
-
-        return None
+        # Rejected but overage not blocked — transient rate limit
+        message = "Detected structured rate_limit_event: rate limited"
+        if reset_text:
+            message = f"{message}; resets {reset_text}"
+        return QuotaState(
+            status=QuotaStatus.RATE_LIMITED,
+            retry_after_seconds=retry_after if retry_after and retry_after > 0 else 60.0,
+            message=message,
+        )
 
     @staticmethod
     def _handle_stream_event(

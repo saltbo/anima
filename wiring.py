@@ -389,7 +389,9 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
 
     result = _execute_with_fallback(prompt, dry_run)
 
-    sleep_secs = _get_quota_sleep_seconds(result)
+    # Only consider quota retry when the execution actually failed.
+    # Informational rate_limit_events during a successful run are not actionable.
+    sleep_secs = _get_quota_sleep_seconds(result) if not result.get("success") else None
     if sleep_secs is None:
         _last_execution_result = result
         return result
