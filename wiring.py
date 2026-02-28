@@ -7,6 +7,10 @@ seed function and logs the fallback event.
 
 Health data is persisted to .anima/health.json for monitoring.
 
+Quota-aware execution: when the executor reports quota exhaustion or
+rate limiting, the wiring layer sleeps and retries automatically,
+providing transparent auto-sleep/resume behaviour without kernel changes.
+
 Protected files (kernel/, VISION.md) cannot be modified by the agent.
 This file CAN and SHOULD be modified by the agent as part of the
 self-replacement protocol.
@@ -26,6 +30,16 @@ from kernel.config import ROOT
 logger = logging.getLogger("anima.wiring")
 
 _HEALTH_FILE = ROOT / ".anima" / "health.json"
+
+# ---------------------------------------------------------------------------
+# Quota-aware execution settings
+# ---------------------------------------------------------------------------
+
+# Default sleep durations when the executor reports quota issues (seconds).
+QUOTA_SLEEP_RATE_LIMITED = 60.0
+QUOTA_SLEEP_EXHAUSTED = 300.0
+# Maximum sleep duration to prevent indefinite blocking.
+QUOTA_SLEEP_MAX = 600.0
 
 
 # ---------------------------------------------------------------------------
@@ -198,8 +212,41 @@ def plan_iteration(
     return seed.plan_iteration(project_state, gaps, history, iteration_count)
 
 
-def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
-    """Execute plan — module with seed fallback."""
+def _get_quota_sleep_seconds(result: dict[str, Any]) -> float | None:
+    """Return seconds to sleep if the result indicates a quota issue, else None.
+
+    Inspects the ``quota_state`` dict inside an execution result. Returns
+    the appropriate sleep duration for rate-limiting or quota exhaustion,
+    capped at ``QUOTA_SLEEP_MAX``. Returns ``None`` when quota is OK or
+    when there is no quota signal.
+    """
+    quota_state = result.get("quota_state")
+    if quota_state is None:
+        return None
+
+    status = quota_state.get("status")
+    if status is None:
+        # Handle QuotaStatus enum values as well as plain strings.
+        return None
+
+    # Normalise: accept both enum objects and their string values.
+    status_str = status.value if hasattr(status, "value") else str(status)
+
+    if status_str == "quota_exhausted":
+        retry = quota_state.get("retry_after_seconds")
+        sleep_secs = float(retry) if retry is not None else QUOTA_SLEEP_EXHAUSTED
+        return min(sleep_secs, QUOTA_SLEEP_MAX)
+
+    if status_str == "rate_limited":
+        retry = quota_state.get("retry_after_seconds")
+        sleep_secs = float(retry) if retry is not None else QUOTA_SLEEP_RATE_LIMITED
+        return min(sleep_secs, QUOTA_SLEEP_MAX)
+
+    return None
+
+
+def _execute_with_fallback(prompt: str, dry_run: bool) -> dict[str, Any]:
+    """Run the executor module or fall back to seed on failure."""
     if _execute_fn is not None:
         try:
             return _execute_fn(prompt, dry_run=dry_run)
@@ -211,6 +258,41 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
             )
             _record_fallback("execute_plan", str(exc), "runtime")
     return seed.execute_plan(prompt, dry_run=dry_run)
+
+
+def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
+    """Execute plan — module with seed fallback and quota-aware retry.
+
+    After the first execution attempt, if the result contains a quota
+    signal (rate-limited or quota-exhausted), the wiring layer sleeps
+    for the appropriate duration and retries once.  This provides
+    transparent auto-sleep on quota exhaustion and auto-resume when the
+    quota recovers, without requiring kernel changes.
+    """
+    result = _execute_with_fallback(prompt, dry_run)
+
+    sleep_secs = _get_quota_sleep_seconds(result)
+    if sleep_secs is None:
+        return result
+
+    # First attempt hit a quota wall — sleep and retry once.
+    logger.warning(
+        "[quota] Quota issue detected (status=%s). Sleeping %.0fs before retry...",
+        result.get("quota_state", {}).get("status", "unknown"),
+        sleep_secs,
+    )
+    time.sleep(sleep_secs)
+
+    logger.info("[quota] Retrying execution after quota sleep...")
+    retry_result = _execute_with_fallback(prompt, dry_run)
+
+    retry_sleep = _get_quota_sleep_seconds(retry_result)
+    if retry_sleep is not None:
+        logger.warning(
+            "[quota] Retry also hit quota wall (status=%s). Returning failed result to kernel.",
+            retry_result.get("quota_state", {}).get("status", "unknown"),
+        )
+    return retry_result
 
 
 def verify_iteration(
