@@ -373,6 +373,43 @@ class TestQuotaAwareExecution:
         finally:
             wiring._execute_fn = original
 
+
+class TestExecutionFailureVerificationGate:
+    """Verification should fail when agent execution failed."""
+
+    def test_verify_fails_when_last_execution_failed(self) -> None:
+        """A failed execution is surfaced as a verification issue."""
+        import wiring
+
+        original_last = wiring._last_execution_result
+        try:
+            wiring._last_execution_result = {
+                "success": False,
+                "exit_code": 1,
+                "errors": "you're out of extra usage",
+            }
+            with patch.object(wiring, "_verify_fn", None):
+                result = wiring.verify_iteration({}, {})
+            assert result["passed"] is False
+            assert any("EXECUTION: agent execution failed" in issue for issue in result["issues"])
+            assert any("out of extra usage" in issue for issue in result["issues"])
+        finally:
+            wiring._last_execution_result = original_last
+
+    def test_verify_stays_passed_when_last_execution_succeeded(self) -> None:
+        """A successful execution should not force verification failure."""
+        import wiring
+
+        original_last = wiring._last_execution_result
+        try:
+            wiring._last_execution_result = {"success": True, "exit_code": 0, "errors": ""}
+            with patch.object(wiring, "_verify_fn", None):
+                result = wiring.verify_iteration({}, {})
+            assert result["passed"] is True
+            assert not any("EXECUTION: agent execution failed" in issue for issue in result["issues"])
+        finally:
+            wiring._last_execution_result = original_last
+
     def test_sleeps_and_retries_on_rate_limit(self) -> None:
         """Rate-limited first attempt triggers sleep then retry."""
         import wiring

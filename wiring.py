@@ -152,6 +152,10 @@ except Exception as _exc:
     logger.warning("[fallback] reporter import failed (%s), will use seed", _exc)
     _record_fallback("record_iteration", str(_exc), "import")
 
+# Stores the latest execution result so verification can account for
+# agent execution failure even when file-level checks pass.
+_last_execution_result: dict[str, Any] | None = None
+
 
 # ---------------------------------------------------------------------------
 # Replaceable pipeline steps with graceful degradation
@@ -269,10 +273,12 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
     transparent auto-sleep on quota exhaustion and auto-resume when the
     quota recovers, without requiring kernel changes.
     """
+    global _last_execution_result
     result = _execute_with_fallback(prompt, dry_run)
 
     sleep_secs = _get_quota_sleep_seconds(result)
     if sleep_secs is None:
+        _last_execution_result = result
         return result
 
     # First attempt hit a quota wall — sleep and retry once.
@@ -292,6 +298,7 @@ def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
             "[quota] Retry also hit quota wall (status=%s). Returning failed result to kernel.",
             retry_result.get("quota_state", {}).get("status", "unknown"),
         )
+    _last_execution_result = retry_result
     return retry_result
 
 
@@ -300,9 +307,11 @@ def verify_iteration(
     post_state: dict[str, Any],
 ) -> dict[str, Any]:
     """Verify iteration — module with seed fallback."""
+    global _last_execution_result
+
     if _verify_fn is not None:
         try:
-            return _verify_fn(pre_state, post_state)
+            verification = _verify_fn(pre_state, post_state)
         except Exception as exc:
             logger.warning(
                 "[fallback] verifier execution failed (%s: %s), using seed",
@@ -310,7 +319,24 @@ def verify_iteration(
                 exc,
             )
             _record_fallback("verify_iteration", str(exc), "runtime")
-    return seed.verify_iteration(pre_state, post_state)
+            verification = seed.verify_iteration(pre_state, post_state)
+    else:
+        verification = seed.verify_iteration(pre_state, post_state)
+
+    exec_result = _last_execution_result
+    if exec_result is not None and not exec_result.get("success", True):
+        issue = (
+            "EXECUTION: agent execution failed"
+            + (f" (exit {exec_result.get('exit_code')})" if "exit_code" in exec_result else "")
+        )
+        errors = str(exec_result.get("errors", "")).strip()
+        if errors:
+            issue = f"{issue}\n{errors[:300]}"
+        if issue not in verification.get("issues", []):
+            verification["issues"] = [*verification.get("issues", []), issue]
+        verification["passed"] = False
+
+    return verification
 
 
 def record_iteration(
