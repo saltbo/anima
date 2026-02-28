@@ -209,8 +209,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Anima runtime
-.anima/state.json
-.anima/state.tmp
-.anima/anima.lock
-.anima/current_prompt.txt
+# Anima runtime (ephemeral only — state.json is tracked)
+.anima/*.lock
+.anima/*.tmp
