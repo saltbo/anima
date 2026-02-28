@@ -160,19 +160,7 @@ def cmd_instruct(args: argparse.Namespace) -> None:
 
 def cmd_start(args: argparse.Namespace) -> None:
     """Run iteration loop."""
-    from kernel import loop
-    from kernel.config import (
-        AUTO_PUSH,
-        INBOX_DIR,
-        ITERATIONS_DIR,
-        LOCK_FILE,
-        MODULES_DIR,
-        ROADMAP_DIR,
-        VISION_FILE,
-    )
-    from kernel.git_ops import ensure_git, git
-    from kernel.roadmap import update_readme
-    from kernel.state import load_state, save_state
+    from kernel.config import LOCK_FILE, ROADMAP_DIR, VISION_FILE
 
     if not VISION_FILE.exists():
         print("ERROR: VISION.md not found. Anima cannot iterate without a vision.")
@@ -181,18 +169,36 @@ def cmd_start(args: argparse.Namespace) -> None:
     if not ROADMAP_DIR.exists():
         print("WARNING: roadmap/ directory not found. Roadmap tracking disabled.")
 
-    # Acquire exclusive process lock
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    lock_fd = open(LOCK_FILE, "w")  # noqa: SIM115
+    # Acquire exclusive process lock (skip for dry-run — no side effects)
+    lock_fd = None
+    if not args.dry_run:
+        LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = open(LOCK_FILE, "w")  # noqa: SIM115
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            lock_fd.close()
+            print("ERROR: Another anima process is already running.")
+            print(f"  Lock file: {LOCK_FILE}")
+            sys.exit(1)
+        lock_fd.write(str(os.getpid()))
+        lock_fd.flush()
+
     try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        lock_fd.close()
-        print("ERROR: Another anima process is already running.")
-        print(f"  Lock file: {LOCK_FILE}")
-        sys.exit(1)
-    lock_fd.write(str(os.getpid()))
-    lock_fd.flush()
+        _run_start(args)
+    finally:
+        if lock_fd is not None:
+            lock_fd.close()
+            LOCK_FILE.unlink(missing_ok=True)
+
+
+def _run_start(args: argparse.Namespace) -> None:
+    """Inner start logic, wrapped by cmd_start for lock management."""
+    from kernel import loop
+    from kernel.config import AUTO_PUSH, INBOX_DIR, ITERATIONS_DIR, MODULES_DIR
+    from kernel.git_ops import ensure_git, git
+    from kernel.roadmap import update_readme
+    from kernel.state import load_state, save_state
 
     ensure_git()
 
