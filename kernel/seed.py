@@ -671,5 +671,19 @@ def _generate_summary(verification: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Module Replacement Check
+# CLI command implementations (seed stubs — replaced via wiring)
 # ---------------------------------------------------------------------------
+
+
+def init_project(template: str | None = None) -> None:
+    """Initialize Anima in an existing project. Seed stub — not yet implemented."""
+    print("anima init is not yet implemented.")
+    print("This command will be available in v0.7.")
+    print("See roadmap/v0.7.md for the design.")
+
+
+def approve_iteration(iteration_id: str) -> None:
+    """Approve a gated iteration. Seed stub — not yet implemented."""
+    print("anima approve is not yet implemented.")
+    print("This command requires the gate mechanism from v0.6.")
+    print("See roadmap/v0.7.md for the design.")

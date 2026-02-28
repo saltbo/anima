@@ -11,6 +11,8 @@ Usage:
   anima reset
   anima log [--last N]
   anima instruct <message>
+  anima init [--template NAME]
+  anima approve <iteration-id>
 """
 
 from __future__ import annotations
@@ -156,6 +158,20 @@ def cmd_instruct(args: argparse.Namespace) -> None:
     path.write_text(content)
     print(f"  Instruction saved to inbox/{filename}")
     print("  It will be picked up on the next iteration.")
+
+
+def cmd_init(args: argparse.Namespace) -> None:
+    """Initialize Anima in an existing project."""
+    import wiring
+
+    wiring.init_project(template=args.template)
+
+
+def cmd_approve(args: argparse.Namespace) -> None:
+    """Approve a gated iteration."""
+    import wiring
+
+    wiring.approve_iteration(iteration_id=args.iteration_id)
 
 
 def cmd_start(args: argparse.Namespace) -> None:
@@ -330,6 +346,18 @@ def main() -> None:
     instruct_p = sub.add_parser("instruct", help="Send instruction for next iteration")
     instruct_p.add_argument("message", help="The instruction text")
 
+    # anima init
+    init_p = sub.add_parser("init", help="Initialize Anima in an existing project")
+    init_p.add_argument(
+        "--template",
+        default=None,
+        help="VISION.md template (e.g. web-app, cli-tool, library)",
+    )
+
+    # anima approve
+    approve_p = sub.add_parser("approve", help="Approve a gated iteration")
+    approve_p.add_argument("iteration_id", help="The iteration ID to approve")
+
     args = parser.parse_args()
 
     # Configure logging for the start command
@@ -352,6 +380,10 @@ def main() -> None:
         cmd_log(args)
     elif args.command == "instruct":
         cmd_instruct(args)
+    elif args.command == "init":
+        cmd_init(args)
+    elif args.command == "approve":
+        cmd_approve(args)
     else:
         parser.print_help()
         sys.exit(1)

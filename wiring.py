@@ -32,3 +32,10 @@ plan_iteration = seed.plan_iteration
 execute_plan = seed.execute_plan
 verify_iteration = seed.verify_iteration
 record_iteration = seed.record_iteration
+
+# ---------------------------------------------------------------------------
+# Replaceable CLI command implementations
+# ---------------------------------------------------------------------------
+
+init_project = seed.init_project
+approve_iteration = seed.approve_iteration
