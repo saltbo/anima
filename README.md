@@ -10,7 +10,7 @@ Anima is an Autonomous Iteration Engine — a system that drives software projec
 through continuous, gap-driven, self-directed development cycles.
 
 <!-- anima:stage:start -->
-> **Status: Growing** — Anima is building itself. It is not yet available for external use.
+> **Status: v1.0 Stable** — Anima is production-ready. Install from PyPI: `pip install anima-engine`
 <!-- anima:stage:end -->
 
 ## What is Anima?
@@ -21,7 +21,9 @@ iteration. It builds itself using the same engine it provides to others.
 
 ## Usage
 
-> The following commands will be available after the v1.0 release.
+```bash
+pip install anima-engine
+```
 
 ```bash
 anima init          # Initialize Anima in a project
