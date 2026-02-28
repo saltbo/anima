@@ -478,7 +478,132 @@ def record_iteration(
 # Replaceable CLI command implementations
 # ---------------------------------------------------------------------------
 
-init_project = seed.init_project
+
+def init_project(template: str | None = None) -> None:
+    """Initialize Anima in an existing project.
+
+    Orchestrates the three init modules:
+    1. init_detector — detect tech stacks from project marker files
+    2. toolchain_writer — generate .anima/toolchain.toml
+    3. vision_templates — create a VISION.md starter template
+
+    Also creates .anima/, initial state, SOUL.md, roadmap/, and inbox/.
+
+    Args:
+        template: VISION.md template name (e.g. "web-app", "cli-tool", "library").
+                  None uses the generic template.
+    """
+    import json
+    from pathlib import Path
+
+    from kernel.console import console
+
+    project_root = Path.cwd()
+    anima_dir = project_root / ".anima"
+
+    # 1. Check if already initialized.
+    if (anima_dir / "state.json").exists():
+        console.warning("Anima is already initialized in this project.")
+        console.info(f"  Found: {anima_dir / 'state.json'}")
+        return
+
+    # 2. Detect tech stacks.
+    from modules.init_detector.core import detect
+
+    detection = detect(str(project_root))
+    stacks = [e.stack for e in detection.entries]
+    if stacks:
+        console.info(f"Detected tech stacks: {', '.join(stacks)}")
+    else:
+        console.warning("No tech stacks detected. toolchain.toml will be empty.")
+
+    # 3. Create .anima/ and write toolchain.toml.
+    from modules.toolchain_writer.core import write_toolchain
+
+    toolchain_path = write_toolchain(detection, str(anima_dir))
+    console.success(f"Created {toolchain_path}")
+
+    # 4. Write VISION.md if not already present.
+    vision_path = project_root / "VISION.md"
+    if not vision_path.exists():
+        from modules.vision_templates.core import get_template
+
+        vision_content = get_template(template)
+        vision_path.write_text(vision_content, encoding="utf-8")
+        tpl_name = template or "generic"
+        console.success(f"Created VISION.md ({tpl_name} template)")
+        console.info("  Edit VISION.md to describe your project's identity and goals.")
+    else:
+        console.info("VISION.md already exists — skipping.")
+
+    # 5. Write initial state.
+    state: dict[str, Any] = {
+        "iteration_count": 0,
+        "consecutive_failures": 0,
+        "last_iteration": None,
+        "completed_items": [],
+        "module_versions": {},
+        "status": "sleep",
+        "total_cost_usd": 0,
+        "total_tokens": 0,
+        "total_elapsed_seconds": 0,
+        "current_milestone": "v0.0.0",
+    }
+    state_file = anima_dir / "state.json"
+    state_file.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    console.success("Created .anima/state.json")
+
+    # 6. Create SOUL.md if not present.
+    soul_path = project_root / "SOUL.md"
+    if not soul_path.exists():
+        soul_path.write_text(_SOUL_TEMPLATE, encoding="utf-8")
+        console.success("Created SOUL.md")
+    else:
+        console.info("SOUL.md already exists — skipping.")
+
+    # 7. Create supporting directories.
+    for dirname in ("roadmap", "inbox", "iterations"):
+        dirpath = project_root / dirname
+        if not dirpath.exists():
+            dirpath.mkdir(parents=True, exist_ok=True)
+            console.success(f"Created {dirname}/")
+
+    # 8. Summary.
+    console.panel(
+        "Anima initialized. Next steps:\n"
+        "  1. Edit VISION.md to describe your project\n"
+        "  2. Create roadmap/v0.1.md with your first milestone\n"
+        "  3. Run: anima start --once",
+        title="Ready",
+        style="green",
+    )
+
+
+_SOUL_TEMPLATE = """\
+# Soul
+
+## Identity
+
+This project uses Anima — an autonomous iteration engine — to drive
+continuous, goal-directed development.
+
+## Principles
+
+1. **One thing well.** Each iteration tackles the single most important gap.
+2. **Finish before advancing.** Complete the current roadmap version before
+   starting the next.
+3. **Verify everything.** After making changes, run the quality pipeline.
+   If it doesn't pass, it doesn't ship.
+4. **Track progress.** Check off roadmap items as they are completed.
+
+## Boundaries
+
+**Protected paths** (not modified by automated processes):
+- `VISION.md`
+- `kernel/` (if present)
+
+Edit this file to reflect your project's values and constraints.
+"""
 
 
 def approve_iteration(iteration_id: str) -> None:
