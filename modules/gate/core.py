@@ -45,7 +45,7 @@ _RISK_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (
         re.compile(
-            r"rewrite\b.*\bmodule|restructur|major refactor",
+            r"(?<![-\w])rewrite\b.{0,30}\bmodule|restructur|major refactor",
             re.IGNORECASE,
         ),
         "major restructuring",
