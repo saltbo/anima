@@ -1,7 +1,7 @@
 # Anima
 
 <!-- anima:status:start -->
-![status](https://img.shields.io/badge/status-alive-brightgreen) ![milestone](https://img.shields.io/badge/milestone-v0.0.0-purple) ![time](https://img.shields.io/badge/time-31m-blue) ![tokens](https://img.shields.io/badge/tokens-8.5M-blue) ![cost](https://img.shields.io/badge/cost-%247.69-blue)
+![status](https://img.shields.io/badge/status-alive-brightgreen) ![milestone](https://img.shields.io/badge/milestone-v0.0.0-purple) ![time](https://img.shields.io/badge/time-35m-blue) ![tokens](https://img.shields.io/badge/tokens-9.3M-blue) ![cost](https://img.shields.io/badge/cost-%248.77-blue)
 <!-- anima:status:end -->
 
 **Give your project a soul.**
@@ -63,5 +63,5 @@ anima/
 ## Current Progress
 
 <!-- anima:progress:start -->
-**Milestone: v0.0.0** — Roadmap: 6 / 58 tasks complete
+**Milestone: v0.0.0** — Roadmap: 7 / 58 tasks complete
 <!-- anima:progress:end -->
