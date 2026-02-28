@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import quote
 
 from kernel.config import (
     PROGRESS_END,
@@ -116,7 +117,7 @@ def tag_milestone_if_advanced(state: dict[str, Any]) -> None:
         return
 
     git("tag", "-a", new_milestone, "-m", f"Milestone {new_milestone}")
-    code, out = git("push", "origin", new_milestone)
+    code, out = git("push", "origin", new_milestone, timeout=120)
     if code != 0:
         print(f"  [git] push tag failed: {out[:200]}")
     else:
@@ -182,7 +183,7 @@ def update_readme(state: dict[str, Any]) -> None:
     else:
         tokens_label = str(total_tokens)
 
-    cost_label = f"${total_cost:.2f}"
+    cost_label = quote(f"${total_cost:.2f}", safe="")
 
     status_block = (
         f"{STATUS_START}\n"

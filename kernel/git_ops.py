@@ -12,15 +12,19 @@ import subprocess
 from kernel.config import ROOT
 
 
-def git(*args: str) -> tuple[int, str]:
+def git(*args: str, timeout: int = 60) -> tuple[int, str]:
     """Run a git command and return (returncode, output)."""
-    result = subprocess.run(
-        ["git", *args],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode, (result.stdout + result.stderr).strip()
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return result.returncode, (result.stdout + result.stderr).strip()
+    except subprocess.TimeoutExpired:
+        return -1, f"git {' '.join(args)} timed out after {timeout}s"
 
 
 def ensure_git() -> None:
@@ -52,7 +56,7 @@ def commit_iteration(iteration_id: str, summary: str) -> None:
     """Commit changes from a successful iteration and push."""
     git("add", "-A")
     git("commit", "-m", f"feat(anima): [{iteration_id}] {summary}")
-    code, out = git("push")
+    code, out = git("push", timeout=120)
     if code != 0:
         print(f"  [git] push failed: {out[:200]}")
 

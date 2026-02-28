@@ -12,5 +12,25 @@
   "reportUnusedImport": true,
   "reportUnusedVariable": true,
   "reportMissingParameterType": true,
-  "reportUnnecessaryTypeIgnoreComment": true
+  "reportUnnecessaryTypeIgnoreComment": true,
+  "executionEnvironments": [
+    {
+      "root": "tests",
+      "extraPaths": ["."],
+      "reportPrivateUsage": false,
+      "reportUnusedFunction": false,
+      "reportUnknownLambdaType": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownArgumentType": false
+    },
+    {
+      "root": "kernel/tests",
+      "extraPaths": ["."],
+      "reportPrivateUsage": false,
+      "reportUnusedFunction": false,
+      "reportUnknownLambdaType": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownArgumentType": false
+    }
+  ]
 }

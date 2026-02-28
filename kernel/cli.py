@@ -28,7 +28,6 @@ from datetime import UTC, datetime
 def cmd_status() -> None:
     """Display current project state."""
     import wiring
-
     from kernel.config import VISION_FILE
     from kernel.roadmap import get_current_version, parse_roadmap_items, read_roadmap_file
     from kernel.state import load_history, load_state

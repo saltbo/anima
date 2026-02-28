@@ -25,13 +25,19 @@ def load_state() -> dict[str, Any]:
         "completed_items": [],
         "module_versions": {},
         "status": "sleep",  # alive | sleep | paused
+        "total_cost_usd": 0,
+        "total_tokens": 0,
+        "total_elapsed_seconds": 0,
+        "current_milestone": "v0.0.0",
     }
 
 
 def save_state(state: dict[str, Any]) -> None:
-    """Persist state to disk."""
+    """Persist state to disk atomically (write to temp, then rename)."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=False))
+    tmp = STATE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False))
+    tmp.rename(STATE_FILE)
 
 
 def load_history() -> list[dict[str, Any]]:

@@ -84,15 +84,24 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
     if not exec_result["success"]:
         print(f"  Agent execution failed: {exec_result.get('errors', 'unknown error')[:200]}")
 
-    # Step 5: Verify (via wiring)
-    print("\n[5/6] Verifying results...")
-    verification = wiring.verify_iteration(
-        project_state, wiring.scan_project_state()
-    )
+    try:
+        # Step 5: Verify (via wiring)
+        print("\n[5/6] Verifying results...")
+        verification = wiring.verify_iteration(project_state, wiring.scan_project_state())
 
-    # Step 6: Record + commit/rollback (report via wiring, git ops via kernel)
-    elapsed = time.time() - iteration_start
-    report = wiring.record_iteration(iteration_id, gaps, exec_result, verification, elapsed)
+        # Step 6: Record + commit/rollback (report via wiring, git ops via kernel)
+        elapsed = time.time() - iteration_start
+        report = wiring.record_iteration(iteration_id, gaps, exec_result, verification, elapsed)
+    except Exception as exc:
+        print(f"\n[error] Iteration failed with exception: {exc}")
+        print(f"[rollback] Rolling back to {snapshot_ref[:12]}")
+        rollback_to(snapshot_ref)
+        state["consecutive_failures"] += 1
+        if state["consecutive_failures"] >= MAX_CONSECUTIVE_FAILURES:
+            state["status"] = "paused"
+        state["iteration_count"] = iteration_num
+        save_state(state)
+        return state
 
     # Accumulate totals in state
     state["total_cost_usd"] = state.get("total_cost_usd", 0) + report.get("cost_usd", 0)
@@ -102,7 +111,9 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
     if verification["passed"]:
         commit_iteration(iteration_id, report["summary"])
         state["consecutive_failures"] = 0
+        # Keep completed_items bounded to last 200 entries
         state["completed_items"].extend(verification.get("improvements", []))
+        state["completed_items"] = state["completed_items"][-200:]
         tag_milestone_if_advanced(state)
     else:
         print(f"\n[rollback] Rolling back to {snapshot_ref[:12]}")

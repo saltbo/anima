@@ -37,16 +37,9 @@ from kernel.config import (
     PROTECTED_PATHS,
     ROOT,
 )
-from kernel.roadmap import (
-    get_current_version as _get_current_version,
-)
-from kernel.roadmap import (
-    parse_roadmap_items as _parse_roadmap_items,
-)
-from kernel.roadmap import (
-    read_roadmap_file as _read_roadmap_file,
-)
-
+from kernel.roadmap import get_current_version as _get_current_version
+from kernel.roadmap import parse_roadmap_items as _parse_roadmap_items
+from kernel.roadmap import read_roadmap_file as _read_roadmap_file
 
 # ---------------------------------------------------------------------------
 # Project State Scanner
@@ -128,16 +121,19 @@ def scan_project_state() -> dict[str, Any]:
                     }
                 )
 
+    # Run quality checks and tests for gap analysis
+    state["quality_results"] = run_quality_checks()
+    state["test_results"] = run_tests()
+
     # Snapshot protected file hashes BEFORE agent execution so verify can detect tampering
     protected_hashes: dict[str, str | None] = {}
-    skip_parts = {"__pycache__", ".pyc"}
     for p in PROTECTED_PATHS:
         path = ROOT / p
         if path.is_file():
             protected_hashes[p] = _file_hash(path)
         elif path.is_dir():
             for f in path.rglob("*"):
-                if f.is_file() and not any(part in f.parts for part in skip_parts):
+                if f.is_file() and "__pycache__" not in f.parts and f.suffix != ".pyc":
                     rel = str(f.relative_to(ROOT))
                     protected_hashes[rel] = _file_hash(f)
     state["_protected_hashes"] = protected_hashes
@@ -561,7 +557,6 @@ def verify_iteration(pre_state: dict[str, Any], post_state: dict[str, Any]) -> d
     improvements: list[str] = []
 
     # --- Protected file checks (use PROTECTED_PATHS) ---
-    skip_parts = {"__pycache__", ".pyc"}
     protected_files: list[str] = []
     for p in PROTECTED_PATHS:
         path = ROOT / p
@@ -569,7 +564,7 @@ def verify_iteration(pre_state: dict[str, Any], post_state: dict[str, Any]) -> d
             protected_files.append(p)
         elif path.is_dir():
             for f in path.rglob("*"):
-                if f.is_file() and not any(part in f.parts for part in skip_parts):
+                if f.is_file() and "__pycache__" not in f.parts and f.suffix != ".pyc":
                     protected_files.append(str(f.relative_to(ROOT)))
 
     pre_hashes = pre_state.get("_protected_hashes", {})
@@ -582,6 +577,11 @@ def verify_iteration(pre_state: dict[str, Any], post_state: dict[str, Any]) -> d
                 issues.append(f"CRITICAL: {pf} appeared unexpectedly")
         elif h_before != h_after:
             issues.append(f"CRITICAL: {pf} was modified by the agent")
+
+    # Check for protected files that existed before but were deleted
+    for pf, h_before in pre_hashes.items():
+        if h_before is not None and _file_hash(ROOT / pf) is None:
+            issues.append(f"CRITICAL: {pf} was deleted by the agent")
 
     # --- Detect improvements ---
     new_files = set(post_state.get("files", [])) - set(pre_state.get("files", []))
