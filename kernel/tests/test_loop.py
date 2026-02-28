@@ -90,6 +90,7 @@ def mock_wiring(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 @pytest.fixture(autouse=True)
 def _mock_kernel_ops(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mock all kernel infrastructure called by the loop."""
+    monkeypatch.setattr(loop, "_invalidate_modules", lambda: None)
     monkeypatch.setattr(loop, "create_snapshot", MagicMock(return_value="abc123"))
     monkeypatch.setattr(loop, "commit_iteration", MagicMock())
     monkeypatch.setattr(loop, "rollback_to", MagicMock())

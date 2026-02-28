@@ -17,6 +17,7 @@ Non-replaceable kernel concerns (from kernel modules):
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -29,6 +30,13 @@ from kernel.state import load_history, save_state
 logger = logging.getLogger("anima")
 
 
+def _invalidate_modules() -> None:
+    """Clear non-kernel modules from sys.modules so code changes take effect."""
+    for key in list(sys.modules.keys()):
+        if key == "wiring" or key.startswith(("adapters", "modules", "domain")):
+            del sys.modules[key]
+
+
 def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any]:
     """Execute a single iteration cycle.
 
@@ -36,7 +44,30 @@ def run_iteration(state: dict[str, Any], dry_run: bool = False) -> dict[str, Any
     replace them with module implementations.  Infrastructure
     (git ops, state management) comes from kernel modules directly.
     """
-    import wiring
+    # Reload non-kernel modules so code changes from previous iterations
+    # take effect. If the last iteration committed broken code, rollback
+    # and count it as a failure.
+    _invalidate_modules()
+    try:
+        import wiring
+    except Exception as exc:
+        logger.error("\n[error] Failed to load updated modules: %s", exc)
+        logger.warning("[rollback] Reverting last iteration's code changes (HEAD~1)")
+        rollback_to("HEAD~1")
+        _invalidate_modules()
+        try:
+            import wiring  # noqa: F811
+        except Exception as exc2:
+            logger.error("[fatal] Cannot recover after rollback: %s", exc2)
+            state["consecutive_failures"] += 1
+            state["status"] = "paused"
+            save_state(state)
+            return state
+        state["consecutive_failures"] += 1
+        if state["consecutive_failures"] >= MAX_CONSECUTIVE_FAILURES:
+            state["status"] = "paused"
+        save_state(state)
+        return state
 
     iteration_num = state["iteration_count"] + 1
     iteration_id = f"{iteration_num:04d}-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
