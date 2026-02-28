@@ -36,7 +36,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["kernel", "domain", "modules", "adapters"]
+packages = ["kernel", "domain", "modules", "adapters", "benchmarks"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "wiring.py" = "wiring.py"
@@ -72,9 +72,10 @@ known-first-party = ["anima"]
 
 # ── pytest ──────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests", "modules"]
+testpaths = ["tests", "modules", "benchmarks"]
 addopts = "--tb=short -q"
+markers = ["integration: end-to-end integration tests against real project"]
 
 # ── coverage ───────────────────────────────────────────────────────────────
 [tool.coverage.run]
-source = ["domain", "modules"]
+source = ["domain", "modules", "benchmarks"]

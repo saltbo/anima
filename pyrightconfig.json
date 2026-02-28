@@ -1,5 +1,5 @@
 {
-  "include": ["kernel", "domain", "modules", "adapters", "wiring.py", "tests"],
+  "include": ["kernel", "domain", "modules", "adapters", "benchmarks", "wiring.py", "tests"],
   "exclude": [
     ".venv",
     ".git",
@@ -25,6 +25,15 @@
     },
     {
       "root": "kernel/tests",
+      "extraPaths": ["."],
+      "reportPrivateUsage": false,
+      "reportUnusedFunction": false,
+      "reportUnknownLambdaType": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownArgumentType": false
+    },
+    {
+      "root": "benchmarks",
       "extraPaths": ["."],
       "reportPrivateUsage": false,
       "reportUnusedFunction": false,
