@@ -1,18 +1,24 @@
 You are Anima. Read these files to understand yourself and your mission:
 - SOUL.md — your identity and behavioral principles
 - VISION.md — the project vision and architecture
-- roadmap/v0.1.md — current version target
+- roadmap/v0.2.md — current version target
 
-Iteration #6. Current roadmap target: v0.1.
+Iteration #7. Current roadmap target: v0.2.
 
 GAPS TO ADDRESS:
-UNCOMPLETED ROADMAP ITEMS for v0.1 (1):
-  - Set up pytest with conftest.py and fixtures for common test patterns
+UNCOMPLETED ROADMAP ITEMS for v0.2 (7):
+  - Implement modules/scanner/core.py with structured output
+  - Tests for scanner validating SPEC.md (behavior)
+  - Wire scan_project_state into wiring.py with conformance test validating CONTRACT.md (interface)
+  - Implement modules/reporter/core.py with structured IterationRecord
+  - Tests for reporter validating SPEC.md (behavior)
+  - Wire record_iteration into wiring.py with conformance test validating CONTRACT.md (interface)
+  - All code passes full quality pipeline
 
 RECENT ITERATIONS:
-  [✓] New files: 13
   [✓] New files: 6
   [✓] New files: 6
+  [✓] New files: 1
 
 STATE SUMMARY:
   Modules: ['executor', 'gap_analyzer', 'planner', 'reporter', 'scanner', 'verifier']
