@@ -58,3 +58,7 @@ known-first-party = ["anima"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "modules"]
 addopts = "--tb=short -q"
+
+# ── coverage ───────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["domain", "modules"]

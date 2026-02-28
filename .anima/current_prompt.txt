@@ -3,15 +3,15 @@ You are Anima. Read these files to understand yourself and your mission:
 - VISION.md — the project vision and architecture
 - roadmap/v0.1.md — current version target
 
-Iteration #5. Current roadmap target: v0.1.
+Iteration #6. Current roadmap target: v0.1.
 
 GAPS TO ADDRESS:
-UNCOMPLETED ROADMAP ITEMS for v0.1 (2):
-  - Create SPEC.md for each module defining v0.1 target functionality
+UNCOMPLETED ROADMAP ITEMS for v0.1 (1):
   - Set up pytest with conftest.py and fixtures for common test patterns
 
 RECENT ITERATIONS:
   [✓] New files: 13
+  [✓] New files: 6
   [✓] New files: 6
 
 STATE SUMMARY:
