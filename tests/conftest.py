@@ -8,7 +8,7 @@ tests, and integration tests.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -26,6 +26,16 @@ from domain.models import (
     VerificationReport,
     Vision,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_health_file(tmp_path: Any) -> Any:
+    """Prevent all tests from polluting the real .anima/health.json."""
+    import wiring
+
+    with patch.object(wiring, "_HEALTH_FILE", tmp_path / "health.json"):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Supporting-type factories

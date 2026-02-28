@@ -88,6 +88,30 @@ def _record_fallback(step: str, error: str, error_type: str) -> None:
         pass
 
 
+def _record_success(step: str) -> None:
+    """Record a successful module call to the health file.
+
+    Best-effort: silently ignores any I/O failures so that health
+    tracking never breaks the pipeline.
+
+    Args:
+        step: Pipeline step name (e.g. 'scan_project_state').
+    """
+    try:
+        _HEALTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        health: dict[str, Any] = {}
+        if _HEALTH_FILE.exists():
+            health = json.loads(_HEALTH_FILE.read_text())
+        stats: dict[str, Any] = health.get("module_stats", {})
+        step_stats: dict[str, int] = stats.get(step, {"calls": 0, "fallbacks": 0})
+        step_stats["calls"] = step_stats.get("calls", 0) + 1
+        stats[step] = step_stats
+        health["module_stats"] = stats
+        _HEALTH_FILE.write_text(json.dumps(health, indent=2))
+    except Exception:
+        pass
+
+
 def get_health_stats() -> dict[str, Any]:
     """Return current health monitoring data.
 
@@ -270,7 +294,9 @@ def scan_project_state() -> dict[str, Any]:
     """Scan project state — module with seed fallback."""
     if _scan_fn is not None:
         try:
-            return _scan_fn()
+            result = _scan_fn()
+            _record_success("scan_project_state")
+            return result
         except Exception as exc:
             logger.warning(
                 "[fallback] scanner execution failed (%s: %s), using seed",
@@ -343,7 +369,9 @@ def analyze_gaps(
 
     if _analyze_fn is not None:
         try:
-            return _analyze_fn(vision, project_state, history)
+            result = _analyze_fn(vision, project_state, history)
+            _record_success("analyze_gaps")
+            return result
         except Exception as exc:
             logger.warning(
                 "[fallback] gap_analyzer execution failed (%s: %s), using seed",
@@ -363,7 +391,9 @@ def plan_iteration(
     """Plan iteration — module with seed fallback."""
     if _plan_fn is not None:
         try:
-            return _plan_fn(project_state, gaps, history, iteration_count)
+            result = _plan_fn(project_state, gaps, history, iteration_count)
+            _record_success("plan_iteration")
+            return result
         except Exception as exc:
             logger.warning(
                 "[fallback] planner execution failed (%s: %s), using seed",
@@ -415,7 +445,9 @@ def _execute_with_fallback(prompt: str, dry_run: bool) -> dict[str, Any]:
     """Run the executor module or fall back to seed on failure."""
     if _execute_fn is not None:
         try:
-            return _execute_fn(prompt, dry_run=dry_run)
+            result = _execute_fn(prompt, dry_run=dry_run)
+            _record_success("execute_plan")
+            return result
         except Exception as exc:
             logger.warning(
                 "[fallback] executor execution failed (%s: %s), using seed",
@@ -511,6 +543,7 @@ def verify_iteration(
     if _verify_fn is not None:
         try:
             verification = _verify_fn(pre_state, post_state)
+            _record_success("verify_iteration")
         except Exception as exc:
             logger.warning(
                 "[fallback] verifier execution failed (%s: %s), using seed",
@@ -547,7 +580,9 @@ def record_iteration(
     """Record iteration — module with seed fallback."""
     if _record_fn is not None:
         try:
-            return _record_fn(iteration_id, gaps, execution_result, verification, elapsed)
+            result = _record_fn(iteration_id, gaps, execution_result, verification, elapsed)
+            _record_success("record_iteration")
+            return result
         except Exception as exc:
             logger.warning(
                 "[fallback] reporter execution failed (%s: %s), using seed",

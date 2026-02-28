@@ -116,12 +116,20 @@ def test_wiring_finds_same_layers_as_seed() -> None:
     assert wired["has_pyrightconfig"] == seed_state["has_pyrightconfig"]
 
 
+# Directories that are not real modules but may appear in seed output.
+_NON_MODULE_DIRS = {"__pycache__"}
+
+
 def test_wiring_finds_same_modules_as_seed() -> None:
-    """Module discovers the same set of module names as seed."""
+    """Module discovers the same real modules as seed.
+
+    The module scanner correctly filters out non-module directories
+    (e.g. __pycache__) that the seed scanner may include.
+    """
     wired, seed_state = _call_both()
 
     wired_names = set(wired["modules"].keys())
-    seed_names = set(seed_state["modules"].keys())
+    seed_names = set(seed_state["modules"].keys()) - _NON_MODULE_DIRS
     assert wired_names == seed_names
 
 

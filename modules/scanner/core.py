@@ -107,7 +107,11 @@ def discover_modules(root: Path) -> list[ModuleInfo]:
 
     result: list[ModuleInfo] = []
     for module_dir in sorted(modules_dir.iterdir()):
-        if not module_dir.is_dir() or module_dir.name.startswith("."):
+        if (
+            not module_dir.is_dir()
+            or module_dir.name.startswith(".")
+            or module_dir.name == "__pycache__"
+        ):
             continue
 
         module_files: list[str] = []

@@ -244,6 +244,30 @@ class TestHealthMonitoring:
 
         assert stats == {}
 
+    def test_record_success_increments_calls(self, tmp_path: Any) -> None:
+        """_record_success increments the calls counter for a step."""
+        import wiring
+
+        health_file = tmp_path / "health2.json"
+        with patch.object(wiring, "_HEALTH_FILE", health_file):
+            wiring._record_success("scan_project_state")
+            wiring._record_success("scan_project_state")
+            wiring._record_success("analyze_gaps")
+
+        data = json.loads(health_file.read_text())
+        assert data["module_stats"]["scan_project_state"]["calls"] == 2
+        assert data["module_stats"]["scan_project_state"]["fallbacks"] == 0
+        assert data["module_stats"]["analyze_gaps"]["calls"] == 1
+
+    def test_record_success_survives_io_error(self) -> None:
+        """_record_success never raises, even if I/O fails."""
+        import wiring
+
+        with patch.object(wiring, "_HEALTH_FILE") as mock_file:
+            mock_file.parent.mkdir.side_effect = PermissionError("denied")
+            # Should not raise
+            wiring._record_success("step")
+
     def test_record_fallback_survives_io_error(self) -> None:
         """_record_fallback never raises, even if I/O fails."""
         import wiring
