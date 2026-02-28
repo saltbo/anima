@@ -215,8 +215,14 @@ class ClaudeCodeAdapter:
                     cache_creation = usage.get("cache_creation_input_tokens", 0)
                     total_tokens = input_tokens + output_tokens + cache_read + cache_creation
                     console.stream_result(duration / 1000, cost, total_tokens)
+                    break  # result is the final event; stop reading stdout
 
             console.stream_end()
+            # Drain stderr before wait to prevent pipe deadlock: if the
+            # subprocess is blocked writing to a full stderr buffer while
+            # we wait on stdout EOF, both sides hang forever.
+            if proc.stderr:
+                proc.stderr.read()
             proc.wait(timeout=self._timeout)
 
         except KeyboardInterrupt:
