@@ -12,6 +12,7 @@ self-replacement protocol.
 
 from __future__ import annotations
 
+from adapters.executor_bridge import execute_plan as execute_plan
 from adapters.gap_analyzer_bridge import analyze_gaps as analyze_gaps
 from adapters.planner_bridge import plan_iteration as plan_iteration
 from adapters.reporter_bridge import record_iteration as record_iteration
@@ -23,7 +24,7 @@ from kernel import seed
 # ---------------------------------------------------------------------------
 # analyze_gaps: wired to modules/gap_analyzer via adapters/gap_analyzer_bridge
 # plan_iteration: wired to modules/planner via adapters/planner_bridge
-execute_plan = seed.execute_plan
+# execute_plan: wired to modules/executor via adapters/executor_bridge
 verify_iteration = seed.verify_iteration
 
 # ---------------------------------------------------------------------------
