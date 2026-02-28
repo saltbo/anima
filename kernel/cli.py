@@ -71,6 +71,7 @@ def cmd_status() -> None:
         for name, info in project_state["modules"].items():
             flags: list[str] = []
             for field, label in [
+                ("has_contract", "contract"),
                 ("has_spec", "spec"),
                 ("has_core", "core"),
                 ("has_tests", "tests"),

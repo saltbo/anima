@@ -79,9 +79,10 @@ Logging is configured once in `cli.py:main()`. Controlled by `--verbose` (DEBUG)
 
 ## File Conventions
 
-- Module specs: `modules/<name>/SPEC.md`
+- Module contracts: `modules/<name>/CONTRACT.md` (stable interface: input/output/deps/constraints)
+- Module specs: `modules/<name>/SPEC.md` (current version implementation spec)
 - Module implementation: `modules/<name>/core.py`
-- Module tests: `modules/<name>/tests/`
-- Conformance tests: `tests/conformance/test_<step_name>.py`
+- Module tests: `modules/<name>/tests/` (validate SPEC.md behavior)
+- Conformance tests: `tests/conformance/test_<step_name>.py` (validate CONTRACT.md interface)
 - Iteration logs: `iterations/<id>.json`
 - Human instructions: `inbox/*.md`

@@ -97,6 +97,7 @@ def scan_project_state() -> dict[str, Any]:
                     if f.is_file():
                         files.append(str(f.relative_to(module_dir)))
                 module_info: dict[str, Any] = {
+                    "has_contract": (module_dir / "CONTRACT.md").exists(),
                     "has_spec": (module_dir / "SPEC.md").exists(),
                     "has_core": (module_dir / "core.py").exists(),
                     "has_tests": (module_dir / "tests").exists()

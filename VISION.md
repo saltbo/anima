@@ -63,26 +63,32 @@ anima/
 │
 ├── modules/                   # Functional modules (each is a Use Case)
 │   ├── scanner/               # Project → ProjectState
-│   │   ├── SPEC.md
+│   │   ├── CONTRACT.md        # Stable interface (input/output/deps/constraints)
+│   │   ├── SPEC.md            # Current version implementation spec
 │   │   ├── core.py            # Pure logic, depends only on domain/
 │   │   └── tests/
 │   ├── gap_analyzer/          # Vision + State → GapReport
+│   │   ├── CONTRACT.md
 │   │   ├── SPEC.md
 │   │   ├── core.py
 │   │   └── tests/
 │   ├── planner/               # GapReport + History → IterationPlan
+│   │   ├── CONTRACT.md
 │   │   ├── SPEC.md
 │   │   ├── core.py
 │   │   └── tests/
 │   ├── executor/              # IterationPlan → ExecutionResult (via AgentPort)
+│   │   ├── CONTRACT.md
 │   │   ├── SPEC.md
 │   │   ├── core.py
 │   │   └── tests/
 │   ├── verifier/              # Pre/Post State → VerificationReport
+│   │   ├── CONTRACT.md
 │   │   ├── SPEC.md
 │   │   ├── core.py
 │   │   └── tests/
 │   └── reporter/              # VerificationReport → IterationRecord
+│       ├── CONTRACT.md
 │       ├── SPEC.md
 │       ├── core.py
 │       └── tests/
