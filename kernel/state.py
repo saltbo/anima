@@ -14,11 +14,8 @@ from kernel.config import ITERATIONS_DIR, STATE_FILE
 
 
 def load_state() -> dict[str, Any]:
-    """Load persistent state from disk."""
-    if STATE_FILE.exists():
-        result: dict[str, Any] = json.loads(STATE_FILE.read_text())
-        return result
-    return {
+    """Load persistent state from disk, merging with defaults for schema migration."""
+    defaults: dict[str, Any] = {
         "iteration_count": 0,
         "consecutive_failures": 0,
         "last_iteration": None,
@@ -30,6 +27,10 @@ def load_state() -> dict[str, Any]:
         "total_elapsed_seconds": 0,
         "current_milestone": "v0.0.0",
     }
+    if STATE_FILE.exists():
+        saved: dict[str, Any] = json.loads(STATE_FILE.read_text())
+        return {**defaults, **saved}
+    return defaults
 
 
 def save_state(state: dict[str, Any]) -> None:

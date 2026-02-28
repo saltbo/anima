@@ -17,6 +17,7 @@ ROOT = Path(__file__).parent.parent.resolve()
 VISION_FILE = ROOT / "VISION.md"
 SOUL_FILE = ROOT / "SOUL.md"
 STATE_FILE = ROOT / ".anima" / "state.json"
+LOCK_FILE = ROOT / ".anima" / "anima.lock"
 ITERATIONS_DIR = ROOT / "iterations"
 INBOX_DIR = ROOT / "inbox"
 MODULES_DIR = ROOT / "modules"
@@ -38,6 +39,9 @@ MAX_CONSECUTIVE_FAILURES = 3
 
 # Agent command — change this if using a different agent
 AGENT_CMD = "claude"
+
+# Whether to auto-push after commits (disable for offline / local-only use)
+AUTO_PUSH = True
 
 # Protected paths that the agent must not modify
 PROTECTED_PATHS = [

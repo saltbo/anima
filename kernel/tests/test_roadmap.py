@@ -129,7 +129,7 @@ def test_get_current_version_first_incomplete(tmp_path: Path) -> None:
 
 
 def test_detect_current_milestone_no_roadmap() -> None:
-    result = roadmap.detect_current_milestone({})
+    result = roadmap.detect_current_milestone()
     assert result == "v0.0.0"
 
 
@@ -138,7 +138,7 @@ def test_detect_current_milestone_partial_complete(tmp_path: Path) -> None:
     rd.mkdir()
     (rd / "v0.1.md").write_text("- [x] Done")
     (rd / "v0.2.md").write_text("- [ ] Not done")
-    result = roadmap.detect_current_milestone({})
+    result = roadmap.detect_current_milestone()
     assert result == "v0.1.0"
 
 
