@@ -11,6 +11,10 @@ Quota-aware execution: when the executor reports quota exhaustion or
 rate limiting, the wiring layer sleeps and retries automatically,
 providing transparent auto-sleep/resume behaviour without kernel changes.
 
+Gate mechanism: high-risk plans are detected before execution and
+pause for human approval via ``anima approve``.  The gate operates
+entirely within wiring.py — no kernel changes required.
+
 Protected files (kernel/, VISION.md) cannot be modified by the agent.
 This file CAN and SHOULD be modified by the agent as part of the
 self-replacement protocol.
@@ -30,6 +34,7 @@ from kernel.config import ROOT
 logger = logging.getLogger("anima.wiring")
 
 _HEALTH_FILE = ROOT / ".anima" / "health.json"
+_ANIMA_DIR = ROOT / ".anima"
 
 # ---------------------------------------------------------------------------
 # Quota-aware execution settings
@@ -152,6 +157,60 @@ except Exception as _exc:
     logger.warning("[fallback] reporter import failed (%s), will use seed", _exc)
     _record_fallback("record_iteration", str(_exc), "import")
 
+# Gate module — risk classification and gate state management.
+# Falls back to no-gating if the module can't be loaded.
+# Stubs are defined first so pyright always sees the names as bound.
+_gate_module_available = False
+
+
+def _classify_risk_stub(_prompt: str) -> Any:
+    """Stub — never called when _gate_module_available is False."""
+    return None  # pragma: no cover
+
+
+def _is_gate_pending_stub(_d: Any) -> bool:
+    """Stub — always returns False."""
+    return False  # pragma: no cover
+
+
+def _read_gate_stub(_d: Any) -> dict[str, Any]:
+    """Stub — returns empty dict."""
+    return {}  # pragma: no cover
+
+
+def _write_gate_stub(_d: Any, _s: str, _i: tuple[str, ...]) -> None:
+    """Stub — no-op."""
+
+
+def _clear_gate_stub(_d: Any) -> None:
+    """Stub — no-op."""
+
+
+def _consume_bypass_stub(_d: Any) -> bool:
+    """Stub — always returns False."""
+    return False  # pragma: no cover
+
+
+_classify_risk = _classify_risk_stub
+_is_gate_pending = _is_gate_pending_stub
+_read_gate = _read_gate_stub
+_write_gate = _write_gate_stub
+_clear_gate = _clear_gate_stub
+_consume_bypass = _consume_bypass_stub
+
+try:
+    from modules.gate.core import classify_risk as _classify_risk
+    from modules.gate.core import clear_gate as _clear_gate
+    from modules.gate.core import consume_bypass as _consume_bypass
+    from modules.gate.core import is_gate_pending as _is_gate_pending
+    from modules.gate.core import read_gate as _read_gate
+    from modules.gate.core import write_gate as _write_gate
+
+    _gate_module_available = True
+except Exception as _exc:
+    logger.warning("[fallback] gate module import failed (%s), gating disabled", _exc)
+    _record_fallback("gate", str(_exc), "import")
+
 # Stores the latest execution result so verification can account for
 # agent execution failure even when file-level checks pass.
 _last_execution_result: dict[str, Any] | None = None
@@ -182,7 +241,22 @@ def analyze_gaps(
     project_state: dict[str, Any],
     history: list[dict[str, Any]],
 ) -> str:
-    """Analyze gaps — module with seed fallback."""
+    """Analyze gaps — module with seed fallback.
+
+    If a gate is pending (high-risk plan awaiting human approval),
+    returns ``"NO_GAPS"`` to put the loop to sleep until approved.
+    """
+    # Gate check: if a gate is pending, sleep until approved.
+    if _gate_module_available and _is_gate_pending(_ANIMA_DIR):
+        gate_data = _read_gate(_ANIMA_DIR)
+        from kernel.console import console
+
+        console.warning("HIGH-RISK CHANGE awaiting human approval.")
+        console.info(f"  Risk: {gate_data.get('risk_indicators', '')}")
+        console.info("  Run: anima approve <iteration-id>")
+        logger.info("[gate] Pending gate detected — returning NO_GAPS to sleep")
+        return "NO_GAPS"
+
     if _analyze_fn is not None:
         try:
             return _analyze_fn(vision, project_state, history)
@@ -269,15 +343,50 @@ def _execute_with_fallback(prompt: str, dry_run: bool) -> dict[str, Any]:
 
 
 def execute_plan(prompt: str, dry_run: bool = False) -> dict[str, Any]:
-    """Execute plan — module with seed fallback and quota-aware retry.
+    """Execute plan — module with seed fallback, gate check, and quota-aware retry.
+
+    Before execution, classifies the plan's risk level. If high-risk
+    and not bypassed, writes a gate file and returns a synthetic gated
+    result (no agent execution). The next iteration's ``analyze_gaps``
+    will detect the pending gate and put the system to sleep.
 
     After the first execution attempt, if the result contains a quota
     signal (rate-limited or quota-exhausted), the wiring layer sleeps
-    for the appropriate duration and retries once.  This provides
-    transparent auto-sleep on quota exhaustion and auto-resume when the
-    quota recovers, without requiring kernel changes.
+    for the appropriate duration and retries once.
     """
     global _last_execution_result
+
+    # Gate mechanism: classify risk and potentially gate before execution.
+    if _gate_module_available and not dry_run:
+        # Check if a previous gate was approved (one-time bypass).
+        if _consume_bypass(_ANIMA_DIR):
+            logger.info("[gate] Bypass consumed — proceeding without risk check")
+        else:
+            decision = _classify_risk(prompt)
+            if decision.gated:
+                from kernel.console import console
+
+                # Extract a short summary from the prompt (first 200 chars).
+                summary = prompt[:200].replace("\n", " ").strip()
+                _write_gate(_ANIMA_DIR, summary, decision.indicators)
+
+                console.warning("HIGH-RISK CHANGE DETECTED — pausing for human approval.")
+                console.info(f"  Risk indicators: {', '.join(decision.indicators)}")
+                console.info("  Run: anima approve <iteration-id>")
+
+                gated_result: dict[str, Any] = {
+                    "success": True,
+                    "output": "GATED: awaiting human approval",
+                    "errors": "",
+                    "exit_code": 0,
+                    "elapsed_seconds": 0.0,
+                    "cost_usd": 0.0,
+                    "total_tokens": 0,
+                    "dry_run": True,
+                }
+                _last_execution_result = gated_result
+                return gated_result
+
     result = _execute_with_fallback(prompt, dry_run)
 
     sleep_secs = _get_quota_sleep_seconds(result)
@@ -368,4 +477,34 @@ def record_iteration(
 # ---------------------------------------------------------------------------
 
 init_project = seed.init_project
-approve_iteration = seed.approve_iteration
+
+
+def approve_iteration(iteration_id: str) -> None:
+    """Approve a gated iteration, allowing execution to proceed.
+
+    Clears the gate-pending file and writes a one-time bypass marker
+    so the next iteration skips risk classification and executes normally.
+
+    Args:
+        iteration_id: The iteration ID to approve (for logging).
+    """
+    from kernel.console import console
+
+    if not _gate_module_available:
+        console.info("Gate module not available. Nothing to approve.")
+        return
+
+    if not _is_gate_pending(_ANIMA_DIR):
+        console.info("No pending gate. Nothing to approve.")
+        return
+
+    gate_data = _read_gate(_ANIMA_DIR)
+    _clear_gate(_ANIMA_DIR)
+
+    console.success(f"Gate approved for iteration {iteration_id}.")
+    console.info("  Anima will proceed on the next iteration.")
+    logger.info(
+        "[gate] Iteration %s approved. Gate data: %s",
+        iteration_id,
+        gate_data.get("risk_indicators", []),
+    )

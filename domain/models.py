@@ -186,6 +186,26 @@ class IterationRecord:
     total_tokens: int = 0
 
 
+class RiskLevel(Enum):
+    """Risk classification for a planned iteration."""
+
+    LOW = "low"
+    HIGH = "high"
+
+
+@dataclass(frozen=True)
+class GateDecision:
+    """Result of risk classification for an iteration plan.
+
+    When ``gated`` is True, the iteration should pause and wait for
+    human approval before execution proceeds.
+    """
+
+    gated: bool
+    risk_level: RiskLevel
+    indicators: tuple[str, ...]
+
+
 class FailureAction(Enum):
     """Recommended action for a stuck gap."""
 

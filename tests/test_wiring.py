@@ -1,8 +1,9 @@
-"""Tests for wiring.py graceful degradation, health monitoring, and quota-aware retry.
+"""Tests for wiring.py graceful degradation, health monitoring, quota-aware retry, and gate mechanism.
 
 Verifies that pipeline steps fall back to seed implementations when
 module imports or executions fail, that fallback events are recorded,
-and that quota exhaustion triggers automatic sleep/retry.
+that quota exhaustion triggers automatic sleep/retry, and that
+high-risk plans are gated before execution.
 """
 
 from __future__ import annotations
@@ -549,3 +550,202 @@ class TestExecutionFailureVerificationGate:
                 assert any("[quota]" in record.message for record in caplog.records)
         finally:
             wiring._execute_fn = original
+
+
+class TestGateMechanism:
+    """Gate mechanism gates high-risk plans before execution."""
+
+    def test_high_risk_prompt_returns_gated_result(self, tmp_path: Any) -> None:
+        """A high-risk prompt produces a GATED result without executing."""
+        import wiring
+
+        original_exec = wiring._execute_fn
+        original_gate = wiring._gate_module_available
+        original_dir = wiring._ANIMA_DIR
+        original_classify = wiring._classify_risk
+        original_write = wiring._write_gate
+        original_consume = wiring._consume_bypass
+
+        exec_called = False
+
+        def tracking_exec(prompt: str, dry_run: bool = False) -> dict[str, Any]:
+            nonlocal exec_called
+            exec_called = True
+            return {"success": True, "output": "done"}
+
+        wiring._execute_fn = tracking_exec
+        wiring._gate_module_available = True
+        wiring._ANIMA_DIR = tmp_path
+
+        from modules.gate.core import classify_risk, consume_bypass, write_gate
+
+        wiring._classify_risk = classify_risk
+        wiring._write_gate = write_gate
+        wiring._consume_bypass = consume_bypass
+
+        try:
+            result = wiring.execute_plan("Modify domain/models.py to add new types")
+            assert result["output"] == "GATED: awaiting human approval"
+            assert result["dry_run"] is True
+            assert not exec_called, "Executor should NOT be called for gated plans"
+        finally:
+            wiring._execute_fn = original_exec
+            wiring._gate_module_available = original_gate
+            wiring._ANIMA_DIR = original_dir
+            wiring._classify_risk = original_classify
+            wiring._write_gate = original_write
+            wiring._consume_bypass = original_consume
+
+    def test_low_risk_prompt_executes_normally(self, tmp_path: Any) -> None:
+        """A low-risk prompt bypasses gating and executes."""
+        import wiring
+
+        original_exec = wiring._execute_fn
+        original_gate = wiring._gate_module_available
+        original_dir = wiring._ANIMA_DIR
+        original_classify = wiring._classify_risk
+        original_consume = wiring._consume_bypass
+
+        ok_result: dict[str, Any] = {"success": True, "output": "executed"}
+
+        def ok_exec(prompt: str, dry_run: bool = False) -> dict[str, Any]:
+            return ok_result
+
+        wiring._execute_fn = ok_exec
+        wiring._gate_module_available = True
+        wiring._ANIMA_DIR = tmp_path
+
+        from modules.gate.core import classify_risk, consume_bypass
+
+        wiring._classify_risk = classify_risk
+        wiring._consume_bypass = consume_bypass
+
+        try:
+            result = wiring.execute_plan("Fix a typo in README")
+            assert result["output"] == "executed"
+        finally:
+            wiring._execute_fn = original_exec
+            wiring._gate_module_available = original_gate
+            wiring._ANIMA_DIR = original_dir
+            wiring._classify_risk = original_classify
+            wiring._consume_bypass = original_consume
+
+    def test_bypass_skips_gate_check(self, tmp_path: Any) -> None:
+        """After approval, bypass marker lets high-risk plan execute."""
+        import wiring
+
+        original_exec = wiring._execute_fn
+        original_gate = wiring._gate_module_available
+        original_dir = wiring._ANIMA_DIR
+        original_classify = wiring._classify_risk
+        original_consume = wiring._consume_bypass
+
+        ok_result: dict[str, Any] = {"success": True, "output": "bypass worked"}
+
+        def ok_exec(prompt: str, dry_run: bool = False) -> dict[str, Any]:
+            return ok_result
+
+        wiring._execute_fn = ok_exec
+        wiring._gate_module_available = True
+        wiring._ANIMA_DIR = tmp_path
+
+        from modules.gate.core import classify_risk, clear_gate, consume_bypass, write_gate
+
+        wiring._classify_risk = classify_risk
+        wiring._consume_bypass = consume_bypass
+
+        # Simulate: gate was written, then approved (clear_gate writes bypass).
+        write_gate(tmp_path, "test", ("modifies domain types",))
+        clear_gate(tmp_path)
+
+        try:
+            result = wiring.execute_plan("Modify domain/models.py again")
+            assert result["output"] == "bypass worked"
+        finally:
+            wiring._execute_fn = original_exec
+            wiring._gate_module_available = original_gate
+            wiring._ANIMA_DIR = original_dir
+            wiring._classify_risk = original_classify
+            wiring._consume_bypass = original_consume
+
+    def test_analyze_gaps_returns_no_gaps_when_gate_pending(self, tmp_path: Any) -> None:
+        """When a gate is pending, analyze_gaps returns NO_GAPS to sleep."""
+        import wiring
+
+        original_gate = wiring._gate_module_available
+        original_dir = wiring._ANIMA_DIR
+        original_pending = wiring._is_gate_pending
+        original_read = wiring._read_gate
+
+        wiring._gate_module_available = True
+        wiring._ANIMA_DIR = tmp_path
+
+        from modules.gate.core import is_gate_pending, read_gate, write_gate
+
+        wiring._is_gate_pending = is_gate_pending
+        wiring._read_gate = read_gate
+
+        write_gate(tmp_path, "test gap", ("modifies domain types",))
+
+        try:
+            result = wiring.analyze_gaps("vision text", {}, [])
+            assert result == "NO_GAPS"
+        finally:
+            wiring._gate_module_available = original_gate
+            wiring._ANIMA_DIR = original_dir
+            wiring._is_gate_pending = original_pending
+            wiring._read_gate = original_read
+
+    def test_approve_iteration_clears_gate(self, tmp_path: Any) -> None:
+        """approve_iteration clears a pending gate."""
+        import wiring
+
+        original_gate = wiring._gate_module_available
+        original_dir = wiring._ANIMA_DIR
+        original_pending = wiring._is_gate_pending
+        original_read = wiring._read_gate
+        original_clear = wiring._clear_gate
+
+        wiring._gate_module_available = True
+        wiring._ANIMA_DIR = tmp_path
+
+        from modules.gate.core import clear_gate, is_gate_pending, read_gate, write_gate
+
+        wiring._is_gate_pending = is_gate_pending
+        wiring._read_gate = read_gate
+        wiring._clear_gate = clear_gate
+
+        write_gate(tmp_path, "risky change", ("modifies wiring.py",))
+        assert is_gate_pending(tmp_path)
+
+        try:
+            wiring.approve_iteration("0042")
+            assert not is_gate_pending(tmp_path)
+        finally:
+            wiring._gate_module_available = original_gate
+            wiring._ANIMA_DIR = original_dir
+            wiring._is_gate_pending = original_pending
+            wiring._read_gate = original_read
+            wiring._clear_gate = original_clear
+
+    def test_dry_run_skips_gate(self) -> None:
+        """dry_run=True should skip gate classification entirely."""
+        import wiring
+
+        original_exec = wiring._execute_fn
+        original_gate = wiring._gate_module_available
+
+        dry_result: dict[str, Any] = {"success": True, "output": "dry", "dry_run": True}
+
+        def dry_exec(prompt: str, dry_run: bool = False) -> dict[str, Any]:
+            return dry_result
+
+        wiring._execute_fn = dry_exec
+        wiring._gate_module_available = True
+
+        try:
+            result = wiring.execute_plan("Modify domain/models.py", dry_run=True)
+            assert result["output"] == "dry"
+        finally:
+            wiring._execute_fn = original_exec
+            wiring._gate_module_available = original_gate
