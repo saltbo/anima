@@ -19,14 +19,13 @@ self-replacement protocol.
 
 from __future__ import annotations
 
+from adapters.scanner_bridge import scan_project_state as scan_project_state
 from kernel import seed
 
 # ---------------------------------------------------------------------------
 # Replaceable pipeline steps
 # ---------------------------------------------------------------------------
 # When a module is ready (with conformance test), change the assignment.
-
-scan_project_state = seed.scan_project_state
 analyze_gaps = seed.analyze_gaps
 plan_iteration = seed.plan_iteration
 execute_plan = seed.execute_plan
