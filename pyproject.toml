@@ -55,5 +55,5 @@ known-first-party = ["anima"]
 
 # ── pytest ──────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests/conformance"]
+testpaths = ["tests", "modules"]
 addopts = "--tb=short -q"

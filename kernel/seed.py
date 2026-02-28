@@ -583,6 +583,19 @@ def verify_iteration(pre_state: dict[str, Any], post_state: dict[str, Any]) -> d
         if h_before is not None and _file_hash(ROOT / pf) is None:
             issues.append(f"CRITICAL: {pf} was deleted by the agent")
 
+    # --- Quality gate: re-check ruff / pyright / pytest independently ---
+    qr = post_state.get("quality_results", {})
+    if qr.get("ruff_lint") and not qr["ruff_lint"]["passed"]:
+        issues.append(f"QUALITY: ruff lint failures\n{qr['ruff_lint']['output'][:300]}")
+    if qr.get("ruff_format") and not qr["ruff_format"]["passed"]:
+        issues.append(f"QUALITY: ruff format failures\n{qr['ruff_format']['output'][:300]}")
+    if qr.get("pyright") and not qr["pyright"]["passed"]:
+        issues.append(f"QUALITY: pyright type errors\n{qr['pyright']['output'][:300]}")
+
+    tr = post_state.get("test_results")
+    if tr and not tr["passed"]:
+        issues.append(f"QUALITY: tests failing\n{tr['output'][:300]}")
+
     # --- Detect improvements ---
     new_files = set(post_state.get("files", [])) - set(pre_state.get("files", []))
     if new_files:
