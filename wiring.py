@@ -211,6 +211,51 @@ except Exception as _exc:
     logger.warning("[fallback] gate module import failed (%s), gating disabled", _exc)
     _record_fallback("gate", str(_exc), "import")
 
+# Module health scoring — optional, falls back to no-op if unavailable.
+_health_module_available = False
+
+
+def _score_health_stub(
+    _modules: Any,
+    _stats: dict[str, Any],
+    _ts: str,
+) -> Any:
+    """Stub — returns None when module_health is unavailable."""
+    return None  # pragma: no cover
+
+
+_score_health = _score_health_stub
+
+try:
+    from modules.module_health.core import score_health as _score_health
+
+    _health_module_available = True
+except Exception as _exc:
+    logger.warning("[fallback] module_health import failed (%s), health scoring disabled", _exc)
+    _record_fallback("module_health", str(_exc), "import")
+
+
+def get_module_health(
+    modules: tuple[Any, ...],
+    timestamp: str,
+) -> Any:
+    """Score module health using current health stats.
+
+    Convenience wrapper that combines ``get_health_stats()`` with the
+    module health scorer.
+
+    Args:
+        modules: Module metadata from scanner (tuple of ModuleInfo).
+        timestamp: ISO-8601 timestamp for the report.
+
+    Returns:
+        A HealthReport, or None if the health module is unavailable.
+    """
+    if not _health_module_available:
+        return None
+    return _score_health(modules, get_health_stats(), timestamp)
+
+
 # Stores the latest execution result so verification can account for
 # agent execution failure even when file-level checks pass.
 _last_execution_result: dict[str, Any] | None = None

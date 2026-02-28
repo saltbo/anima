@@ -225,6 +225,39 @@ class DetectionResult:
     entries: tuple[ToolchainEntry, ...]
 
 
+class HealthStatus(Enum):
+    """Health classification for a module."""
+
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    CRITICAL = "critical"
+
+
+@dataclass(frozen=True)
+class ModuleHealthScore:
+    """Health assessment for a single pipeline module.
+
+    Combines structural completeness (contract, spec, core, tests)
+    with runtime reliability (fallback rate from health.json).
+    """
+
+    module_name: str
+    score: float
+    status: HealthStatus
+    missing_components: tuple[str, ...]
+    fallback_rate: float
+    issues: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class HealthReport:
+    """Aggregated health scores across all modules."""
+
+    modules: tuple[ModuleHealthScore, ...]
+    overall_score: float
+    generated_at: str
+
+
 class FailureAction(Enum):
     """Recommended action for a stuck gap."""
 
