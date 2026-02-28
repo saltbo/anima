@@ -1,7 +1,7 @@
 # Anima
 
 <!-- anima:status:start -->
-![status](https://img.shields.io/badge/status-sleep-yellow) ![milestone](https://img.shields.io/badge/milestone-v0.6.0-purple) ![time](https://img.shields.io/badge/time-2h_33m-blue) ![tokens](https://img.shields.io/badge/tokens-45.5M-blue) ![cost](https://img.shields.io/badge/cost-%2440.04-blue)
+![status](https://img.shields.io/badge/status-alive-brightgreen) ![milestone](https://img.shields.io/badge/milestone-v0.6.0-purple) ![time](https://img.shields.io/badge/time-2h_33m-blue) ![tokens](https://img.shields.io/badge/tokens-45.5M-blue) ![cost](https://img.shields.io/badge/cost-%2440.04-blue)
 <!-- anima:status:end -->
 
 **Give your project a soul.**
