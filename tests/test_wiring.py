@@ -77,11 +77,13 @@ class TestGracefulDegradation:
         import wiring
 
         original = wiring._analyze_fn
+        original_gate = wiring._gate_module_available
 
         def broken(vision: str, state: dict[str, Any], history: list[dict[str, Any]]) -> str:
             raise ValueError("analysis failed")
 
         wiring._analyze_fn = broken
+        wiring._gate_module_available = False
         try:
             with patch.object(wiring.seed, "analyze_gaps") as mock_seed:
                 mock_seed.return_value = "NO_GAPS"
@@ -90,6 +92,7 @@ class TestGracefulDegradation:
                 assert result == "NO_GAPS"
         finally:
             wiring._analyze_fn = original
+            wiring._gate_module_available = original_gate
 
     def test_plan_iteration_falls_back_on_runtime_error(self) -> None:
         """When the planner module raises, seed.plan_iteration is used."""
