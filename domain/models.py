@@ -206,6 +206,25 @@ class GateDecision:
     indicators: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ToolchainEntry:
+    """A detected tech stack with its associated build/lint/test commands."""
+
+    path: str
+    stack: str
+    lint: str
+    typecheck: str
+    test: str
+    coverage: str
+
+
+@dataclass(frozen=True)
+class DetectionResult:
+    """Result of tech stack detection for a project."""
+
+    entries: tuple[ToolchainEntry, ...]
+
+
 class FailureAction(Enum):
     """Recommended action for a stuck gap."""
 
