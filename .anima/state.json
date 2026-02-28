@@ -1,6 +1,6 @@
 {
   "iteration_count": 28,
-  "consecutive_failures": 3,
+  "consecutive_failures": 0,
   "last_iteration": "0028-20260228-071042",
   "completed_items": [
     "New files: 13",
@@ -23,7 +23,7 @@
     "New files: 2"
   ],
   "module_versions": {},
-  "status": "paused",
+  "status": "sleep",
   "total_cost_usd": 44.740882449999994,
   "total_tokens": 50560969,
   "total_elapsed_seconds": 10907.102200984955,
