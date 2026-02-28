@@ -181,14 +181,15 @@ Enforces:
 - No unsafe type narrowing
 - Proper handling of Optional/None
 
-### Stage 3: Tests (pytest)
+### Stage 3: Tests & Coverage (pytest)
 
 ```
-pytest --tb=short -q
+pytest --cov=anima --cov-fail-under=80 --tb=short -q
 ```
 
 Enforces:
 - All tests pass
+- Minimum 80% code coverage
 - Each module has at least one test validating its SPEC.md
 
 ### Pipeline Integration
@@ -197,7 +198,7 @@ The verification pipeline is defined as a single command that the Verifier
 module (and initially the seed script) runs after every iteration:
 
 ```bash
-ruff check . && ruff format --check . && pyright && pytest
+ruff check . && ruff format --check . && pyright && pytest --cov=anima --cov-fail-under=80
 ```
 
 All four must exit 0 for the iteration to be considered successful.
@@ -259,7 +260,9 @@ to `inbox/.archive/`.
 
 - All code must have complete type annotations (enforced by pyright strict)
 - All code must pass ruff linting and formatting checks
+- All modules must have ≥80% test coverage
 - All module interfaces must be defined as Protocols in domain/ports.py
+- Every CONTRACT.md must be written before implementation begins
 - Every SPEC.md must be written before implementation begins
 - Every iteration produces a structured JSON log entry
 - Failed iterations are valuable data — always record the failure reason
