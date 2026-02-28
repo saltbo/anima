@@ -3,25 +3,20 @@ You are Anima. Read these files to understand yourself and your mission:
 - VISION.md — the project vision and architecture
 - roadmap/v0.1.md — current version target
 
-Iteration #3. Current roadmap target: v0.1.
+Iteration #4. Current roadmap target: v0.1.
 
 GAPS TO ADDRESS:
-UNCOMPLETED ROADMAP ITEMS for v0.1 (8):
-  - Create complete directory structure matching VISION.md architecture
-  - Implement domain/models.py with all core dataclasses (fully typed, frozen)
-  - Implement domain/ports.py with all Protocol definitions
+UNCOMPLETED ROADMAP ITEMS for v0.1 (3):
   - Create CONTRACT.md for each module (scanner, gap_analyzer, planner, executor, verifier, reporter)
   - Create SPEC.md for each module defining v0.1 target functionality
   - Set up pytest with conftest.py and fixtures for common test patterns
-  - All code passes: ruff check + ruff format + pyright strict + pytest
-  - Verify that domain/ has zero external imports
 
-MISSING: domain/ layer (models.py + ports.py)
-
+RECENT ITERATIONS:
+  [✓] New files: 13
 
 STATE SUMMARY:
-  Modules: (none)
-  Domain: MISSING
+  Modules: ['executor', 'gap_analyzer', 'planner', 'reporter', 'scanner', 'verifier']
+  Domain: exists
   Tests: ✓
   Inbox: 0 items
 
