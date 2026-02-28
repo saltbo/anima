@@ -285,11 +285,15 @@ class ClaudeCodeAdapter:
         reset_text = cls._format_reset_time(resets_at)
 
         if status == "rejected" and overage_status in ("rejected", "disabled"):
+            retry_after: float | None = None
+            if isinstance(resets_at, (int, float)):
+                retry_after = max(0.0, float(resets_at) - time.time())
             message = "Detected structured rate_limit_event: quota exhausted"
             if reset_text:
                 message = f"{message}; resets {reset_text}"
             return QuotaState(
                 status=QuotaStatus.QUOTA_EXHAUSTED,
+                retry_after_seconds=retry_after if retry_after and retry_after > 0 else None,
                 message=message,
             )
 

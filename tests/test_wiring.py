@@ -324,12 +324,12 @@ class TestGetQuotaSleepSeconds:
         }
         assert wiring._get_quota_sleep_seconds(result) == wiring.QUOTA_SLEEP_EXHAUSTED
 
-    def test_sleep_capped_at_max(self) -> None:
-        """Sleep duration is capped at QUOTA_SLEEP_MAX."""
+    def test_rate_limited_sleep_capped_at_max(self) -> None:
+        """Rate-limited sleep duration is capped at QUOTA_SLEEP_MAX."""
         import wiring
 
         result: dict[str, Any] = {
-            "quota_state": {"status": "quota_exhausted", "retry_after_seconds": 9999.0},
+            "quota_state": {"status": "rate_limited", "retry_after_seconds": 9999.0},
         }
         assert wiring._get_quota_sleep_seconds(result) == wiring.QUOTA_SLEEP_MAX
 

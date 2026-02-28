@@ -220,9 +220,11 @@ def _get_quota_sleep_seconds(result: dict[str, Any]) -> float | None:
     """Return seconds to sleep if the result indicates a quota issue, else None.
 
     Inspects the ``quota_state`` dict inside an execution result. Returns
-    the appropriate sleep duration for rate-limiting or quota exhaustion,
-    capped at ``QUOTA_SLEEP_MAX``. Returns ``None`` when quota is OK or
-    when there is no quota signal.
+    the appropriate sleep duration for rate-limiting or quota exhaustion.
+    Rate-limited sleeps are capped at ``QUOTA_SLEEP_MAX``.
+    Quota-exhausted sleeps use precise ``retry_after_seconds`` when present,
+    otherwise fall back to ``QUOTA_SLEEP_EXHAUSTED``. Returns ``None`` when
+    quota is OK or when there is no quota signal.
     """
     quota_state = result.get("quota_state")
     if quota_state is None:
@@ -238,8 +240,10 @@ def _get_quota_sleep_seconds(result: dict[str, Any]) -> float | None:
 
     if status_str == "quota_exhausted":
         retry = quota_state.get("retry_after_seconds")
-        sleep_secs = float(retry) if retry is not None else QUOTA_SLEEP_EXHAUSTED
-        return min(sleep_secs, QUOTA_SLEEP_MAX)
+        if retry is not None:
+            # For exhausted quota, honour exact reset timing if known.
+            return max(0.0, float(retry))
+        return QUOTA_SLEEP_EXHAUSTED
 
     if status_str == "rate_limited":
         retry = quota_state.get("retry_after_seconds")

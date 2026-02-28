@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import patch
 
 from adapters.agents.claude_code import ClaudeCodeAdapter
 from domain.models import QuotaStatus
@@ -89,6 +90,23 @@ class TestStructuredRateLimitEvent:
         assert result is not None
         assert result.status == QuotaStatus.QUOTA_EXHAUSTED
         assert "resets 2026-02-28 05:00 UTC" in result.message
+        assert result.retry_after_seconds is not None
+
+    def test_parse_rate_limit_event_exhausted_sets_retry_after(self) -> None:
+        """Quota exhausted event computes retry_after from resetsAt."""
+        event = {
+            "type": "rate_limit_event",
+            "rate_limit_info": {
+                "status": "rejected",
+                "resetsAt": 2000,
+                "overageStatus": "rejected",
+            },
+        }
+        with patch("adapters.agents.claude_code.time.time", return_value=1700):
+            result = ClaudeCodeAdapter._parse_rate_limit_event(event)
+        assert result is not None
+        assert result.status == QuotaStatus.QUOTA_EXHAUSTED
+        assert result.retry_after_seconds == 300.0
 
     def test_parse_rate_limit_event_rate_limited_sets_retry_after(self) -> None:
         """A limited status maps to RATE_LIMITED with retry hint."""
