@@ -40,22 +40,22 @@ Anima runs a gap-driven loop: **scan → analyze gaps → plan → execute → v
 
 ```
 anima/
-├── seed.py              # Bootstrap (gets replaced)
 ├── VISION.md            # Product vision (human-authored)
+├── wiring.py            # Agent-modifiable step registry
 ├── domain/              # Core types + interfaces (zero external deps)
 │   ├── models.py        # Dataclasses: Vision, GapReport, IterationPlan, ...
 │   └── ports.py         # Protocols: AgentPort, VersionControlPort, ...
 ├── modules/             # Functional modules (built by Anima itself)
+│   ├── scanner/         # Project → ProjectState
 │   ├── gap_analyzer/    # Vision + State → GapReport
 │   ├── planner/         # GapReport + History → IterationPlan
 │   ├── executor/        # IterationPlan → ExecutionResult (via AgentPort)
 │   ├── verifier/        # Changes → VerificationReport (ruff + pyright + pytest)
 │   └── reporter/        # Results → IterationRecord
 ├── adapters/            # Concrete implementations of Ports
-│   ├── agents/          # Claude Code, Codex, Gemini, ...
-│   ├── git_vc.py        # Git version control
-│   └── ...
+│   └── agents/          # Claude Code, Codex, Gemini, ...
 ├── kernel/              # Immutable core (human-only modifications)
+│   └── seed.py          # Bootstrap implementations (get replaced)
 ├── inbox/               # Drop .md files to inject ideas
 └── iterations/          # Iteration logs (auto-generated)
 ```

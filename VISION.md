@@ -62,9 +62,13 @@ anima/
 │       └── FileSystemPort      # File system operations abstraction (Protocol)
 │
 ├── modules/                   # Functional modules (each is a Use Case)
-│   ├── gap_analyzer/          # Vision + State → GapReport
+│   ├── scanner/               # Project → ProjectState
 │   │   ├── SPEC.md
 │   │   ├── core.py            # Pure logic, depends only on domain/
+│   │   └── tests/
+│   ├── gap_analyzer/          # Vision + State → GapReport
+│   │   ├── SPEC.md
+│   │   ├── core.py
 │   │   └── tests/
 │   ├── planner/               # GapReport + History → IterationPlan
 │   │   ├── SPEC.md

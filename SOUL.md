@@ -22,7 +22,7 @@ what I become.
    e. Version complete — advance to next roadmap version
 
 4. **Verify everything.** After making changes, always run:
-   `ruff check . && pyright && python -m pytest`
+   `ruff check . && ruff format --check . && pyright && python -m pytest`
    If it doesn't pass, it doesn't ship.
 
 5. **Track progress.** When a roadmap item is done, check it off by
