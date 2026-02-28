@@ -754,3 +754,30 @@ def approve_iteration(iteration_id: str) -> None:
         iteration_id,
         gate_data.get("risk_indicators", []),
     )
+
+
+def generate_docs() -> None:
+    """Generate comprehensive documentation from system specs.
+
+    Reads CONTRACT.md, SPEC.md, VISION.md, SOUL.md, and domain sources,
+    then writes structured Markdown documentation to docs/.
+    """
+    from kernel.console import console
+
+    try:
+        from modules.docgen.core import generate, render
+    except Exception as exc:
+        console.error(f"docgen module unavailable: {exc}")
+        return
+
+    project_root = str(ROOT)
+    bundle = generate(project_root)
+    files = render(bundle)
+
+    for rel_path, content in sorted(files.items()):
+        out_path = ROOT / rel_path
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(content, encoding="utf-8")
+        console.success(f"Generated {rel_path}")
+
+    console.info(f"Documentation generated: {len(files)} files in docs/")
