@@ -1,7 +1,7 @@
 # Anima
 
 <!-- anima:status:start -->
-![status](https://img.shields.io/badge/status-alive-brightgreen) ![milestone](https://img.shields.io/badge/milestone-v0.8.0-purple) ![time](https://img.shields.io/badge/time-3h_58m-blue) ![tokens](https://img.shields.io/badge/tokens-73.7M-blue) ![cost](https://img.shields.io/badge/cost-%2466.44-blue)
+![status](https://img.shields.io/badge/status-sleep-yellow) ![milestone](https://img.shields.io/badge/milestone-v1.0.0-purple) ![time](https://img.shields.io/badge/time-5h_42m-blue) ![tokens](https://img.shields.io/badge/tokens-75.2M-blue) ![cost](https://img.shields.io/badge/cost-%2467.96-blue)
 <!-- anima:status:end -->
 
 **Give your project a soul.**
@@ -10,7 +10,7 @@ Anima is an Autonomous Iteration Engine — a system that drives software projec
 through continuous, gap-driven, self-directed development cycles.
 
 <!-- anima:stage:start -->
-> **Status: v1.0 Stable** — Anima is production-ready. Install from PyPI: `pip install anima-engine`
+> **Status: Available** — Install Anima via pip: `pip install anima`
 <!-- anima:stage:end -->
 
 ## What is Anima?
@@ -65,5 +65,5 @@ anima/
 ## Current Progress
 
 <!-- anima:progress:start -->
-**Milestone: v0.8.0** — Roadmap: 56 / 58 tasks complete
+**Milestone: v1.0.0** — Roadmap: 58 / 58 tasks complete
 <!-- anima:progress:end -->
