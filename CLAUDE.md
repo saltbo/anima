@@ -42,7 +42,7 @@ These files must not be modified by automated processes:
 Every change must pass before commit:
 
 ```bash
-ruff check . && ruff format --check . && pyright && pytest --cov=anima --cov-fail-under=80
+ruff check . && ruff format --check . && pyright && pytest --cov --cov-fail-under=80
 ```
 
 ## Architecture Rules
