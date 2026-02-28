@@ -87,7 +87,9 @@ class TestStructuredRateLimitEvent:
                 "isUsingOverage": False,
             },
         }
-        result = ClaudeCodeAdapter._parse_rate_limit_event(event)
+        # Pin time so resetsAt is always in the future relative to "now"
+        with patch("adapters.agents.claude_code.time.time", return_value=1772250000):
+            result = ClaudeCodeAdapter._parse_rate_limit_event(event)
         assert result is not None
         assert result.status == QuotaStatus.QUOTA_EXHAUSTED
         assert "resets 2026-02-28 05:00 UTC" in result.message

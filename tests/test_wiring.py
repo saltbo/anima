@@ -135,12 +135,14 @@ class TestGracefulDegradation:
         import wiring
 
         original = wiring._verify_fn
+        original_last = wiring._last_execution_result
 
         def broken(pre: dict[str, Any], post: dict[str, Any]) -> dict[str, Any]:
             raise KeyError("verify error")
 
         wiring._verify_fn = broken
         try:
+            wiring._last_execution_result = None  # Ensure clean state
             with patch.object(wiring.seed, "verify_iteration") as mock_seed:
                 mock_seed.return_value = {"passed": True, "issues": [], "improvements": []}
                 result = wiring.verify_iteration({}, {})
@@ -148,6 +150,7 @@ class TestGracefulDegradation:
                 assert result["passed"] is True
         finally:
             wiring._verify_fn = original
+            wiring._last_execution_result = original_last
 
     def test_record_iteration_falls_back_on_runtime_error(self) -> None:
         """When the reporter module raises, seed.record_iteration is used."""
@@ -403,7 +406,11 @@ class TestExecutionFailureVerificationGate:
         original_last = wiring._last_execution_result
         try:
             wiring._last_execution_result = {"success": True, "exit_code": 0, "errors": ""}
-            with patch.object(wiring, "_verify_fn", None):
+            with (
+                patch.object(wiring, "_verify_fn", None),
+                patch.object(wiring.seed, "verify_iteration") as mock_seed,
+            ):
+                mock_seed.return_value = {"passed": True, "issues": [], "improvements": []}
                 result = wiring.verify_iteration({}, {})
             assert result["passed"] is True
             assert not any(

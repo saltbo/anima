@@ -12,7 +12,7 @@ import os
 import subprocess
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from domain.models import ExecutionResult, QuotaState, QuotaStatus
 from kernel.config import AGENT_CMD, ROOT
@@ -274,9 +274,10 @@ class ClaudeCodeAdapter:
     @classmethod
     def _parse_rate_limit_event(cls, event: dict[str, Any]) -> QuotaState | None:
         """Parse a structured rate_limit_event payload into QuotaState."""
-        info = event.get("rate_limit_info")
-        if not isinstance(info, dict):
+        raw_info = event.get("rate_limit_info")
+        if not isinstance(raw_info, dict):
             return None
+        info = cast("dict[str, Any]", raw_info)
 
         status = str(info.get("status", "")).lower()
         rl_type = str(info.get("rateLimitType", "")).lower()
