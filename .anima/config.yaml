@@ -1,0 +1,4 @@
+# Anima project configuration
+version: "0.1"
+agent:
+  model: sonnet

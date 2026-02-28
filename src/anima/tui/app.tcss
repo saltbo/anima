@@ -1,0 +1,13 @@
+Screen {
+    layout: vertical;
+}
+
+#stream-panel {
+    height: 1fr;
+}
+
+#input-bar {
+    dock: bottom;
+    height: 3;
+    padding: 0 1;
+}

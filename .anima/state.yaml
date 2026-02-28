@@ -1,0 +1,10 @@
+current_milestone: v0.1
+milestones:
+  v0.1:
+    base_commit: 79e056b91abf0f6f661a706aaa929ee91981d11d
+    branch_name: milestone/v0.1
+    current_feature_index: 0
+    features: []
+    milestone_id: v0.1
+    retry_count: 0
+    status: completed
