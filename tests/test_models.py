@@ -2,57 +2,24 @@
 
 from anima.domain.models import (
     AnimaState,
-    FeatureState,
-    FeatureStatus,
     MilestoneState,
     MilestoneStatus,
     StreamEvent,
 )
 
 
-class TestFeatureState:
-    def test_default_status(self) -> None:
-        f = FeatureState(name="TUI")
-        assert f.status == FeatureStatus.PENDING
-        assert f.skip_reason is None
-
-    def test_skipped_with_reason(self) -> None:
-        f = FeatureState(
-            name="TUI", status=FeatureStatus.SKIPPED, skip_reason="blocked"
-        )
-        assert f.status == FeatureStatus.SKIPPED
-        assert f.skip_reason == "blocked"
-
-
 class TestMilestoneState:
-    def test_current_feature(self, sample_milestone: MilestoneState) -> None:
-        assert sample_milestone.current_feature is not None
-        assert sample_milestone.current_feature.name == "TUI"
-
-    def test_current_feature_index_out_of_range(self) -> None:
-        ms = MilestoneState(milestone_id="v0.1", current_feature_index=5)
-        assert ms.current_feature is None
-
-    def test_is_complete_false(self, sample_milestone: MilestoneState) -> None:
-        assert not sample_milestone.is_complete
-
-    def test_is_complete_true(self) -> None:
-        ms = MilestoneState(
-            milestone_id="v0.1",
-            features=[
-                FeatureState(name="A", status=FeatureStatus.COMPLETED),
-                FeatureState(name="B", status=FeatureStatus.SKIPPED),
-            ],
-        )
-        assert ms.is_complete
-
-    def test_is_complete_empty(self) -> None:
-        ms = MilestoneState(milestone_id="v0.1")
-        assert ms.is_complete  # vacuously true
-
     def test_default_status(self) -> None:
         ms = MilestoneState(milestone_id="v0.1")
         assert ms.status == MilestoneStatus.PENDING
+
+    def test_default_iteration_count(self) -> None:
+        ms = MilestoneState(milestone_id="v0.1")
+        assert ms.iteration_count == 0
+
+    def test_iteration_count_increments(self) -> None:
+        ms = MilestoneState(milestone_id="v0.1", iteration_count=3)
+        assert ms.iteration_count == 3
 
 
 class TestAnimaState:
@@ -70,7 +37,7 @@ class TestAnimaState:
         assert sample_state.current_milestone == "v0.1"
         ms = sample_state.get_milestone("v0.1")
         assert ms is not None
-        assert len(ms.features) == 3
+        assert ms.milestone_id == "v0.1"
 
 
 class TestStreamEvent:

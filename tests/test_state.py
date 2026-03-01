@@ -4,8 +4,6 @@ from pathlib import Path
 
 from anima.domain.models import (
     AnimaState,
-    FeatureState,
-    FeatureStatus,
     MilestoneState,
     MilestoneStatus,
 )
@@ -55,16 +53,7 @@ class TestStateManager:
             status=MilestoneStatus.IN_PROGRESS,
             branch_name="milestone/v0.1",
             base_commit="abc123",
-            current_feature_index=1,
-            features=[
-                FeatureState(name="TUI", status=FeatureStatus.COMPLETED),
-                FeatureState(name="Scheduler", status=FeatureStatus.IN_PROGRESS),
-                FeatureState(
-                    name="Agent",
-                    status=FeatureStatus.SKIPPED,
-                    skip_reason="blocked",
-                ),
-            ],
+            iteration_count=3,
             retry_count=2,
         )
         state.set_milestone(ms)
@@ -77,12 +66,8 @@ class TestStateManager:
         assert loaded_ms.status == MilestoneStatus.IN_PROGRESS
         assert loaded_ms.branch_name == "milestone/v0.1"
         assert loaded_ms.base_commit == "abc123"
-        assert loaded_ms.current_feature_index == 1
+        assert loaded_ms.iteration_count == 3
         assert loaded_ms.retry_count == 2
-        assert len(loaded_ms.features) == 3
-        assert loaded_ms.features[0].name == "TUI"
-        assert loaded_ms.features[0].status == FeatureStatus.COMPLETED
-        assert loaded_ms.features[2].skip_reason == "blocked"
 
     def test_save_creates_directory(self, tmp_project: Path) -> None:
         manager = StateManager()

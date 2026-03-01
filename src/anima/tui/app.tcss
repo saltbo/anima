@@ -2,12 +2,47 @@ Screen {
     layout: vertical;
 }
 
-#stream-panel {
+#main-content {
     height: 1fr;
+}
+
+AgentPanel {
+    width: 1fr;
+}
+
+.agent-title {
+    height: 1;
+    background: $surface;
+    color: $text;
+    text-style: bold;
+    padding: 0 1;
+}
+
+.agent-stream {
+    height: 1fr;
+    scrollbar-size: 1 1;
+    padding: 0 1;
+}
+
+.agent-todo {
+    height: auto;
+    max-height: 40%;
+    scrollbar-size: 1 1;
+    padding: 0 1;
+}
+
+#cmd-list {
+    dock: bottom;
+    height: auto;
+    max-height: 8;
+    padding: 0 1;
+    background: $surface;
+    border: solid $primary;
 }
 
 #input-bar {
     dock: bottom;
     height: 3;
     padding: 0 1;
+    border-top: solid $primary;
 }

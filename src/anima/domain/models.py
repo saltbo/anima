@@ -4,15 +4,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
-class FeatureStatus(Enum):
-    """Status of a single feature within a milestone."""
-
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    SKIPPED = "skipped"
-
-
 class MilestoneStatus(Enum):
     """Status of a milestone."""
 
@@ -62,15 +53,6 @@ class StreamEvent:
 
 
 @dataclass
-class FeatureState:
-    """Tracks state of a single feature."""
-
-    name: str
-    status: FeatureStatus = FeatureStatus.PENDING
-    skip_reason: str | None = None
-
-
-@dataclass
 class MilestoneState:
     """Persistent state for the current iteration."""
 
@@ -78,24 +60,8 @@ class MilestoneState:
     status: MilestoneStatus = MilestoneStatus.PENDING
     branch_name: str = ""
     base_commit: str = ""
-    current_feature_index: int = 0
-    features: list[FeatureState] = field(default_factory=lambda: list[FeatureState]())
+    iteration_count: int = 0
     retry_count: int = 0
-
-    @property
-    def current_feature(self) -> FeatureState | None:
-        """Return the current feature being worked on, or None if done."""
-        if 0 <= self.current_feature_index < len(self.features):
-            return self.features[self.current_feature_index]
-        return None
-
-    @property
-    def is_complete(self) -> bool:
-        """Check if all features are completed or skipped."""
-        return all(
-            f.status in (FeatureStatus.COMPLETED, FeatureStatus.SKIPPED)
-            for f in self.features
-        )
 
 
 @dataclass

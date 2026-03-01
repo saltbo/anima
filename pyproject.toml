@@ -1,5 +1,5 @@
 [project]
-name = "anima-engine"
+name = "anima"
 version = "0.1.0"
 description = "Autonomous Iteration Engine — give your project a soul"
 readme = "README.md"

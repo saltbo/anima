@@ -6,6 +6,8 @@ from pathlib import Path
 from anima.agent.claude_adapter import ClaudeAdapter
 from anima.domain.models import AgentRole, StreamEvent
 
+ALL_FEATURES_COMPLETE = "ALL_FEATURES_COMPLETE"
+
 DEVELOPER_SYSTEM_PROMPT = """\
 You are the Developer agent of Anima, an autonomous iteration engine.
 
@@ -25,7 +27,15 @@ Rules:
 - After implementing, run the full verification suite.
 - Use conventional commits: feat:, fix:, refactor:, test:, docs:, chore:
 - When told to commit, stage all changes and commit with a descriptive message.
+- When ALL features described in the milestone have been implemented and verified, \
+include the signal ALL_FEATURES_COMPLETE in your response to indicate the milestone \
+is done. Only emit this signal when you are confident every feature is complete.
 """
+
+
+def parse_completion(text: str) -> bool:
+    """Check whether the Developer's response contains the completion signal."""
+    return ALL_FEATURES_COMPLETE in text
 
 
 class DeveloperAgent:

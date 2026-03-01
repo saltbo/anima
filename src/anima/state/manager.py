@@ -8,18 +8,9 @@ import yaml
 from anima.config import state_file
 from anima.domain.models import (
     AnimaState,
-    FeatureState,
-    FeatureStatus,
     MilestoneState,
     MilestoneStatus,
 )
-
-
-def _feature_to_dict(f: FeatureState) -> dict[str, str | None]:
-    d: dict[str, str | None] = {"name": f.name, "status": f.status.value}
-    if f.skip_reason is not None:
-        d["skip_reason"] = f.skip_reason
-    return d
 
 
 def _milestone_to_dict(ms: MilestoneState) -> dict[str, object]:
@@ -28,8 +19,7 @@ def _milestone_to_dict(ms: MilestoneState) -> dict[str, object]:
         "status": ms.status.value,
         "branch_name": ms.branch_name,
         "base_commit": ms.base_commit,
-        "current_feature_index": ms.current_feature_index,
-        "features": [_feature_to_dict(f) for f in ms.features],
+        "iteration_count": ms.iteration_count,
         "retry_count": ms.retry_count,
     }
 
@@ -41,23 +31,13 @@ def _state_to_dict(state: AnimaState) -> dict[str, object]:
     }
 
 
-def _feature_from_dict(d: dict[str, Any]) -> FeatureState:
-    return FeatureState(
-        name=str(d["name"]),
-        status=FeatureStatus(d["status"]),
-        skip_reason=d.get("skip_reason"),
-    )
-
-
 def _milestone_from_dict(d: dict[str, Any]) -> MilestoneState:
-    features_raw: list[dict[str, Any]] = d.get("features", [])
     return MilestoneState(
         milestone_id=str(d["milestone_id"]),
         status=MilestoneStatus(d.get("status", "pending")),
         branch_name=str(d.get("branch_name", "")),
         base_commit=str(d.get("base_commit", "")),
-        current_feature_index=int(d.get("current_feature_index", 0)),
-        features=[_feature_from_dict(f) for f in features_raw],
+        iteration_count=int(d.get("iteration_count", 0)),
         retry_count=int(d.get("retry_count", 0)),
     )
 

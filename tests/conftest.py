@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from anima.domain.models import AnimaState, FeatureState, FeatureStatus, MilestoneState
+from anima.domain.models import AnimaState, MilestoneState
 
 
 @pytest.fixture
@@ -20,11 +20,6 @@ def sample_milestone() -> MilestoneState:
         milestone_id="v0.1",
         branch_name="milestone/v0.1",
         base_commit="abc123",
-        features=[
-            FeatureState(name="TUI"),
-            FeatureState(name="Scheduler"),
-            FeatureState(name="Agent", status=FeatureStatus.COMPLETED),
-        ],
     )
 
 

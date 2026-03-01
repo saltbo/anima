@@ -11,10 +11,6 @@ from anima.agent.developer import DeveloperAgent
 from anima.domain.models import (
     AcceptanceResult,
     AgentRole,
-    FeatureState,
-    FeatureStatus,
-    MilestoneState,
-    MilestoneStatus,
     StreamEvent,
 )
 from anima.git.ops import GitOperations
@@ -41,7 +37,8 @@ def mock_developer() -> MagicMock:
     dev.role = AgentRole.DEVELOPER
     dev.start = AsyncMock()
     dev.stop = AsyncMock()
-    dev.send = _make_send("Implemented feature")
+    # By default, signal completion immediately
+    dev.send = _make_send("ALL_FEATURES_COMPLETE")
     return dev
 
 
@@ -92,18 +89,7 @@ class TestScheduler:
         mock_tui: MagicMock,
         state_manager: StateManager,
     ) -> None:
-        # Pre-populate state with a milestone that has one feature already complete
-        ms = MilestoneState(
-            milestone_id="v0.1",
-            status=MilestoneStatus.IN_PROGRESS,
-            branch_name="milestone/v0.1",
-            base_commit="a" * 40,
-            features=[FeatureState(name="F1", status=FeatureStatus.COMPLETED)],
-        )
-        state = state_manager.load(tmp_project)
-        state.set_milestone(ms)
-        state_manager.save(tmp_project, state)
-
+        # Developer signals ALL_FEATURES_COMPLETE immediately
         scheduler = Scheduler(
             project_dir=tmp_project,
             developer=mock_developer,  # type: ignore[arg-type]
@@ -115,29 +101,40 @@ class TestScheduler:
 
         await scheduler.run_milestone("v0.1", "milestones/v0.1.md")
 
-        # Should merge to main and tag since all features are complete
+        # Should create branch, merge to main and tag
+        mock_git.create_branch.assert_awaited_once()
         mock_git.merge_to_main.assert_awaited_once()
         mock_git.tag.assert_awaited_once_with(tmp_project, "v0.1")
 
     async def test_feature_accepted_flow(
         self,
         tmp_project: Path,
-        mock_developer: MagicMock,
         mock_acceptor: MagicMock,
         mock_git: MagicMock,
         mock_tui: MagicMock,
         state_manager: StateManager,
     ) -> None:
-        ms = MilestoneState(
-            milestone_id="v0.1",
-            status=MilestoneStatus.IN_PROGRESS,
-            branch_name="milestone/v0.1",
-            base_commit="a" * 40,
-            features=[FeatureState(name="TUI")],
-        )
-        state = state_manager.load(tmp_project)
-        state.set_milestone(ms)
-        state_manager.save(tmp_project, state)
+        # Developer implements one feature, then signals completion
+        call_count = 0
+
+        async def _dev_send(message: str) -> AsyncIterator[StreamEvent]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield StreamEvent(type="assistant", content="Implemented feature X")
+            else:
+                # After commit prompt or on next iteration
+                if "commit" in message.lower():
+                    yield StreamEvent(type="assistant", content="Committed")
+                else:
+                    yield StreamEvent(type="assistant", content="ALL_FEATURES_COMPLETE")
+            yield StreamEvent(type="result", content="")
+
+        mock_developer = MagicMock(spec=DeveloperAgent)
+        mock_developer.role = AgentRole.DEVELOPER
+        mock_developer.start = AsyncMock()
+        mock_developer.stop = AsyncMock()
+        mock_developer.send = _dev_send
 
         scheduler = Scheduler(
             project_dir=tmp_project,
@@ -158,18 +155,39 @@ class TestScheduler:
     async def test_feature_rejected_retries(
         self,
         tmp_project: Path,
-        mock_developer: MagicMock,
         mock_git: MagicMock,
         mock_tui: MagicMock,
         state_manager: StateManager,
     ) -> None:
+        # Developer: implement, then fix, then commit, then ALL_FEATURES_COMPLETE
+        dev_call_count = 0
+
+        async def _dev_send(message: str) -> AsyncIterator[StreamEvent]:
+            nonlocal dev_call_count
+            dev_call_count += 1
+            if "commit" in message.lower():
+                yield StreamEvent(type="assistant", content="Committed")
+            elif dev_call_count == 1:
+                yield StreamEvent(type="assistant", content="Implemented feature")
+            elif "rejected" in message.lower() or "fix" in message.lower():
+                yield StreamEvent(type="assistant", content="Fixed the issues")
+            else:
+                yield StreamEvent(type="assistant", content="ALL_FEATURES_COMPLETE")
+            yield StreamEvent(type="result", content="")
+
+        mock_developer = MagicMock(spec=DeveloperAgent)
+        mock_developer.role = AgentRole.DEVELOPER
+        mock_developer.start = AsyncMock()
+        mock_developer.stop = AsyncMock()
+        mock_developer.send = _dev_send
+
         # Acceptor rejects first, then accepts
-        call_count = 0
+        accept_call_count = 0
 
         async def _accept_stream(message: str) -> AsyncIterator[StreamEvent]:
-            nonlocal call_count
-            call_count += 1
-            if call_count <= 1:
+            nonlocal accept_call_count
+            accept_call_count += 1
+            if accept_call_count <= 1:
                 yield StreamEvent(type="assistant", content="REJECTED\nNeeds tests")
             else:
                 yield StreamEvent(type="assistant", content="ACCEPTED\nGood")
@@ -180,17 +198,6 @@ class TestScheduler:
         mock_acceptor.start = AsyncMock()
         mock_acceptor.stop = AsyncMock()
         mock_acceptor.send = _accept_stream
-
-        ms = MilestoneState(
-            milestone_id="v0.1",
-            status=MilestoneStatus.IN_PROGRESS,
-            branch_name="milestone/v0.1",
-            base_commit="a" * 40,
-            features=[FeatureState(name="TUI")],
-        )
-        state = state_manager.load(tmp_project)
-        state.set_milestone(ms)
-        state_manager.save(tmp_project, state)
 
         scheduler = Scheduler(
             project_dir=tmp_project,
@@ -204,17 +211,40 @@ class TestScheduler:
         await scheduler.run_milestone("v0.1", "milestones/v0.1.md")
 
         # Acceptor should have been called at least twice (reject + accept)
-        assert call_count >= 2
+        assert accept_call_count >= 2
 
     async def test_max_retries_pauses_for_human(
         self,
         tmp_project: Path,
-        mock_developer: MagicMock,
         mock_git: MagicMock,
         mock_tui: MagicMock,
         state_manager: StateManager,
     ) -> None:
-        # Acceptor always rejects, then accepts after human input
+        # Developer: implement, then fixes, then commit, then ALL_FEATURES_COMPLETE
+        dev_call_count = 0
+
+        async def _dev_send(message: str) -> AsyncIterator[StreamEvent]:
+            nonlocal dev_call_count
+            dev_call_count += 1
+            if "commit" in message.lower():
+                yield StreamEvent(type="assistant", content="Committed")
+            elif dev_call_count == 1:
+                yield StreamEvent(type="assistant", content="Implemented feature")
+            elif "human feedback" in message.lower():
+                yield StreamEvent(type="assistant", content="Fixed with human guidance")
+            elif "rejected" in message.lower() or "fix" in message.lower():
+                yield StreamEvent(type="assistant", content="Trying to fix")
+            else:
+                yield StreamEvent(type="assistant", content="ALL_FEATURES_COMPLETE")
+            yield StreamEvent(type="result", content="")
+
+        mock_developer = MagicMock(spec=DeveloperAgent)
+        mock_developer.role = AgentRole.DEVELOPER
+        mock_developer.start = AsyncMock()
+        mock_developer.stop = AsyncMock()
+        mock_developer.send = _dev_send
+
+        # Acceptor rejects MAX_RETRIES times, then accepts after human input
         reject_count = 0
 
         async def _reject_then_accept(message: str) -> AsyncIterator[StreamEvent]:
@@ -231,17 +261,6 @@ class TestScheduler:
         mock_acceptor.start = AsyncMock()
         mock_acceptor.stop = AsyncMock()
         mock_acceptor.send = _reject_then_accept
-
-        ms = MilestoneState(
-            milestone_id="v0.1",
-            status=MilestoneStatus.IN_PROGRESS,
-            branch_name="milestone/v0.1",
-            base_commit="a" * 40,
-            features=[FeatureState(name="TUI")],
-        )
-        state = state_manager.load(tmp_project)
-        state.set_milestone(ms)
-        state_manager.save(tmp_project, state)
 
         scheduler = Scheduler(
             project_dir=tmp_project,
@@ -266,17 +285,6 @@ class TestScheduler:
         mock_tui: MagicMock,
         state_manager: StateManager,
     ) -> None:
-        ms = MilestoneState(
-            milestone_id="v0.1",
-            status=MilestoneStatus.IN_PROGRESS,
-            branch_name="milestone/v0.1",
-            base_commit="a" * 40,
-            features=[FeatureState(name="F1", status=FeatureStatus.COMPLETED)],
-        )
-        state = state_manager.load(tmp_project)
-        state.set_milestone(ms)
-        state_manager.save(tmp_project, state)
-
         scheduler = Scheduler(
             project_dir=tmp_project,
             developer=mock_developer,  # type: ignore[arg-type]

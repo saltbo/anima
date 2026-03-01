@@ -4,10 +4,9 @@ import logging
 from pathlib import Path
 
 from anima.agent.acceptor import AcceptorAgent, parse_acceptance
-from anima.agent.developer import DeveloperAgent
+from anima.agent.developer import DeveloperAgent, parse_completion
 from anima.domain.models import (
     AcceptanceResult,
-    FeatureStatus,
     MilestoneState,
     MilestoneStatus,
 )
@@ -88,78 +87,38 @@ class Scheduler:
             await self._acceptor.stop()
 
     async def _feature_loop(self, ms: MilestoneState, milestone_file: str) -> None:
-        """Run the Developer-Acceptor loop for features."""
-        while not ms.is_complete:
-            idx = ms.current_feature_index
+        """Run the Developer-Acceptor loop driven by Developer signals."""
+        while True:
             self._tui.on_status_change(
-                f"[Scheduler] Starting feature iteration (index={idx})"
+                f"[Scheduler] Starting feature iteration "
+                f"(iteration={ms.iteration_count})"
             )
 
-            # Ask Developer to implement next feature
+            # Step 1: Ask Developer to implement next feature
             dev_prompt = (
                 f"Read the milestone file at {milestone_file} and "
-                f"implement the next feature. Iteration {idx}. "
+                f"implement the next feature. Iteration {ms.iteration_count}. "
                 f"Implement ONE feature, write tests, run verification "
-                f"(ruff check . && pyright && pytest)."
+                f"(ruff check . && pyright && pytest). "
+                f"If all features in the milestone are already complete, "
+                f"reply with ALL_FEATURES_COMPLETE."
             )
 
+            logger.info("Sending dev prompt (%d chars)", len(dev_prompt))
             dev_response = await self._collect_agent_output(self._developer, dev_prompt)
-
-            # Ask Acceptor to review
-            accept_prompt = (
-                f"The Developer has completed work on a feature for milestone "
-                f"'{ms.milestone_id}'. Review the changes against the milestone "
-                f"file at {milestone_file}. "
-                f"Developer's report:\n\n{dev_response}"
+            logger.info(
+                "Dev response (%d chars): %.200s", len(dev_response), dev_response
             )
 
-            accept_response = await self._collect_agent_output(
-                self._acceptor, accept_prompt
-            )
-
-            result, feedback = parse_acceptance(accept_response)
-            self._tui.on_acceptance(result, feedback)
-
-            if result == AcceptanceResult.ACCEPTED:
-                # Feature accepted - tell developer to commit
-                commit_prompt = (
-                    "Your work has been accepted. Please stage all changes "
-                    "and commit with a descriptive conventional commit message."
+            # Step 2: Check for completion signal
+            if parse_completion(dev_response):
+                self._tui.on_status_change(
+                    "[Scheduler] Developer signaled ALL_FEATURES_COMPLETE"
                 )
-                await self._collect_agent_output(self._developer, commit_prompt)
+                break
 
-                # Update feature state
-                if ms.current_feature is not None:
-                    ms.current_feature.status = FeatureStatus.COMPLETED
-                ms.current_feature_index += 1
-                ms.retry_count = 0
-
-                self._tui.on_status_change("[Scheduler] Feature accepted and committed")
-            else:
-                # Feature rejected
-                ms.retry_count += 1
-                if ms.retry_count >= MAX_RETRIES:
-                    self._tui.on_status_change(
-                        f"[Scheduler] Retry limit ({MAX_RETRIES}) reached. "
-                        f"Pausing for human input."
-                    )
-                    human_input = await self._tui.wait_for_human_input(
-                        f"Developer-Acceptor cycle exceeded {MAX_RETRIES} retries. "
-                        f"Feedback: {feedback}\n"
-                        f"Please provide guidance:"
-                    )
-                    # Send human feedback to developer
-                    await self._collect_agent_output(
-                        self._developer, f"Human feedback: {human_input}"
-                    )
-                    ms.retry_count = 0
-                else:
-                    # Send rejection feedback to developer
-                    retry_prompt = (
-                        f"Your implementation was rejected. Feedback:\n{feedback}\n"
-                        f"Please fix the issues. Retry {ms.retry_count}/{MAX_RETRIES}."
-                    )
-                    await self._collect_agent_output(self._developer, retry_prompt)
+            # Step 3-5: Acceptance loop for the current feature
+            await self._acceptance_loop(ms, milestone_file, dev_response)
 
             # Save state after each iteration
             current_state = self._state.load(self._project_dir)
@@ -179,6 +138,67 @@ class Scheduler:
             f"[Scheduler] Milestone {ms.milestone_id} completed, merged and tagged"
         )
 
+    async def _acceptance_loop(
+        self, ms: MilestoneState, milestone_file: str, dev_response: str
+    ) -> None:
+        """Inner loop: send to Acceptor, handle ACCEPTED/REJECTED."""
+        while True:
+            # Step 3: Ask Acceptor to review
+            accept_prompt = (
+                f"The Developer has completed work on a feature for milestone "
+                f"'{ms.milestone_id}'. Review the changes against the milestone "
+                f"file at {milestone_file}. "
+                f"Developer's report:\n\n{dev_response}"
+            )
+
+            accept_response = await self._collect_agent_output(
+                self._acceptor, accept_prompt
+            )
+
+            result, feedback = parse_acceptance(accept_response)
+            self._tui.on_acceptance(result, feedback)
+
+            if result == AcceptanceResult.ACCEPTED:
+                # Step 4: Feature accepted - tell developer to commit
+                commit_prompt = (
+                    "Your work has been accepted. Please stage all changes "
+                    "and commit with a descriptive conventional commit message."
+                )
+                await self._collect_agent_output(self._developer, commit_prompt)
+
+                ms.iteration_count += 1
+                ms.retry_count = 0
+
+                self._tui.on_status_change("[Scheduler] Feature accepted and committed")
+                break
+            else:
+                # Step 5: Feature rejected
+                ms.retry_count += 1
+                if ms.retry_count >= MAX_RETRIES:
+                    self._tui.on_status_change(
+                        f"[Scheduler] Retry limit ({MAX_RETRIES}) reached. "
+                        f"Pausing for human input."
+                    )
+                    human_input = await self._tui.wait_for_human_input(
+                        f"Developer-Acceptor cycle exceeded {MAX_RETRIES} retries. "
+                        f"Feedback: {feedback}\n"
+                        f"Please provide guidance:"
+                    )
+                    # Send human feedback to developer and use as new dev_response
+                    dev_response = await self._collect_agent_output(
+                        self._developer, f"Human feedback: {human_input}"
+                    )
+                    ms.retry_count = 0
+                else:
+                    # Send rejection feedback to developer and use as new dev_response
+                    retry_prompt = (
+                        f"Your implementation was rejected. Feedback:\n{feedback}\n"
+                        f"Please fix the issues. Retry {ms.retry_count}/{MAX_RETRIES}."
+                    )
+                    dev_response = await self._collect_agent_output(
+                        self._developer, retry_prompt
+                    )
+
     async def _collect_agent_output(
         self,
         agent: DeveloperAgent | AcceptorAgent,
@@ -188,8 +208,11 @@ class Scheduler:
         parts: list[str] = []
         async for event in agent.send(message):
             if event.content:
-                parts.append(event.content)
                 self._tui.on_agent_output(agent.role, event.content)
+            # Only collect assistant/result content for the response string;
+            # user events (tool results) are display-only.
+            if event.type in ("assistant", "result") and event.content:
+                parts.append(event.content)
         return "".join(parts)
 
     def stop(self) -> None:

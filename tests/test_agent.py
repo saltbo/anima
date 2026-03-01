@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -66,13 +66,17 @@ class TestStreamEventParsing:
             "message": {
                 "content": [
                     {"type": "text", "text": "Hello "},
-                    {"type": "tool_use", "name": "read"},
+                    {
+                        "type": "tool_use",
+                        "name": "Read",
+                        "input": {"file_path": "/tmp/x"},
+                    },
                     {"type": "text", "text": "world"},
                 ]
             },
         }
         event = adapter._parse_event(data)
-        assert event.content == "Hello world"
+        assert event.content == "Hello \n[tool:call] Read: /tmp/x\nworld"
 
     def test_parse_assistant_no_message(self) -> None:
         adapter = ClaudeAdapter(system_prompt="test")
@@ -158,6 +162,86 @@ class TestExtractContent:
         data: dict[str, object] = {"type": "result", "result": "done"}
         assert _extract_content(data, "result") == "done"
 
+    def test_extract_tool_result(self) -> None:
+        data: dict[str, object] = {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_123",
+                        "content": "File created successfully",
+                        "is_error": False,
+                    }
+                ]
+            },
+        }
+        assert _extract_content(data, "user") == "[tool:done] File created successfully"
+
+    def test_extract_tool_error(self) -> None:
+        data: dict[str, object] = {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_123",
+                        "content": "Permission denied",
+                        "is_error": True,
+                    }
+                ]
+            },
+        }
+        assert _extract_content(data, "user") == "[tool:error] Permission denied"
+
+    def test_extract_tool_result_with_line_numbers(self) -> None:
+        content = (
+            "     1\u2192export interface Todo {\n"
+            "     2\u2192  id: string;\n"
+            "     3\u2192  text: string;\n"
+        )
+        data: dict[str, object] = {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_456",
+                        "content": content,
+                        "is_error": False,
+                    }
+                ]
+            },
+        }
+        result = _extract_content(data, "user")
+        assert result.startswith("[tool:done] export interface Todo")
+        assert "(3 lines)" in result
+        # No line-number prefixes should leak
+        assert "\u2192" not in result
+
+    def test_extract_system_init(self) -> None:
+        data: dict[str, object] = {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "abc",
+        }
+        assert _extract_content(data, "system") == "[system] Session initialized"
+
+    def test_extract_tool_call(self) -> None:
+        data: dict[str, object] = {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Bash",
+                        "input": {"command": "npm test"},
+                    }
+                ]
+            },
+        }
+        assert _extract_content(data, "assistant") == "[tool:call] Bash: npm test"
+
     def test_extract_unknown_type(self) -> None:
         data: dict[str, object] = {"type": "ping"}
         assert _extract_content(data, "ping") == ""
@@ -183,8 +267,9 @@ class TestClaudeAdapterReadEvents:
             side_effect=[line.encode() for line in lines] + [b""]
         )
 
+        adapter._stdout_reader = reader
         events = []
-        async for event in adapter._read_events(reader):
+        async for event in adapter._read_events():
             events.append(event)
 
         assert len(events) == 2
@@ -200,8 +285,9 @@ class TestClaudeAdapterReadEvents:
         reader = AsyncMock(spec=asyncio.StreamReader)
         reader.readline = AsyncMock(side_effect=[*lines, b""])
 
+        adapter._stdout_reader = reader
         events = []
-        async for event in adapter._read_events(reader):
+        async for event in adapter._read_events():
             events.append(event)
 
         assert len(events) == 1
@@ -219,8 +305,9 @@ class TestClaudeAdapterReadEvents:
         reader = AsyncMock(spec=asyncio.StreamReader)
         reader.readline = AsyncMock(side_effect=[*lines, b""])
 
+        adapter._stdout_reader = reader
         events = []
-        async for event in adapter._read_events(reader):
+        async for event in adapter._read_events():
             events.append(event)
 
         # Should stop after result, not read the assistant event
@@ -233,6 +320,8 @@ class TestClaudeAdapterStop:
         await adapter.stop()  # Should not raise
 
     async def test_stop_terminates_process(self) -> None:
+        from unittest.mock import MagicMock
+
         adapter = ClaudeAdapter(system_prompt="test")
         mock_proc = MagicMock()
         mock_proc.returncode = None
@@ -264,10 +353,6 @@ class TestClaudeAdapter:
     def test_not_running_initially(self) -> None:
         adapter = ClaudeAdapter(system_prompt="test")
         assert not adapter.is_running
-
-    def test_session_id_none_initially(self) -> None:
-        adapter = ClaudeAdapter(system_prompt="test")
-        assert adapter._session_id is None
 
     def test_model_default(self) -> None:
         adapter = ClaudeAdapter(system_prompt="test")
