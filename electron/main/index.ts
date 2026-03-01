@@ -1,3 +1,4 @@
+import './logger' // must be first — initializes electron-log & IPC transport
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'

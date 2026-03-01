@@ -1,4 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import log from 'electron-log/preload'
+
+log.initialize({ spyRendererConsole: false })
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getProjects: () => ipcRenderer.invoke('get-projects'),

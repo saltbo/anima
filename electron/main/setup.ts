@@ -3,6 +3,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import type { BrowserWindow } from 'electron'
+import { createLogger } from './logger'
+
+const log = createLogger('setup')
 
 export type SetupType = 'vision' | 'soul' | 'init'
 
@@ -160,21 +163,6 @@ function resolveCliPath(command: string): string | null {
   return null
 }
 
-// ── Logging ──────────────────────────────────────────────────────────────────
-const LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'Anima')
-const LOG_FILE = path.join(LOG_DIR, 'setup.log')
-
-function log(tag: string, ...args: unknown[]): void {
-  const line = `[${new Date().toISOString()}] [${tag}] ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}\n`
-  process.stdout.write(line)
-  try {
-    if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true })
-    fs.appendFileSync(LOG_FILE, line, 'utf8')
-  } catch {
-    // ignore log write errors
-  }
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 const sessions = new Map<string, ChildProcess>()
 
@@ -198,7 +186,7 @@ export function startSetupSession(
   sessions.delete(id)
 
   const cliPath = resolveCliPath('claude')
-  log(id, 'resolveCliPath =>', cliPath ?? 'NOT FOUND')
+  log.debug('resolveCliPath', { session: id, result: cliPath ?? 'NOT FOUND' })
   if (!cliPath) {
     win.webContents.send('setup-chat-data', id, {
       event: 'error',
@@ -230,8 +218,7 @@ export function startSetupSession(
     '--system-prompt', systemPrompt,
   ]
 
-  log(id, 'spawn', cliPath, args.slice(0, -2).join(' '), '--system-prompt <omitted>')
-  log(id, 'cwd', projectPath)
+  log.info('spawn', { session: id, cli: cliPath, args: args.slice(0, -2).join(' '), cwd: projectPath })
 
   const child = spawn(cliPath, args, {
     cwd: projectPath,
@@ -244,14 +231,14 @@ export function startSetupSession(
     } as NodeJS.ProcessEnv,
   })
 
-  log(id, 'pid', String(child.pid ?? 'unknown'))
+  log.info('pid', { session: id, pid: child.pid ?? 'unknown' })
   sessions.set(id, child)
 
   let stdoutBuffer = ''
 
   child.stdout?.on('data', (data: Buffer) => {
     const raw = data.toString()
-    log(id, 'stdout-raw', raw.replace(/\n/g, '\\n'))
+    log.debug('stdout', { session: id, raw: raw.replace(/\n/g, '\\n') })
     stdoutBuffer += raw
     const lines = stdoutBuffer.split('\n')
     stdoutBuffer = lines.pop() || ''
@@ -262,7 +249,7 @@ export function startSetupSession(
 
   child.stderr?.on('data', (data: Buffer) => {
     const trimmed = data.toString().trim()
-    log(id, 'stderr', trimmed)
+    log.warn('stderr', { session: id, stderr: trimmed })
     if (trimmed) {
       win.webContents.send('setup-chat-data', id, {
         event: 'error',
@@ -272,11 +259,11 @@ export function startSetupSession(
   })
 
   child.on('spawn', () => {
-    log(id, 'event: spawn ok')
+    log.info('spawned', { session: id })
   })
 
   child.on('close', (code, signal) => {
-    log(id, 'event: close', `code=${code}`, `signal=${signal}`)
+    log.info('close', { session: id, code, signal })
     if (stdoutBuffer.trim()) {
       processLine(stdoutBuffer, id, win)
     }
@@ -287,7 +274,7 @@ export function startSetupSession(
   })
 
   child.on('error', (err) => {
-    log(id, 'event: error', err.message)
+    log.error('process error', { session: id, error: err.message })
     win.webContents.send('setup-chat-data', id, {
       event: 'error',
       message: err.message,
@@ -302,7 +289,7 @@ type ContentEntry = { type: string; text?: string; thinking?: string; name?: str
 
 function processLine(line: string, id: string, win: BrowserWindow): void {
   if (!line.trim()) return
-  log(id, 'processLine', line.slice(0, 200))
+  log.debug('processLine', { session: id, line: line.slice(0, 200) })
   try {
     const json = JSON.parse(line)
 
@@ -386,14 +373,14 @@ function processLine(line: string, id: string, win: BrowserWindow): void {
 export function sendSetupMessage(id: string, text: string): void {
   const child = sessions.get(id)
   if (!child || !child.stdin) {
-    log(id, 'sendSetupMessage: no active session or stdin, dropping message')
+    log.warn('sendSetupMessage: no active session or stdin, dropping message', { session: id })
     return
   }
   const payload = JSON.stringify({
     type: 'user',
     message: { role: 'user', content: text },
   })
-  log(id, 'stdin-write', payload)
+  log.debug('stdin-write', { session: id, payload })
   child.stdin.write(payload + '\n')
 }
 
