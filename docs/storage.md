@@ -5,7 +5,10 @@ Anima 在被管理项目的根目录下创建 `.anima/` 目录，存放所有运
 ## 目录结构
 
 ```
+VISION.md                   # 项目愿景（项目根目录，对外公开）
+
 .anima/
+├── soul.md                 # 项目灵魂与原则（Anima 上下文）
 ├── state.json              # 全局状态（status、token、cost 累计）
 ├── config.json             # 项目级配置
 ├── inbox/                  # Inbox 条目（bug / feature / optimization）
@@ -25,6 +28,8 @@ Anima 在被管理项目的根目录下创建 `.anima/` 目录，存放所有运
 
 | 路径 | 追踪 | 原因 |
 |------|------|------|
+| `VISION.md` | ✅ | 项目愿景，随代码一起记录 |
+| `.anima/soul.md` | ✅ | 项目灵魂，Anima 上下文 |
 | `state.json` | ✅ | 项目生命体征，随代码一起记录 |
 | `config.json` | ✅ | 项目配置 |
 | `inbox/*.json` | ✅ | 待办条目，规划历史的一部分 |
