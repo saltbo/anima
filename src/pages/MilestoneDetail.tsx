@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Trash2, CheckCircle2, Circle, FileText, LayoutList } from 'lucide-react'
+import MDEditor from '@uiw/react-md-editor'
+import '@uiw/react-md-editor/markdown-editor.css'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { useTheme } from '@/store/theme'
 import {
   Dialog,
   DialogContent,
@@ -32,6 +34,7 @@ const TYPE_STYLES: Record<string, string> = {
 export function MilestoneDetail() {
   const { id, mid } = useParams<{ id: string; mid: string }>()
   const navigate = useNavigate()
+  const { resolvedTheme } = useTheme()
   const { projects } = useProjects()
   const project = projects.find((p) => p.id === id)
 
@@ -168,9 +171,9 @@ export function MilestoneDetail() {
               Approve →
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap text-xs text-muted-foreground bg-muted/30 rounded-lg border border-border p-3 leading-relaxed">
-            {milestone.review}
-          </pre>
+          <div data-color-mode={resolvedTheme} className="rounded-lg border border-border overflow-hidden">
+            <MDEditor.Markdown source={milestone.review} className="!bg-muted/30 !text-xs !p-3" />
+          </div>
         </div>
       )}
 
@@ -202,12 +205,14 @@ export function MilestoneDetail() {
       {/* Markdown editor (draft only) */}
       {isDraft && markdownMode ? (
         <div className="space-y-2">
-          <Textarea
-            className="font-mono text-xs min-h-[320px] resize-y"
-            value={markdownContent}
-            onChange={(e) => setMarkdownContent(e.target.value)}
-            spellCheck={false}
-          />
+          <div data-color-mode={resolvedTheme}>
+            <MDEditor
+              value={markdownContent}
+              onChange={(v) => setMarkdownContent(v ?? '')}
+              preview="live"
+              height={480}
+            />
+          </div>
           <div className="flex justify-end">
             <Button size="sm" onClick={handleSaveMarkdown} disabled={savingMarkdown}>
               {savingMarkdown ? 'Saving…' : 'Save Markdown'}
