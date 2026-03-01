@@ -38,12 +38,20 @@ export interface MilestoneTask {
   order: number
 }
 
+export type AcceptanceCriterionStatus = 'pending' | 'passed' | 'rejected'
+
+export interface AcceptanceCriterion {
+  title: string
+  description?: string
+  status: AcceptanceCriterionStatus
+}
+
 export interface Milestone {
   id: string
   title: string
   description: string
   status: MilestoneStatus
-  acceptanceCriteria: string[]
+  acceptanceCriteria: AcceptanceCriterion[]
   tasks: MilestoneTask[]
   inboxItemIds: string[]
   review?: string

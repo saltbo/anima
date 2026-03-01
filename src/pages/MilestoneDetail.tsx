@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trash2, CheckCircle2, Circle, FileText, LayoutList } from 'lucide-react'
+import { Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save } from 'lucide-react'
 import MDEditor from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { milestoneStatusLabel, milestoneStatusBadgeClass } from '@/lib/utils'
+import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
 import type { Milestone, InboxItem } from '@/types/index'
 
@@ -26,9 +26,9 @@ function timeAgo(iso: string): string {
 }
 
 const TYPE_STYLES: Record<string, string> = {
-  idea: 'bg-blue-500/10 text-blue-600 border border-blue-500/30',
-  bug: 'bg-red-500/10 text-red-600 border border-red-500/30',
-  feature: 'bg-green-500/10 text-green-600 border border-green-500/30',
+  idea: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
+  bug: 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20',
+  feature: 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20',
 }
 
 export function MilestoneDetail() {
@@ -42,7 +42,6 @@ export function MilestoneDetail() {
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [markdownMode, setMarkdownMode] = useState(false)
   const [markdownContent, setMarkdownContent] = useState('')
   const [savingMarkdown, setSavingMarkdown] = useState(false)
 
@@ -62,7 +61,6 @@ export function MilestoneDetail() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, mid])
 
-  // Refresh when the background review completes
   useEffect(() => {
     return window.electronAPI.onMilestoneReviewDone((milestoneId) => {
       if (milestoneId !== mid || !project) return
@@ -72,15 +70,6 @@ export function MilestoneDetail() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mid, project?.id])
-
-  const handleTaskToggle = async (taskId: string) => {
-    if (!project || !milestone) return
-    const task = milestone.tasks.find((t) => t.id === taskId)
-    if (!task) return
-    const newCompleted = !task.completed
-    setMilestone({ ...milestone, tasks: milestone.tasks.map((t) => (t.id === taskId ? { ...t, completed: newCompleted } : t)) })
-    await window.electronAPI.updateMilestoneTask(project.path, milestone.id, taskId, { completed: newCompleted })
-  }
 
   const handleMarkReady = async () => {
     if (!project || !milestone) return
@@ -111,10 +100,23 @@ export function MilestoneDetail() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-3">
-        {[80, 60, 100].map((w, i) => (
-          <div key={i} className="h-3 rounded bg-muted animate-pulse" style={{ width: `${w}%` }} />
-        ))}
+      <div className="h-full flex flex-col">
+        <div className="px-5 py-4 border-b border-border space-y-2 shrink-0">
+          <div className="h-4 rounded-md bg-muted animate-pulse w-2/5" />
+          <div className="h-3 rounded-md bg-muted animate-pulse w-3/5" />
+        </div>
+        <div className="flex-1 flex">
+          <div className="flex-1 border-r border-border p-5 space-y-3">
+            {[100, 85, 90, 70].map((w, i) => (
+              <div key={i} className="h-3 rounded bg-muted animate-pulse" style={{ width: `${w}%` }} />
+            ))}
+          </div>
+          <div className="w-72 p-4 space-y-3">
+            {[60, 80, 50].map((w, i) => (
+              <div key={i} className="h-3 rounded bg-muted animate-pulse" style={{ width: `${w}%` }} />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -124,192 +126,188 @@ export function MilestoneDetail() {
   }
 
   const completedCount = milestone.tasks.filter((t) => t.completed).length
-  const allDone = completedCount === milestone.tasks.length && milestone.tasks.length > 0
+  const totalTasks = milestone.tasks.length
+  const progressPct = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
+  const allDone = completedCount === totalTasks && totalTasks > 0
+  const sortedTasks = [...milestone.tasks].sort((a, b) => {
+    if (a.completed === b.completed) return a.order - b.order
+    return a.completed ? 1 : -1
+  })
   const isDraft = milestone.status === 'draft'
   const isReviewing = milestone.status === 'reviewing'
   const isReviewed = milestone.status === 'reviewed'
 
   return (
-    <div className="p-6 space-y-4">
-      {/* Header card */}
-      <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-sm font-semibold text-foreground">{milestone.title}</h2>
-          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${milestoneStatusBadgeClass(milestone.status)}`}>
-            {milestoneStatusLabel(milestone.status)}
-          </span>
+    <div className="h-full flex flex-col overflow-hidden">
+
+      {/* ── Header strip ──────────────────────────────────────── */}
+      <div className="px-5 py-3.5 border-b border-border shrink-0 flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${milestoneStatusBadgeClass(milestone.status)}`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${milestoneStatusDotClass(milestone.status)} ${isReviewing ? 'animate-pulse' : ''}`} />
+              {milestoneStatusLabel(milestone.status)}
+            </span>
+            <span className="text-xs text-muted-foreground">Created {timeAgo(milestone.createdAt)}</span>
+          </div>
+          <h2 className="text-sm font-semibold text-foreground leading-snug">{milestone.title}</h2>
+          {milestone.description && (
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{milestone.description}</p>
+          )}
         </div>
-        <p className="text-sm text-muted-foreground">{milestone.description}</p>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Created {timeAgo(milestone.createdAt)}</span>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 shrink-0 pt-0.5">
+          {isDraft && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleSaveMarkdown} disabled={savingMarkdown}>
+              {savingMarkdown ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Save
+            </Button>
+          )}
+          {isDraft && (
+            <Button size="sm" className="h-7 text-xs gap-1 cursor-pointer" onClick={handleMarkReady}>
+              Mark as Ready <ArrowRight size={12} />
+            </Button>
+          )}
+          {isReviewed && milestone.review && (
+            <Button size="sm" className="h-7 text-xs gap-1 cursor-pointer" onClick={handleMarkReady}>
+              Approve <ArrowRight size={12} />
+            </Button>
+          )}
+          {allDone && milestone.status !== 'completed' && (
+            <Button size="sm" className="h-7 text-xs gap-1 cursor-pointer" onClick={handleMarkCompleted}>
+              Mark Completed <ArrowRight size={12} />
+            </Button>
+          )}
           <button
             onClick={() => setDeleteOpen(true)}
-            className="flex items-center gap-1 text-muted-foreground hover:text-destructive transition-colors"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors duration-150 cursor-pointer px-1.5"
           >
             <Trash2 size={12} />
-            Delete
           </button>
         </div>
       </div>
 
-      {/* Reviewing banner */}
+      {/* ── Reviewing banner ──────────────────────────────────── */}
       {isReviewing && (
-        <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-4 py-2.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse shrink-0" />
+        <div className="flex items-center gap-3 px-5 py-2.5 border-b border-yellow-500/20 bg-yellow-500/5 shrink-0">
+          <Loader2 size={13} className="text-yellow-500 animate-spin shrink-0" />
           <span className="text-xs text-yellow-700 dark:text-yellow-400">AI review in progress…</span>
         </div>
       )}
 
-      {/* Review result */}
-      {isReviewed && milestone.review && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Review
-            </p>
-            <Button size="sm" className="h-7 text-xs" onClick={handleMarkReady}>
-              Approve →
-            </Button>
-          </div>
-          <div data-color-mode={resolvedTheme} className="rounded-lg border border-border overflow-hidden">
-            <MDEditor.Markdown source={milestone.review} className="!bg-muted/30 !text-xs !p-3" />
-          </div>
-        </div>
-      )}
+      {/* ── Two-column body ───────────────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden">
 
-      {/* Draft actions */}
-      {isDraft && (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-card/60 px-4 py-2.5 gap-3">
-          <span className="text-xs text-muted-foreground">Draft — refine before activating</span>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs gap-1.5"
-              onClick={() => setMarkdownMode((v) => !v)}
-            >
-              {markdownMode ? <LayoutList size={12} /> : <FileText size={12} />}
-              {markdownMode ? 'Structured' : 'Markdown'}
-            </Button>
-            <Button
-              size="sm"
-              className="h-7 text-xs"
-              onClick={handleMarkReady}
-            >
-              Mark as Ready →
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Markdown editor (draft only) */}
-      {isDraft && markdownMode ? (
-        <div className="space-y-2">
-          <div data-color-mode={resolvedTheme}>
+        {/* LEFT: Markdown content */}
+        <div className="flex-1 overflow-hidden flex flex-col border-r border-border" data-color-mode={resolvedTheme}>
+          {isDraft ? (
             <MDEditor
               value={markdownContent}
               onChange={(v) => setMarkdownContent(v ?? '')}
-              preview="live"
-              height={480}
+              preview="edit"
+              style={{ flex: 1, height: '100%' }}
+              height="100%"
             />
-          </div>
-          <div className="flex justify-end">
-            <Button size="sm" onClick={handleSaveMarkdown} disabled={savingMarkdown}>
-              {savingMarkdown ? 'Saving…' : 'Save Markdown'}
-            </Button>
-          </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto p-5">
+              {markdownContent
+                ? <MDEditor.Markdown source={markdownContent} className="!bg-transparent !text-sm" />
+                : <p className="text-sm text-muted-foreground italic">No content yet.</p>
+              }
+            </div>
+          )}
         </div>
-      ) : (
-        <>
-          {/* All done banner */}
-          {allDone && milestone.status !== 'completed' && (
-            <div className="flex items-center justify-between rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2.5">
-              <span className="text-sm text-green-700 dark:text-green-400 font-medium">All tasks done</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-green-700 dark:text-green-400 hover:bg-green-500/20"
-                onClick={handleMarkCompleted}
-              >
-                Mark as Completed
-              </Button>
+
+        {/* RIGHT: Sidebar — Tasks, AC, Linked Items */}
+        <div className="w-72 shrink-0 overflow-y-auto">
+
+          {/* Reviewed: AI Review block */}
+          {isReviewed && milestone.review && (
+            <div className="border-b border-border p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">AI Review</p>
+              <div data-color-mode={resolvedTheme}>
+                <MDEditor.Markdown source={milestone.review} className="!bg-transparent !text-xs" />
+              </div>
             </div>
           )}
 
-          {/* Acceptance Criteria */}
-          {milestone.acceptanceCriteria.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Acceptance Criteria
-              </p>
-              <ul className="space-y-1">
-                {milestone.acceptanceCriteria.map((criterion, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-foreground">
-                    <span className="text-muted-foreground mt-0.5">•</span>
-                    <span>{criterion}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <div className="p-4 space-y-5">
 
-          {/* Tasks */}
-          {milestone.tasks.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Tasks — {completedCount}/{milestone.tasks.length} completed
-              </p>
-              <div className="space-y-1">
-                {milestone.tasks.map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => handleTaskToggle(task.id)}
-                    className="w-full flex items-start gap-3 p-2.5 rounded-lg border border-border bg-card hover:border-primary/40 transition-colors text-left"
-                  >
-                    {task.completed
-                      ? <CheckCircle2 size={16} className="text-green-500 mt-0.5 shrink-0" />
-                      : <Circle size={16} className="text-muted-foreground mt-0.5 shrink-0" />
-                    }
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+            {/* Tasks */}
+            {totalTasks > 0 && (
+              <section className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Tasks</p>
+                  <span className={`text-[10px] font-medium ${allDone ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                    {completedCount}/{totalTasks}
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full bg-green-500 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+                </div>
+                <div className="space-y-0.5 pt-1">
+                  {sortedTasks.map((task) => (
+                    <div key={task.id} className="flex items-center gap-2.5 px-2.5 py-1.5">
+                      {task.completed
+                        ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
+                        : <Circle size={13} className="text-muted-foreground shrink-0" />
+                      }
+                      <p className={`text-xs leading-snug ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                         {task.title}
                       </p>
-                      {task.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
-                      )}
                     </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {/* Linked Inbox Items */}
-          {milestone.inboxItemIds.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Linked Inbox Items
-              </p>
-              <div className="space-y-1">
-                {milestone.inboxItemIds.map((iid) => {
-                  const item = inboxItems.find((i) => i.id === iid)
-                  if (!item) return null
-                  return (
-                    <div key={iid} className="flex items-center gap-2">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
-                        {item.type}
-                      </span>
-                      <span className="text-sm text-foreground">{item.title}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </>
-      )}
+            {/* Acceptance Criteria */}
+            {milestone.acceptanceCriteria.length > 0 && (
+              <section className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Acceptance Criteria</p>
+                <ul className="space-y-0.5">
+                  {milestone.acceptanceCriteria.map((ac, i) => (
+                    <li key={i} className="flex items-start gap-2.5 px-2.5 py-1.5">
+                      {ac.status === 'passed' && <CheckCircle2 size={13} className="text-green-500 mt-0.5 shrink-0" />}
+                      {ac.status === 'rejected' && <XCircle size={13} className="text-red-500 mt-0.5 shrink-0" />}
+                      {ac.status === 'pending' && <Circle size={13} className="text-muted-foreground mt-0.5 shrink-0" />}
+                      <p className={`text-xs leading-snug ${ac.status === 'pending' ? 'text-foreground' : 'text-muted-foreground'} ${ac.status === 'rejected' ? 'line-through' : ''}`}>
+                        {ac.title}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-      {/* Delete confirmation dialog */}
+            {/* Linked Inbox Items */}
+            {milestone.inboxItemIds.length > 0 && (
+              <section className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Linked Inbox Items</p>
+                <div className="space-y-1">
+                  {milestone.inboxItemIds.map((iid) => {
+                    const item = inboxItems.find((i) => i.id === iid)
+                    if (!item) return null
+                    return (
+                      <div key={iid} className="flex items-center gap-2 py-1">
+                        <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
+                          {item.type}
+                        </span>
+                        <span className="text-xs text-foreground">{item.title}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+          </div>
+        </div>
+      </div>
+
+      {/* ── Delete confirmation dialog ─────────────────────────── */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
