@@ -1,5 +1,6 @@
-import { useParams } from 'react-router-dom'
-import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity, ChevronRight, CheckCircle2, Circle } from 'lucide-react'
 import { useProjects } from '@/store/projects'
 import { cn, statusBgColor, statusColor, statusLabel } from '@/lib/utils'
 
@@ -33,7 +34,14 @@ function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label
 export function ProjectDashboard() {
   const { id } = useParams<{ id: string }>()
   const { projects } = useProjects()
+  const navigate = useNavigate()
   const project = projects.find((p) => p.id === id)
+  const [svStatus, setSvStatus] = useState<{ hasVision: boolean; hasSoul: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!project) return
+    window.electronAPI.checkProjectSetup(project.path).then(setSvStatus)
+  }, [project])
 
   if (!project) {
     return <div className="p-6 text-muted-foreground">Project not found.</div>
@@ -95,6 +103,40 @@ export function ProjectDashboard() {
           value={project.round > 0 ? String(project.round) : '—'}
         />
       </div>
+
+      {/* Soul & Vision card */}
+      <button
+        onClick={() => navigate(`/projects/${id}/soul-vision`)}
+        className="w-full bg-card border border-border rounded-xl p-4 text-left hover:border-foreground/20 transition-colors group"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Soul & Vision</p>
+          <ChevronRight size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+        </div>
+        <div className="flex gap-4">
+          <div className="flex items-center gap-2">
+            {svStatus?.hasVision
+              ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
+              : <Circle size={13} className="text-muted-foreground/40 shrink-0" />
+            }
+            <span className={cn('text-sm', svStatus?.hasVision ? 'text-foreground' : 'text-muted-foreground')}>
+              Vision
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {svStatus?.hasSoul
+              ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
+              : <Circle size={13} className="text-muted-foreground/40 shrink-0" />
+            }
+            <span className={cn('text-sm', svStatus?.hasSoul ? 'text-foreground' : 'text-muted-foreground')}>
+              Soul
+            </span>
+          </div>
+          {svStatus && (!svStatus.hasVision || !svStatus.hasSoul) && (
+            <span className="ml-auto text-xs text-primary font-medium">Configure →</span>
+          )}
+        </div>
+      </button>
 
       {/* Activity */}
       <div className="bg-card border border-border rounded-xl p-5">

@@ -4,6 +4,7 @@ import { useProjects } from '@/store/projects'
 
 const TABS = [
   { label: 'Dashboard', path: '' },
+  { label: 'Soul & Vision', path: '/soul-vision' },
   { label: 'Milestones', path: '/milestones' },
   { label: 'Inbox', path: '/inbox' },
   { label: 'Settings', path: '/settings' },

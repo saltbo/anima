@@ -35,6 +35,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src'),
+        'src': resolve('src'),
       },
     },
     plugins: [react()],
