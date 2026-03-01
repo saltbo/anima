@@ -8,8 +8,11 @@ Anima 在被管理项目的根目录下创建 `.anima/` 目录，存放所有运
 .anima/
 ├── state.json              # 全局状态（status、token、cost 累计）
 ├── config.json             # 项目级配置
-├── milestones/             # 里程碑数据（每个里程碑一个文件）
+├── inbox/                  # Inbox 条目（bug / feature / optimization）
 │   └── {id}.json
+├── milestones/             # 里程碑数据
+│   ├── {id}.md             # 里程碑内容文档（Agent 直接读取）
+│   └── {id}.json           # 里程碑运行时状态
 ├── memory/                 # Agent 对项目的认知积累
 │   ├── project.md          # 项目上下文，由 Agent 维护
 │   └── iterations/         # 每次迭代的摘要，由 Agent 写入
@@ -24,7 +27,9 @@ Anima 在被管理项目的根目录下创建 `.anima/` 目录，存放所有运
 |------|------|------|
 | `state.json` | ✅ | 项目生命体征，随代码一起记录 |
 | `config.json` | ✅ | 项目配置 |
-| `milestones/*.json` | ✅ | 里程碑定义和历史 |
+| `inbox/*.json` | ✅ | 待办条目，规划历史的一部分 |
+| `milestones/*.md` | ✅ | 里程碑内容文档 |
+| `milestones/*.json` | ✅ | 里程碑运行时状态 |
 | `memory/` | ✅ | Agent 的认知积累，跨会话复用 |
 | `logs/` | ❌ | 纯运行日志，不需要版本化 |
 
@@ -82,18 +87,43 @@ Anima 在被管理项目的根目录下创建 `.anima/` 目录，存放所有运
 
 ---
 
+### `inbox/{id}.json`
+
+Inbox 条目，是 Milestone 规划的素材来源。
+
+```json
+{
+  "id": "uuid",
+  "type": "bug | feature | optimization",
+  "title": "...",
+  "description": "...",
+  "source": "manual | github",
+  "source_ref": null,
+  "status": "pending | included | dismissed",
+  "included_in_milestone": null,
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `type` | 条目类型：bug 修复 / 新功能 / 优化 |
+| `source` | 来源：手动创建 / GitHub Issue |
+| `source_ref` | GitHub 来源时填写，如 `"owner/repo#42"` |
+| `status` | `pending`：待规划；`included`：已纳入某个 Milestone；`dismissed`：已忽略 |
+| `included_in_milestone` | 被纳入的 Milestone ID |
+
+---
+
 ### `milestones/{id}.json`
 
-里程碑的完整数据，包含创建时的定义和运行时的状态。
+里程碑运行时状态。具体内容（目标、功能列表、验收标准）在对应的 `.md` 文件中，此处不重复存储。
 
 ```json
 {
   "id": "uuid-v4",
   "title": "里程碑标题",
-  "goal": "目标描述",
-  "motivation": "动机",
-  "acceptance_criteria": ["验收标准 1", "验收标准 2"],
-  "constraints": "约束条件",
+  "file": ".anima/milestones/uuid-v4.md",
   "requires_human_review": false,
   "status": "pending",
   "branch_name": "milestone/uuid-v4",
