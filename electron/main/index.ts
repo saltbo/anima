@@ -50,6 +50,10 @@ function createWindow(): void {
   }
 }
 
+if (is.dev) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.bogit.anima')
 

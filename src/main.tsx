@@ -4,10 +4,10 @@ import { HashRouter } from 'react-router-dom'
 import App from './App'
 import { ThemeProvider } from './store/theme'
 import { ProjectsProvider } from './store/projects'
-import { installMockElectronAPI } from './mockElectronAPI'
+import { installBrowserStub } from './browserStub'
 import './index.css'
 
-installMockElectronAPI()
+installBrowserStub()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
