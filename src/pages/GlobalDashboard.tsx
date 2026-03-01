@@ -16,12 +16,12 @@ function ProjectCard({ project }: { project: Project }) {
     navigate(`/projects/${project.id}`)
   }
 
-  const actionLabel = () => {
+  const actionLabel = (): string | null => {
     switch (project.status) {
       case 'sleeping': return 'Wake Now'
       case 'awake': return 'Pause'
       case 'paused': return 'Resume'
-      default: return 'View'
+      default: return null  // checking / rate_limited: no secondary action
     }
   }
 
@@ -63,21 +63,28 @@ function ProjectCard({ project }: { project: Project }) {
       </CardContent>
 
       <CardFooter className="px-4 pb-4 gap-2">
-        <Button variant="secondary" size="sm" className="flex-1" onClick={handleView}>
+        <Button
+          variant="secondary"
+          size="sm"
+          className={cn('flex-1', !actionLabel() && 'flex-none w-full')}
+          onClick={handleView}
+        >
           View
         </Button>
-        <Button
-          size="sm"
-          className={cn(
-            'flex-1',
-            project.status === 'paused'
-              ? 'bg-status-awake/10 hover:bg-status-awake/20 text-status-awake border-0'
-              : ''
-          )}
-          variant={project.status === 'paused' ? 'outline' : 'default'}
-        >
-          {actionLabel()}
-        </Button>
+        {actionLabel() && (
+          <Button
+            size="sm"
+            className={cn(
+              'flex-1',
+              project.status === 'paused'
+                ? 'bg-status-awake/10 hover:bg-status-awake/20 text-status-awake border-0'
+                : ''
+            )}
+            variant={project.status === 'paused' ? 'outline' : 'default'}
+          >
+            {actionLabel()}
+          </Button>
+        )}
       </CardFooter>
     </Card>
   )

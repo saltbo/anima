@@ -114,7 +114,10 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/settings')}
+          onClick={() => {
+            setSelectedProjectId(null)
+            navigate('/settings')
+          }}
           className={cn(
             'w-full justify-start gap-2.5',
             isSettingsActive ? 'bg-secondary text-foreground' : 'text-muted-foreground'
