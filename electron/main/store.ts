@@ -2,7 +2,11 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { randomUUID } from 'crypto'
-import type { AppConfig, Project } from './types'
+import type { Project } from '../../src/types/index'
+
+export interface AppConfig {
+  projects: Project[]
+}
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json')
 
@@ -31,11 +35,11 @@ export function saveConfig(config: AppConfig): void {
 }
 
 export function getProjects(): Project[] {
-  // Normalize legacy data that may be missing newer fields
   return loadConfig().projects.map((p) => ({
-    totalTokens: 0,
-    totalCost: 0,
-    ...p,
+    id: p.id,
+    path: p.path,
+    name: p.name,
+    addedAt: p.addedAt,
   }))
 }
 
@@ -46,13 +50,7 @@ export function addProject(projectPath: string): Project {
     id: randomUUID(),
     path: projectPath,
     name,
-    status: 'sleeping',
-    currentMilestone: null,
-    round: 0,
-    nextWakeTime: null,
     addedAt: new Date().toISOString(),
-    totalTokens: 0,
-    totalCost: 0,
   }
   config.projects.push(project)
   saveConfig(config)

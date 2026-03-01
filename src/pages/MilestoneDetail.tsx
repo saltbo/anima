@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save } from 'lucide-react'
+import { Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save, Activity } from 'lucide-react'
 import MDEditor from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
 import { Button } from '@/components/ui/button'
@@ -136,6 +136,7 @@ export function MilestoneDetail() {
   const isDraft = milestone.status === 'draft'
   const isReviewing = milestone.status === 'reviewing'
   const isReviewed = milestone.status === 'reviewed'
+  const isInProgress = milestone.status === 'in-progress'
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -158,6 +159,12 @@ export function MilestoneDetail() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0 pt-0.5">
+          {isInProgress && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={() => navigate(`/projects/${id}/milestones/${mid}/monitor`)}>
+              <Activity size={12} />
+              Monitor
+            </Button>
+          )}
           {isDraft && (
             <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleSaveMarkdown} disabled={savingMarkdown}>
               {savingMarkdown ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}

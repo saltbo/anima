@@ -268,6 +268,50 @@ Claude Code CLI 通过 JSON stream 输出 `rate_limit_event` 事件，Anima 的 
 - 验收项列表：按 `iteration` 分组展示 Acceptor 的验收 TodoList 及通过状态
 - 底部状态行：`sleeping` / `checking` / `awake（迭代 N，battle round M）` / `paused` / `rate_limited（将于 {time} 恢复）`
 
+## 迭代工作记录
+
+### 第 1 轮迭代（2026-03-01）
+
+#### 任务清单
+
+- [x] T1: 安装 simple-git 依赖
+- [x] T2: 数据模型更新（类型系统）
+  - `MilestoneTask` 添加 `iteration` 字段
+  - `AcceptanceCriterion` 添加 `iteration` 字段
+  - `Milestone` 添加 `iterationCount`、`baseCommit` 字段
+  - 新增 `ProjectState` 接口
+  - `Project`（全局 config）精简为注册表字段（id/path/name/addedAt）
+- [x] T3: 项目状态模块 `electron/main/state.ts`（读写 `.anima/state.json`）
+- [x] T4: 重构 `store.ts`，全局 config 仅保留注册表字段
+- [x] T5: Git 操作模块 `electron/main/git.ts`（创建分支、切换分支、读 log）
+- [x] T6: 调度器引擎 `electron/main/scheduler.ts`
+  - ProjectScheduler 类（每个项目独立）
+  - checking 逻辑
+  - 启动迭代（创建 git 分支、更新 state）
+  - Developer + Acceptor session 管理
+  - Battle 内层循环（最多 max_rounds_per_iteration）
+  - TodoWrite 事件捕获 → 追加 tasks/acceptanceCriteria
+  - 外层迭代循环（最多 max_iterations）
+  - Rate limit 处理
+  - Agent 超时处理
+  - 重启恢复
+  - 唤醒调度（manual / interval / times）
+- [x] T7: 调度器管理器 `electron/main/schedulerManager.ts`（多项目并发）
+- [x] T8: IPC 新增处理器（wake-project / get-project-state / update-wake-schedule）
+- [x] T9: Preload 更新（暴露新 API）
+- [x] T10: IterationMonitor UI（实时 Agent 输出 + Task/AC 列表 + 状态栏）
+- [x] T11: 主进程启动时初始化所有调度器 + 状态广播
+
+#### 已知遗留问题（下次迭代解决）
+
+- [ ] **B1: Claude Code session ID 未持久化**
+  - CLI 在 `system` init 事件里返回 `session_id`，目前未存储
+  - 重启恢复时没有传 `--resume <session_id>`，导致对话上下文丢失
+  - 修复方案：将 `session_id` 存入 `state.json`（devSessionId / accSessionId 字段），重启时用 `--resume` 接续
+  - 连带效果：解决 IterationMonitor 导航离开再回来后内容丢失的问题
+
+---
+
 ## Acceptance Criteria
 
 - [ ] 每个项目有独立的调度器，按各自 `wakeSchedule` 唤醒，并发运行不互相影响

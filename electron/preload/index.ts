@@ -67,4 +67,47 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('milestone-review-done', handler)
     return () => ipcRenderer.removeListener('milestone-review-done', handler)
   },
+
+  // ── M4: Iteration / Scheduler ──────────────────────────────────────────────
+
+  getProjectState: (projectPath: string) => ipcRenderer.invoke('get-project-state', projectPath),
+  wakeProject: (projectId: string) => ipcRenderer.invoke('wake-project', projectId),
+  updateWakeSchedule: (projectId: string, projectPath: string, schedule: unknown) =>
+    ipcRenderer.invoke('update-wake-schedule', projectId, projectPath, schedule),
+
+  onProjectStatusChanged: (callback: (status: unknown) => void) => {
+    const handler = (_: unknown, status: unknown) => callback(status)
+    ipcRenderer.on('project-status-changed', handler)
+    return () => ipcRenderer.removeListener('project-status-changed', handler)
+  },
+
+  onIterationAgentEvent: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('iteration-agent-event', handler)
+    return () => ipcRenderer.removeListener('iteration-agent-event', handler)
+  },
+
+  onMilestoneUpdated: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('milestone-updated', handler)
+    return () => ipcRenderer.removeListener('milestone-updated', handler)
+  },
+
+  onMilestoneCompleted: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('milestone-completed', handler)
+    return () => ipcRenderer.removeListener('milestone-completed', handler)
+  },
+
+  onIterationPaused: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('iteration-paused', handler)
+    return () => ipcRenderer.removeListener('iteration-paused', handler)
+  },
+
+  onRateLimited: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('rate-limited', handler)
+    return () => ipcRenderer.removeListener('rate-limited', handler)
+  },
 })

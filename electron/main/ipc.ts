@@ -23,7 +23,9 @@ import {
   startMilestonePlanningSession,
 } from './milestones'
 import { conversationAgent } from './agents/service'
-import type { InboxItem, InboxItemPriority, MilestoneTask } from '../../src/types/index'
+import { getProjectState, patchProjectState } from './state'
+import { schedulerManager } from './schedulerManager'
+import type { InboxItem, InboxItemPriority, MilestoneTask, WakeSchedule } from '../../src/types/index'
 
 export function setupIPC(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('get-projects', () => {
@@ -44,6 +46,8 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
     const projectPath = result.filePaths[0]
     const project = addProject(projectPath)
 
+    schedulerManager.add(project)
+
     const win = getWindow()
     if (win) {
       win.webContents.send('projects-updated', getProjects())
@@ -54,6 +58,7 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
   })
 
   ipcMain.handle('remove-project', (_, id: string) => {
+    schedulerManager.remove(id)
     removeProject(id)
 
     const win = getWindow()
@@ -142,5 +147,20 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('start-milestone-planning-session', (_, id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => {
     const win = getWindow()
     if (win) startMilestonePlanningSession(id, projectPath, inboxItemIds, title, description, win)
+  })
+
+  // ── M4: Iteration / Scheduler IPC ────────────────────────────────────────
+
+  ipcMain.handle('get-project-state', (_, projectPath: string) => {
+    return getProjectState(projectPath)
+  })
+
+  ipcMain.handle('wake-project', (_, projectId: string) => {
+    schedulerManager.wakeNow(projectId)
+  })
+
+  ipcMain.handle('update-wake-schedule', (_, projectId: string, projectPath: string, schedule: WakeSchedule) => {
+    schedulerManager.updateSchedule(projectId, schedule)
+    patchProjectState(projectPath, { wakeSchedule: schedule })
   })
 }

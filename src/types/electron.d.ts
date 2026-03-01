@@ -1,4 +1,4 @@
-import type { Project, InboxItem, Milestone, MilestoneTask } from './index'
+import type { Project, InboxItem, Milestone, MilestoneTask, ProjectState, WakeSchedule } from './index'
 
 export type SetupChatData =
   | { event: 'text'; text: string }
@@ -9,6 +9,24 @@ export type SetupChatData =
   | { event: 'rate_limit'; utilization: number }
   | { event: 'done'; result?: string }
   | { event: 'error'; message: string }
+
+export type AgentRole = 'developer' | 'acceptor'
+
+export interface IterationAgentEvent {
+  projectId: string
+  role: AgentRole
+  sessionId: string
+  event: SetupChatData
+}
+
+export interface ProjectIterationStatus {
+  projectId: string
+  status: ProjectState['status']
+  currentMilestone: string | null
+  iterationCount: number
+  round: number
+  rateLimitResetAt: string | null
+}
 
 declare global {
   interface Window {
@@ -44,6 +62,18 @@ declare global {
 
       onMilestonePlanningDone: (callback: (sessionId: string, milestoneId: string) => void) => () => void
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
+
+      // M4
+      getProjectState: (projectPath: string) => Promise<ProjectState>
+      wakeProject: (projectId: string) => Promise<void>
+      updateWakeSchedule: (projectId: string, projectPath: string, schedule: WakeSchedule) => Promise<void>
+
+      onProjectStatusChanged: (callback: (status: ProjectIterationStatus) => void) => () => void
+      onIterationAgentEvent: (callback: (data: IterationAgentEvent) => void) => () => void
+      onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void
+      onMilestoneCompleted: (callback: (data: { projectId: string; milestoneId: string }) => void) => () => void
+      onIterationPaused: (callback: (data: { projectId: string; milestoneId: string; reason: string }) => void) => () => void
+      onRateLimited: (callback: (data: { projectId: string; resetAt: string }) => void) => () => void
     }
   }
 }

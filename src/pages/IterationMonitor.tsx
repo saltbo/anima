@@ -1,33 +1,160 @@
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Terminal } from 'lucide-react'
+import { Zap, Moon, Loader2, Pause, AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { AgentChat } from '@/components/AgentChat'
+import { useProjects } from '@/store/projects'
+import type { ProjectIterationStatus } from '@/types/electron.d'
+import type { ProjectState } from '@/types/index'
 
-export function IterationMonitor() {
-  const { mid } = useParams<{ id: string; mid: string }>()
+// ── Status bar helpers ────────────────────────────────────────────────────────
 
+function StatusIcon({ status }: { status: ProjectState['status'] }) {
+  switch (status) {
+    case 'awake': return <Zap size={13} className="text-green-400" />
+    case 'checking': return <Loader2 size={13} className="text-yellow-400 animate-spin" />
+    case 'sleeping': return <Moon size={13} className="text-muted-foreground" />
+    case 'paused': return <Pause size={13} className="text-orange-400" />
+    case 'rate_limited': return <AlertTriangle size={13} className="text-red-400" />
+    default: return <Moon size={13} className="text-muted-foreground" />
+  }
+}
+
+function statusLabel(s: ProjectIterationStatus): string {
+  switch (s.status) {
+    case 'sleeping': return 'Sleeping'
+    case 'checking': return 'Checking for milestones…'
+    case 'awake':
+      return s.round > 0
+        ? `Iteration ${s.iterationCount} · Battle round ${s.round}`
+        : `Iteration ${s.iterationCount}`
+    case 'paused': return 'Paused — awaiting human review'
+    case 'rate_limited':
+      return s.rateLimitResetAt
+        ? `Rate limited · Resumes ${new Date(s.rateLimitResetAt).toLocaleTimeString()}`
+        : 'Rate limited'
+    default: return s.status
+  }
+}
+
+// ── Panel wrapper ─────────────────────────────────────────────────────────────
+
+function AgentPanel({ label, sessionId, active }: { label: string; sessionId: string | null; active: boolean }) {
   return (
-    <div className="flex flex-col h-full p-6 gap-4">
-      <h2 className="text-sm font-semibold text-foreground">Iteration Monitor — {mid}</h2>
-
-      <div className="flex-1 grid grid-cols-2 gap-4">
-        <AgentPanel label="Developer Agent" status="idle" />
-        <AgentPanel label="Acceptor Agent" status="idle" />
+    <div className={`flex flex-col border rounded-xl overflow-hidden transition-all ${active ? 'border-green-500/40 shadow-[0_0_12px_rgba(74,222,128,0.08)]' : 'border-border'}`}>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/20 shrink-0">
+        <span className="text-xs font-semibold text-foreground">{label}</span>
+        {active && (
+          <span className="flex items-center gap-1.5 text-[10px] text-green-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            active
+          </span>
+        )}
       </div>
+      {sessionId ? (
+        <AgentChat key={sessionId} sessionId={sessionId} className="flex-1 min-h-0" />
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground/40 p-4">
+          Waiting for iteration to start…
+        </div>
+      )}
     </div>
   )
 }
 
-function AgentPanel({ label, status }: { label: string; status: string }) {
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export function IterationMonitor() {
+  const { id, mid } = useParams<{ id: string; mid: string }>()
+  const { projects } = useProjects()
+  const project = projects.find((p) => p.id === id)
+
+  const [status, setStatus] = useState<ProjectIterationStatus>({
+    projectId: id ?? '',
+    status: 'sleeping',
+    currentMilestone: null,
+    iterationCount: 0,
+    round: 0,
+    rateLimitResetAt: null,
+  })
+  const [activeAgent, setActiveAgent] = useState<'developer' | 'acceptor' | null>(null)
+
+  // Load initial state
+  useEffect(() => {
+    if (!project) return
+    window.electronAPI.getProjectState(project.path).then((state) => {
+      setStatus((prev) => ({
+        ...prev,
+        status: state.status,
+        currentMilestone: state.currentMilestone,
+        iterationCount: state.iterationCount,
+        rateLimitResetAt: state.rateLimitResetAt,
+      }))
+    })
+  }, [project])
+
+  // Listen for status + agent events
+  useEffect(() => {
+    const cleanups: (() => void)[] = []
+
+    cleanups.push(
+      window.electronAPI.onProjectStatusChanged((s) => {
+        if (s.projectId !== id) return
+        setStatus(s)
+      })
+    )
+
+    cleanups.push(
+      window.electronAPI.onIterationAgentEvent((data) => {
+        if (data.projectId !== id) return
+        setActiveAgent(data.role)
+      })
+    )
+
+    return () => cleanups.forEach((c) => c())
+  }, [id])
+
+  // Derive session IDs from milestone ID + iterationCount
+  const devSessionId = status.iterationCount > 0 ? `${mid}-dev-${status.iterationCount}` : null
+  const accSessionId = status.iterationCount > 0 ? `${mid}-acc-${status.iterationCount}` : null
+
+  const handleWake = () => {
+    if (id) window.electronAPI.wakeProject(id)
+  }
+
   return (
-    <div className="bg-card border border-border rounded-xl flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Terminal size={14} className="text-muted-foreground" />
-          <span className="text-xs font-semibold text-foreground">{label}</span>
-        </div>
-        <span className="text-xs text-muted-foreground capitalize">{status}</span>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+        <span className="text-xs font-semibold text-foreground truncate">
+          {mid ?? '—'}
+        </span>
+        {status.status !== 'awake' && (
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={handleWake}>
+            <Zap size={12} />
+            Wake Now
+          </Button>
+        )}
       </div>
-      <div className="flex-1 p-4 font-mono text-xs text-muted-foreground">
-        <p>Agent output will appear here during iteration (M4).</p>
+
+      {/* Agent panels */}
+      <div className="flex-1 grid grid-cols-2 gap-3 p-4 overflow-hidden min-h-0">
+        <AgentPanel
+          label="Developer Agent"
+          sessionId={devSessionId}
+          active={status.status === 'awake' && activeAgent === 'developer'}
+        />
+        <AgentPanel
+          label="Acceptor Agent"
+          sessionId={accSessionId}
+          active={status.status === 'awake' && activeAgent === 'acceptor'}
+        />
+      </div>
+
+      {/* Status bar */}
+      <div className="flex items-center gap-2 px-5 py-2 border-t border-border bg-muted/10 shrink-0">
+        <StatusIcon status={status.status} />
+        <span className="text-[11px] text-muted-foreground">{statusLabel(status)}</span>
       </div>
     </div>
   )

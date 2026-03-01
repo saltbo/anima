@@ -1,16 +1,18 @@
 import { Tray, Menu, app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { createTrayIcons, type TrayIconStatus } from './icons'
-import type { Project, ProjectStatus } from './types'
+import { getProjectState } from './state'
+import type { Project, ProjectStatus } from '../../src/types/index'
 
 let tray: Tray | null = null
 let trayIcons: ReturnType<typeof createTrayIcons> | null = null
 
 function getAggregateStatus(projects: Project[]): TrayIconStatus {
   if (projects.length === 0) return 'sleeping'
-  if (projects.some((p) => p.status === 'paused')) return 'paused'
-  if (projects.some((p) => p.status === 'awake')) return 'awake'
-  if (projects.some((p) => p.status === 'checking' || p.status === 'rate_limited')) return 'checking'
+  const states = projects.map((p) => getProjectState(p.path).status)
+  if (states.some((s) => s === 'paused')) return 'paused'
+  if (states.some((s) => s === 'awake')) return 'awake'
+  if (states.some((s) => s === 'checking' || s === 'rate_limited')) return 'checking'
   return 'sleeping'
 }
 
@@ -26,18 +28,20 @@ function statusIcon(status: ProjectStatus): string {
 }
 
 function statusText(project: Project): string {
-  switch (project.status) {
+  const state = getProjectState(project.path)
+  switch (state.status) {
     case 'sleeping':
-      return project.nextWakeTime
-        ? `Sleeping · next: ${new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      return state.nextWakeTime
+        ? `Sleeping · next: ${new Date(state.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
         : 'Sleeping'
     case 'checking': return 'Checking…'
     case 'awake':
-      return project.currentMilestone
-        ? `Working · ${project.currentMilestone} / Round ${project.round}`
+      return state.currentMilestone
+        ? `Working · Iteration ${state.iterationCount}`
         : 'Working'
     case 'paused': return 'Paused'
     case 'rate_limited': return 'Rate Limited'
+    default: return 'Sleeping'
   }
 }
 
@@ -74,17 +78,20 @@ export function updateTray(
   const status = getAggregateStatus(projects)
   tray.setImage(trayIcons[status])
 
-  const projectItems = projects.map((project) => ({
-    label: `${statusIcon(project.status)}  ${project.name.padEnd(20)}  ${statusText(project)}`,
-    click: () => {
-      const win = getWindow?.()
-      if (win) {
-        win.show()
-        win.focus()
-        win.webContents.send('navigate', `/projects/${project.id}`)
-      }
-    },
-  }))
+  const projectItems = projects.map((project) => {
+    const state = getProjectState(project.path)
+    return {
+      label: `${statusIcon(state.status)}  ${project.name.padEnd(20)}  ${statusText(project)}`,
+      click: () => {
+        const win = getWindow?.()
+        if (win) {
+          win.show()
+          win.focus()
+          win.webContents.send('navigate', `/projects/${project.id}`)
+        }
+      },
+    }
+  })
 
   const menuTemplate: Electron.MenuItemConstructorOptions[] = [
     { label: 'Anima', enabled: false },

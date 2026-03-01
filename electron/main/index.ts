@@ -5,6 +5,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { createTray } from './tray'
 import { setupIPC } from './ipc'
 import { getProjects } from './store'
+import { schedulerManager } from './schedulerManager'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
@@ -67,6 +68,10 @@ app.whenReady().then(() => {
 
   createTray(getWindow, getProjects)
   setupIPC(getWindow)
+
+  // Start per-project schedulers
+  schedulerManager.init(getWindow)
+  schedulerManager.startAll(getProjects())
 
   app.on('activate', () => {
     if (mainWindow === null) {

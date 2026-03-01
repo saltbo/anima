@@ -1,16 +1,11 @@
 export type ProjectStatus = 'sleeping' | 'checking' | 'awake' | 'paused' | 'rate_limited'
 
+/** Minimal registry entry stored in global config.json */
 export interface Project {
   id: string
   path: string
   name: string
-  status: ProjectStatus
-  currentMilestone: string | null
-  round: number
-  nextWakeTime: string | null
   addedAt: string
-  totalTokens: number
-  totalCost: number
 }
 
 export type InboxItemType = 'idea' | 'bug' | 'feature'
@@ -36,6 +31,7 @@ export interface MilestoneTask {
   description?: string
   completed: boolean
   order: number
+  iteration: number
 }
 
 export type AcceptanceCriterionStatus = 'pending' | 'passed' | 'rejected'
@@ -44,6 +40,7 @@ export interface AcceptanceCriterion {
   title: string
   description?: string
   status: AcceptanceCriterionStatus
+  iteration: number
 }
 
 export interface Milestone {
@@ -57,4 +54,38 @@ export interface Milestone {
   review?: string
   createdAt: string
   completedAt?: string
+  iterationCount: number
+  baseCommit?: string
+}
+
+/** Combined Project + ProjectState for UI consumption */
+export interface ProjectView extends Project {
+  status: ProjectStatus
+  currentMilestone: string | null
+  iterationCount: number
+  round: number  // alias for iterationCount
+  nextWakeTime: string | null
+  totalTokens: number
+  totalCost: number
+  rateLimitResetAt: string | null
+}
+
+export type WakeScheduleMode = 'manual' | 'interval' | 'times'
+
+export interface WakeSchedule {
+  mode: WakeScheduleMode
+  intervalMinutes: number | null
+  times: string[]
+}
+
+/** Per-project runtime state stored in .anima/state.json */
+export interface ProjectState {
+  status: ProjectStatus
+  currentMilestone: string | null
+  iterationCount: number
+  nextWakeTime: string | null
+  wakeSchedule: WakeSchedule
+  totalTokens: number
+  totalCost: number
+  rateLimitResetAt: string | null
 }

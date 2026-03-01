@@ -1,8 +1,19 @@
 {
   "status": "sleeping",
+  "currentMilestone": null,
+  "iterationCount": 0,
+  "nextWakeTime": null,
+  "wakeSchedule": {
+    "mode": "manual",
+    "intervalMinutes": null,
+    "times": []
+  },
+  "totalTokens": 0,
+  "totalCost": 0,
+  "rateLimitResetAt": null,
   "current_milestone": null,
   "total_tokens": 0,
-  "total_cost_usd": 0.00,
+  "total_cost_usd": 0,
   "first_activated_at": null,
   "last_active_at": null
 }

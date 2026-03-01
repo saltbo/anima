@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Flag } from 'lucide-react'
+import { Plus, Flag, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
@@ -103,9 +103,20 @@ export function Milestones() {
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-medium text-foreground truncate">{m.title}</span>
-                          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${milestoneStatusBadgeClass(m.status)}`}>
-                            {milestoneStatusLabel(m.status)}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {m.status === 'in-progress' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`/projects/${id}/milestones/${m.id}/monitor`) }}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-green-400 hover:bg-green-500/10 transition-colors"
+                              >
+                                <Activity size={10} />
+                                Monitor
+                              </button>
+                            )}
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${milestoneStatusBadgeClass(m.status)}`}>
+                              {milestoneStatusLabel(m.status)}
+                            </span>
+                          </div>
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{m.description}</p>
                         <p className="text-xs text-muted-foreground">
