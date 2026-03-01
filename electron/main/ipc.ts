@@ -11,6 +11,18 @@ import {
   writeSetupFile,
 } from './setup'
 import type { SetupType } from './setup'
+import {
+  getInboxItems,
+  addInboxItem,
+  updateInboxItem,
+  deleteInboxItem,
+  getMilestones,
+  saveMilestone,
+  deleteMilestone,
+  updateMilestoneTask,
+  startMilestonePlanningSession,
+} from './milestones'
+import type { InboxItem, MilestoneTask } from '../../src/types/index'
 
 export function setupIPC(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('get-projects', () => {
@@ -84,5 +96,42 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('write-setup-file', (_, projectPath: string, type: SetupType, content: string) => {
     writeSetupFile(projectPath, type, content)
+  })
+
+  ipcMain.handle('get-inbox-items', (_, projectPath: string) => {
+    return getInboxItems(projectPath)
+  })
+
+  ipcMain.handle('add-inbox-item', (_, projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt'>) => {
+    return addInboxItem(projectPath, item)
+  })
+
+  ipcMain.handle('update-inbox-item', (_, projectPath: string, id: string, patch: Partial<InboxItem>) => {
+    return updateInboxItem(projectPath, id, patch)
+  })
+
+  ipcMain.handle('delete-inbox-item', (_, projectPath: string, id: string) => {
+    deleteInboxItem(projectPath, id)
+  })
+
+  ipcMain.handle('get-milestones', (_, projectPath: string) => {
+    return getMilestones(projectPath)
+  })
+
+  ipcMain.handle('save-milestone', (_, projectPath: string, milestone: Parameters<typeof saveMilestone>[1]) => {
+    saveMilestone(projectPath, milestone)
+  })
+
+  ipcMain.handle('delete-milestone', (_, projectPath: string, id: string) => {
+    deleteMilestone(projectPath, id)
+  })
+
+  ipcMain.handle('update-milestone-task', (_, projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => {
+    updateMilestoneTask(projectPath, milestoneId, taskId, patch)
+  })
+
+  ipcMain.handle('start-milestone-planning-session', (_, id: string, projectPath: string, inboxItemIds: string[]) => {
+    const win = getWindow()
+    if (win) startMilestonePlanningSession(id, projectPath, inboxItemIds, win)
   })
 }

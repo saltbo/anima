@@ -45,4 +45,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('setup-chat-data', handler)
     return () => ipcRenderer.removeListener('setup-chat-data', handler)
   },
+
+  getInboxItems: (projectPath: string) => ipcRenderer.invoke('get-inbox-items', projectPath),
+  addInboxItem: (projectPath: string, item: unknown) => ipcRenderer.invoke('add-inbox-item', projectPath, item),
+  updateInboxItem: (projectPath: string, id: string, patch: unknown) => ipcRenderer.invoke('update-inbox-item', projectPath, id, patch),
+  deleteInboxItem: (projectPath: string, id: string) => ipcRenderer.invoke('delete-inbox-item', projectPath, id),
+  getMilestones: (projectPath: string) => ipcRenderer.invoke('get-milestones', projectPath),
+  saveMilestone: (projectPath: string, milestone: unknown) => ipcRenderer.invoke('save-milestone', projectPath, milestone),
+  deleteMilestone: (projectPath: string, id: string) => ipcRenderer.invoke('delete-milestone', projectPath, id),
+  updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: unknown) => ipcRenderer.invoke('update-milestone-task', projectPath, milestoneId, taskId, patch),
+  startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[]) => ipcRenderer.invoke('start-milestone-planning-session', id, projectPath, inboxItemIds),
 })

@@ -1,4 +1,4 @@
-import type { Project } from './index'
+import type { Project, InboxItem, Milestone, MilestoneTask } from './index'
 
 export type SetupChatData =
   | { event: 'text'; text: string }
@@ -29,6 +29,16 @@ declare global {
       onNavigate: (callback: (path: string) => void) => () => void
       onTriggerAddProject: (callback: () => void) => () => void
       onSetupChatData: (callback: (id: string, data: SetupChatData) => void) => () => void
+
+      getInboxItems: (projectPath: string) => Promise<InboxItem[]>
+      addInboxItem: (projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt'>) => Promise<InboxItem>
+      updateInboxItem: (projectPath: string, id: string, patch: Partial<InboxItem>) => Promise<InboxItem | null>
+      deleteInboxItem: (projectPath: string, id: string) => Promise<void>
+      getMilestones: (projectPath: string) => Promise<Milestone[]>
+      saveMilestone: (projectPath: string, milestone: Milestone) => Promise<void>
+      deleteMilestone: (projectPath: string, id: string) => Promise<void>
+      updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
+      startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[]) => Promise<void>
     }
   }
 }
