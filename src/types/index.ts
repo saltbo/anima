@@ -9,4 +9,6 @@ export interface Project {
   round: number
   nextWakeTime: string | null
   addedAt: string
+  totalTokens: number
+  totalCost: number
 }

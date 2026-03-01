@@ -35,3 +35,13 @@ export function statusLabel(status: ProjectStatus): string {
     case 'rate_limited': return 'Rate Limited'
   }
 }
+
+export function statusBgColor(status: ProjectStatus): string {
+  switch (status) {
+    case 'sleeping': return 'bg-status-sleeping'
+    case 'checking': return 'bg-status-checking'
+    case 'awake': return 'bg-status-awake'
+    case 'paused': return 'bg-status-paused'
+    case 'rate_limited': return 'bg-status-rate-limited'
+  }
+}

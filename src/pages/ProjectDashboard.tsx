@@ -1,6 +1,34 @@
 import { useParams } from 'react-router-dom'
+import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity } from 'lucide-react'
 import { useProjects } from '@/store/projects'
-import { StatusBadge } from '@/components/ui/StatusBadge'
+import { cn, statusBgColor, statusColor, statusLabel } from '@/lib/utils'
+
+function formatDuration(addedAt: string): string {
+  const ms = Date.now() - new Date(addedAt).getTime()
+  const hours = Math.floor(ms / 3600000)
+  const days = Math.floor(hours / 24)
+  if (days > 0) return `${days}d`
+  if (hours > 0) return `${hours}h`
+  return `${Math.floor(ms / 60000)}m`
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return n > 0 ? String(n) : '—'
+}
+
+function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+        <Icon size={11} />
+        {label}
+      </div>
+      <div className="text-lg font-semibold text-foreground">{value}</div>
+    </div>
+  )
+}
 
 export function ProjectDashboard() {
   const { id } = useParams<{ id: string }>()
@@ -12,53 +40,78 @@ export function ProjectDashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Status">
-          <StatusBadge status={project.status} />
-        </MetricCard>
-        <MetricCard label="Current Milestone">
-          <span className="text-sm font-semibold">{project.currentMilestone ?? '—'}</span>
-        </MetricCard>
-        <MetricCard label="Current Round">
-          <span className="text-sm font-semibold">{project.round > 0 ? project.round : '—'}</span>
-        </MetricCard>
-        <MetricCard label="Next Wake">
-          <span className="text-sm font-semibold">
-            {project.nextWakeTime
-              ? new Date(project.nextWakeTime).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : '—'}
+    <div className="p-6 space-y-4">
+
+      {/* Status card */}
+      <div className="bg-card border border-border rounded-xl p-5">
+        <div className="flex items-center gap-2.5 mb-3">
+          <span className={cn('w-2 h-2 rounded-full shrink-0', statusBgColor(project.status))} />
+          <span className={cn('text-sm font-semibold', statusColor(project.status))}>
+            {statusLabel(project.status)}
           </span>
-        </MetricCard>
+          {project.currentMilestone && (
+            <>
+              <span className="text-muted-foreground/30">·</span>
+              <span className="text-sm text-muted-foreground">{project.currentMilestone}</span>
+            </>
+          )}
+        </div>
+
+        <div className="text-sm text-muted-foreground">
+          {project.status === 'awake' && project.round > 0 && (
+            <span>Round <span className="text-foreground font-medium">{project.round}</span> in progress</span>
+          )}
+          {project.status === 'sleeping' && project.nextWakeTime && (
+            <span>Next check at <span className="text-foreground font-medium">
+              {new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span></span>
+          )}
+          {project.status === 'sleeping' && !project.nextWakeTime && (
+            <span>Idle — no wake schedule configured</span>
+          )}
+          {project.status === 'checking' && <span>Scanning for changes...</span>}
+          {project.status === 'paused' && (
+            <div className="flex items-center gap-1.5 text-status-paused">
+              <AlertTriangle size={13} />
+              Needs manual intervention
+            </div>
+          )}
+          {project.status === 'rate_limited' && <span>Rate limited — will resume automatically</span>}
+        </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-4">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Project Path
-        </h3>
-        <p className="text-sm text-foreground font-mono">{project.path}</p>
+      {/* 4 stat cards */}
+      <div className="grid grid-cols-4 gap-3">
+        <StatCard icon={Clock} label="Alive" value={formatDuration(project.addedAt)} />
+        <StatCard icon={Zap} label="Tokens" value={formatTokens(project.totalTokens)} />
+        <StatCard
+          icon={DollarSign}
+          label="Cost"
+          value={project.totalCost > 0 ? `$${project.totalCost.toFixed(2)}` : '—'}
+        />
+        <StatCard
+          icon={RefreshCw}
+          label="Round"
+          value={project.round > 0 ? String(project.round) : '—'}
+        />
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-4">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Activity
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          No activity yet. Configure a wake schedule and add milestones to start.
-        </p>
+      {/* Activity */}
+      <div className="bg-card border border-border rounded-xl p-5">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Activity</p>
+        <div className="flex flex-col items-center justify-center gap-3 text-center py-6">
+          <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+            <Activity size={16} className="text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">No activity yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Activity will appear here once your project starts running.
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
-  )
-}
 
-function MetricCard({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      <div className="text-xs text-muted-foreground mb-2">{label}</div>
-      {children}
     </div>
   )
 }

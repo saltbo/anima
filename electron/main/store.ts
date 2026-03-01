@@ -31,7 +31,12 @@ export function saveConfig(config: AppConfig): void {
 }
 
 export function getProjects(): Project[] {
-  return loadConfig().projects
+  // Normalize legacy data that may be missing newer fields
+  return loadConfig().projects.map((p) => ({
+    totalTokens: 0,
+    totalCost: 0,
+    ...p,
+  }))
 }
 
 export function addProject(projectPath: string): Project {
@@ -46,6 +51,8 @@ export function addProject(projectPath: string): Project {
     round: 0,
     nextWakeTime: null,
     addedAt: new Date().toISOString(),
+    totalTokens: 0,
+    totalCost: 0,
   }
   config.projects.push(project)
   saveConfig(config)

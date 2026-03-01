@@ -1,10 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Settings } from 'lucide-react'
-import { cn, statusIcon, statusColor } from '@/lib/utils'
+import { cn, statusBgColor } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
-import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import type { Project } from '@/types'
 
 function ProjectItem({
@@ -17,19 +15,18 @@ function ProjectItem({
   onClick: () => void
 }) {
   return (
-    <Button
-      variant="ghost"
+    <button
       onClick={onClick}
       className={cn(
-        'w-full justify-start gap-2.5 px-3 h-9',
-        isSelected ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground'
+        'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-left transition-colors cursor-pointer',
+        isSelected
+          ? 'bg-secondary text-foreground'
+          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
       )}
     >
-      <span className={cn('text-sm shrink-0', statusColor(project.status))}>
-        {statusIcon(project.status)}
-      </span>
-      <span className="flex-1 text-sm font-medium truncate text-left">{project.name}</span>
-    </Button>
+      <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusBgColor(project.status))} />
+      <span className="flex-1 text-sm font-medium truncate">{project.name}</span>
+    </button>
   )
 }
 
@@ -60,40 +57,39 @@ export function Sidebar() {
 
   return (
     <div className="flex flex-col h-full bg-app-sidebar border-r border-border select-none">
-      {/* Title bar safe area for macOS traffic lights */}
+      {/* macOS traffic light safe area + app name */}
       <div
         className="h-[52px] flex items-end px-4 pb-3"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         <button
           onClick={handleClickLogo}
-          className="text-sm font-bold text-foreground tracking-wide hover:text-app-accent transition-colors"
+          className="text-xs font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          ✦ Anima
+          Anima
         </button>
       </div>
 
-      {/* Add Project button */}
-      <div className="px-3 pb-2">
-        <Button
-          variant="outline"
-          size="sm"
+      {/* Projects section header */}
+      <div className="px-3 pt-2 pb-1.5 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          Projects
+        </span>
+        <button
           onClick={handleAddProject}
-          className="w-full justify-start gap-2 text-muted-foreground border-dashed hover:text-foreground hover:border-app-accent"
+          title="Add Project"
+          className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
         >
-          <Plus size={12} />
-          Add Project
-        </Button>
+          <Plus size={11} />
+        </button>
       </div>
 
-      <Separator />
-
       {/* Project list */}
-      <ScrollArea className="flex-1 py-2">
-        <div className="px-2 space-y-0.5">
+      <ScrollArea className="flex-1">
+        <div className="px-2 py-0.5 space-y-0.5">
           {projects.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground text-center">No projects yet</p>
+            <p className="px-3 py-6 text-xs text-muted-foreground/60 text-center">No projects yet</p>
           ) : (
             projects.map((project) => (
               <ProjectItem
@@ -107,25 +103,23 @@ export function Sidebar() {
         </div>
       </ScrollArea>
 
-      <Separator />
-
-      {/* Global settings */}
-      <div className="px-2 py-2">
-        <Button
-          variant="ghost"
-          size="sm"
+      {/* Settings */}
+      <div className="px-2 py-2 border-t border-border">
+        <button
           onClick={() => {
             setSelectedProjectId(null)
             navigate('/settings')
           }}
           className={cn(
-            'w-full justify-start gap-2.5',
-            isSettingsActive ? 'bg-secondary text-foreground' : 'text-muted-foreground'
+            'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-left transition-colors cursor-pointer',
+            isSettingsActive
+              ? 'bg-secondary text-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           )}
         >
           <Settings size={14} />
-          Settings
-        </Button>
+          <span className="text-sm font-medium">Settings</span>
+        </button>
       </div>
     </div>
   )
