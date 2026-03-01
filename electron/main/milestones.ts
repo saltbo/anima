@@ -4,45 +4,77 @@ import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
 import type { InboxItem, InboxItemPriority, InboxItemStatus, Milestone, MilestoneTask } from '../../src/types/index'
 import type { SetupChatData } from '../../src/types/electron.d'
-import { AgentSessionManager } from './agents/manager'
-import { ClaudeCodeAgent } from './agents/claude-code'
+import { conversationAgent, taskAgent } from './agents/service'
 
-const MILESTONE_PLANNING_PROMPT = `You are a milestone planning advisor for Anima. Help the user define a structured Milestone.
+// Capability boundary: agent reads anything, writes only to its designated milestone file.
+// The specific file path is injected per-session via the first stdin message.
+const MILESTONE_PLANNING_ROLE =
+  'You are a milestone planning advisor. ' +
+  'You may read any file in the project. ' +
+  'You may only write to the single milestone markdown file specified in your instructions. ' +
+  'Do not write any other files or execute shell commands.'
 
-## Project Context
-### Vision
-{{VISION}}
-### Soul
-{{SOUL}}
-### Selected Inbox Items
-{{INBOX_ITEMS}}
+const MILESTONE_REVIEW_ROLE =
+  'You are a milestone review agent. ' +
+  'You may read any file in the project. ' +
+  'Do not write any files or execute shell commands.'
 
-## Collect (all required):
+// The markdown format the agent should write. Anima only reads it for display — never parses it.
+const MILESTONE_MD_FORMAT = `\
+# {title}
+
+## Description
+{2-3 sentence description}
+
+## Acceptance Criteria
+- {criterion 1}
+- {criterion 2}
+
+## Tasks
+1. **{task title}** — {task description}
+2. **{task title}** — {task description}
+
+## Linked Inbox Items
+- {inbox-item-id}
+(omit this section entirely if no inbox items are linked)`
+
+function buildFirstMessage(inboxItemIds: string[], milestoneId: string): string {
+  const mdFile = `.anima/milestones/${milestoneId}.draft.md`
+  return `Your task: plan a Milestone with the user, then write it to \`${mdFile}\`.
+
+First, read these files for project context:
+- ./VISION.md
+- ./.anima/soul.md
+- ./.anima/inbox.json${inboxItemIds.length > 0 ? `\n\nThe user has selected these inbox item IDs: ${inboxItemIds.join(', ')} — find them in inbox.json and reference them in the conversation.` : ''}
+
+Gather these four required elements through conversation:
 1. Title — action-oriented, e.g. "Ship user authentication"
 2. Description — 2-3 sentences on what this milestone achieves
 3. Acceptance Criteria — 3-6 specific, testable, binary criteria starting with a verb
-4. Task List — 3-10 implementation tasks in execution order; each is one iteration of AI work
+4. Tasks — 3-10 implementation tasks in execution order; each ≈ 30-90 min of AI agent work
 
-## Conversation strategy:
-- Start: ask the user to describe the goal in one sentence
-- Reference inbox items if provided, ask if this milestone addresses them
-- Ask one clarifying question at a time
+Conversation rules:
+- Start by asking the user to describe the goal in one sentence
+- One clarifying question at a time
 - Reject vague criteria — each must be objectively verifiable
-- Each task ≈ 30-90 min of AI agent work; reject generic tasks like "implement feature"
 
-## When all four elements are clear, output:
-\`\`\`json
-{
-  "title": "...",
-  "description": "...",
-  "acceptanceCriteria": ["...", "..."],
-  "tasks": [
-    { "title": "...", "description": "..." }
-  ],
-  "inboxItemIds": ["id1"]
+When the user confirms the plan, write \`${mdFile}\` in this exact format:
+
+${MILESTONE_MD_FORMAT}`
 }
-\`\`\`
-Then ask: "Does this look right? Reply 'confirm' to save, or describe what to change."`
+
+function buildReviewMessage(milestoneId: string): string {
+  const mdFile = `.anima/milestones/${milestoneId}.md`
+  return `Review the milestone at \`${mdFile}\`.
+
+Evaluate against four criteria:
+1. **Feasibility** — Can each task realistically be completed by an AI agent in 30–90 min?
+2. **Verifiability** — Is each acceptance criterion objectively testable (binary pass/fail)?
+3. **Scope** — Is the milestone appropriately sized? (not a multi-month epic, not trivial)
+4. **Consistency** — Do the tasks actually deliver all the acceptance criteria?
+
+Walk through your analysis step by step, then give a clear verdict with specific recommendations.`
+}
 
 function ensureAnimaDir(projectPath: string): void {
   fs.mkdirSync(path.join(projectPath, '.anima'), { recursive: true })
@@ -124,40 +156,8 @@ function milestoneMdPath(projectPath: string, id: string): string {
   return path.join(ensureMilestonesDir(projectPath), `${id}.md`)
 }
 
-function generateMilestoneMarkdown(milestone: Milestone): string {
-  const lines: string[] = [
-    `# ${milestone.title}`,
-    '',
-    `**Status:** ${milestone.status}`,
-    '',
-    '## Description',
-    '',
-    milestone.description,
-    '',
-  ]
-
-  if (milestone.acceptanceCriteria.length > 0) {
-    lines.push('## Acceptance Criteria', '')
-    for (const criterion of milestone.acceptanceCriteria) {
-      lines.push(`- ${criterion}`)
-    }
-    lines.push('')
-  }
-
-  if (milestone.tasks.length > 0) {
-    lines.push('## Tasks', '')
-    for (let i = 0; i < milestone.tasks.length; i++) {
-      const task = milestone.tasks[i]
-      const check = task.completed ? 'x' : ' '
-      lines.push(`${i + 1}. [${check}] ${task.title}`)
-      if (task.description) {
-        lines.push(`   ${task.description}`)
-      }
-    }
-    lines.push('')
-  }
-
-  return lines.join('\n')
+function milestoneDraftMdPath(projectPath: string, id: string): string {
+  return path.join(ensureMilestonesDir(projectPath), `${id}.draft.md`)
 }
 
 export function getMilestones(projectPath: string): Milestone[] {
@@ -184,9 +184,6 @@ export function saveMilestone(projectPath: string, milestone: Milestone): void {
     milestones.splice(idx, 1, milestone)
   }
   writeMilestonesJson(projectPath, milestones)
-  // Write human-readable .md alongside
-  const mdContent = generateMilestoneMarkdown(milestone)
-  fs.writeFileSync(milestoneMdPath(projectPath, milestone.id), mdContent, 'utf8')
 }
 
 export function deleteMilestone(projectPath: string, id: string): void {
@@ -209,8 +206,6 @@ export function updateMilestoneTask(
   if (tIdx === -1) return
   m.tasks[tIdx] = { ...m.tasks[tIdx], ...patch }
   writeMilestonesJson(projectPath, milestones)
-  // Regenerate .md
-  fs.writeFileSync(milestoneMdPath(projectPath, milestoneId), generateMilestoneMarkdown(m), 'utf8')
 }
 
 export function writeMilestoneMarkdown(projectPath: string, id: string, content: string): void {
@@ -219,33 +214,93 @@ export function writeMilestoneMarkdown(projectPath: string, id: string, content:
 
 // ── Agent session ─────────────────────────────────────────────────────────
 
-const manager = new AgentSessionManager()
-const claudeAgent = new ClaudeCodeAgent()
-
 export function startMilestonePlanningSession(
   id: string,
   projectPath: string,
   inboxItemIds: string[],
+  title: string,
+  description: string,
   win: BrowserWindow
 ): void {
-  let vision = ''
-  let soul = ''
-  try { vision = fs.readFileSync(path.join(projectPath, 'VISION.md'), 'utf8') } catch { /* empty */ }
-  try { soul = fs.readFileSync(path.join(projectPath, '.anima', 'soul.md'), 'utf8') } catch { /* empty */ }
+  const milestoneId = randomUUID()
+  const draftPath = milestoneDraftMdPath(projectPath, milestoneId)
 
-  const selectedItems = getInboxItems(projectPath).filter((i) => inboxItemIds.includes(i.id))
-  const inboxText = selectedItems.length > 0
-    ? selectedItems.map((i) => `- [${i.type}] ${i.title}${i.description ? ': ' + i.description : ''}`).join('\n')
-    : '(none selected)'
+  // Save JSON immediately — user already provided title & description.
+  saveMilestone(projectPath, {
+    id: milestoneId,
+    title,
+    description,
+    status: 'draft',
+    acceptanceCriteria: [],
+    tasks: [],
+    inboxItemIds,
+    createdAt: new Date().toISOString(),
+  })
 
-  const systemPrompt = MILESTONE_PLANNING_PROMPT
-    .replace('{{VISION}}', vision || '(not set)')
-    .replace('{{SOUL}}', soul || '(not set)')
-    .replace('{{INBOX_ITEMS}}', inboxText)
+  for (const iid of inboxItemIds) {
+    updateInboxItem(projectPath, iid, { milestoneId, status: 'included' })
+  }
 
-  manager.start(id, claudeAgent, {
+  const emit = (data: SetupChatData) => win.webContents.send('setup-chat-data', id, data)
+
+  conversationAgent.start(id, {
     projectPath,
-    systemPrompt,
-    onEvent: (event) => win.webContents.send('setup-chat-data', id, event satisfies SetupChatData),
+    systemPrompt: MILESTONE_PLANNING_ROLE,
+    onEvent: (event) => {
+      emit(event satisfies SetupChatData)
+      // When agent finishes a turn and has written the draft file, promote it.
+      if (event.event === 'done' && fs.existsSync(draftPath)) {
+        const mdPath = milestoneMdPath(projectPath, milestoneId)
+        fs.renameSync(draftPath, mdPath)
+        const milestones = getMilestones(projectPath)
+        const m = milestones.find((ms) => ms.id === milestoneId)
+        if (m) {
+          m.status = 'reviewing'
+          writeMilestonesJson(projectPath, milestones)
+        }
+        win.webContents.send('milestone-planning-done', id, milestoneId)
+        startMilestoneReview(milestoneId, projectPath, win)
+      }
+    },
+  })
+
+  // Task instructions via stdin — keeps --system-prompt to one sentence.
+  setTimeout(() => conversationAgent.send(id, buildFirstMessage(inboxItemIds, milestoneId)), 500)
+}
+
+export function readMilestoneMarkdown(projectPath: string, id: string): string | null {
+  const mdPath = milestoneMdPath(projectPath, id)
+  if (fs.existsSync(mdPath)) return fs.readFileSync(mdPath, 'utf8')
+  const draftPath = milestoneDraftMdPath(projectPath, id)
+  if (fs.existsSync(draftPath)) return fs.readFileSync(draftPath, 'utf8')
+  return null
+}
+
+export function startMilestoneReview(
+  milestoneId: string,
+  projectPath: string,
+  win: BrowserWindow
+): void {
+  const sessionId = `${milestoneId}-review`
+  let reviewResult = ''
+
+  taskAgent.run(sessionId, {
+    projectPath,
+    systemPrompt: MILESTONE_REVIEW_ROLE,
+    message: buildReviewMessage(milestoneId),
+    onEvent: (event) => {
+      win.webContents.send('setup-chat-data', sessionId, event)
+      if (event.event === 'done') reviewResult = event.result ?? ''
+    },
+    onComplete: () => {
+      const milestones = getMilestones(projectPath)
+      const m = milestones.find((ms) => ms.id === milestoneId)
+      if (m) {
+        m.status = 'reviewed'
+        m.review = reviewResult
+        writeMilestonesJson(projectPath, milestones)
+      }
+      win.webContents.send('milestone-review-done', milestoneId)
+    },
   })
 }

@@ -21,8 +21,8 @@ declare global {
       checkProjectSetup: (projectPath: string) => Promise<{ hasVision: boolean; hasSoul: boolean }>
       readSetupFiles: (projectPath: string) => Promise<{ vision: string | null; soul: string | null }>
       startSetupSession: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') => Promise<void>
-      sendSetupMessage: (id: string, message: string) => Promise<void>
-      stopSetupSession: (id: string) => Promise<void>
+      sendAgentMessage: (id: string, message: string) => Promise<void>
+      stopAgentSession: (id: string) => Promise<void>
       writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
 
       onProjectsUpdated: (callback: (projects: Project[]) => void) => () => void
@@ -39,7 +39,11 @@ declare global {
       deleteMilestone: (projectPath: string, id: string) => Promise<void>
       updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
       writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => Promise<void>
-      startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[]) => Promise<void>
+      readMilestoneMarkdown: (projectPath: string, id: string) => Promise<string | null>
+      startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => Promise<void>
+
+      onMilestonePlanningDone: (callback: (sessionId: string, milestoneId: string) => void) => () => void
+      onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
     }
   }
 }

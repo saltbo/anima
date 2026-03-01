@@ -28,7 +28,7 @@ export interface InboxItem {
   milestoneId?: string
 }
 
-export type MilestoneStatus = 'draft' | 'ready' | 'in-progress' | 'completed'
+export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'completed'
 
 export interface MilestoneTask {
   id: string
@@ -46,6 +46,7 @@ export interface Milestone {
   acceptanceCriteria: string[]
   tasks: MilestoneTask[]
   inboxItemIds: string[]
+  review?: string
   createdAt: string
   completedAt?: string
 }

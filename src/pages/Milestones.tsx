@@ -2,34 +2,16 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Plus, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
 import type { Milestone, MilestoneStatus } from '@/types/index'
 
-const STATUS_STYLES: Record<MilestoneStatus, string> = {
-  'draft': 'bg-muted text-muted-foreground',
-  'ready': 'bg-blue-500/10 text-blue-600',
-  'in-progress': 'bg-primary/10 text-primary',
-  'completed': 'bg-green-500/10 text-green-600',
-}
-
-const STATUS_DOT: Record<MilestoneStatus, string> = {
-  'draft': 'bg-muted-foreground',
-  'ready': 'bg-blue-500',
-  'in-progress': 'bg-primary',
-  'completed': 'bg-green-500',
-}
-
-const STATUS_LABELS: Record<MilestoneStatus, string> = {
-  'draft': 'Draft',
-  'ready': 'Ready',
-  'in-progress': 'In Progress',
-  'completed': 'Completed',
-}
-
-const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'ready', 'draft', 'completed']
+const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'reviewed', 'reviewing', 'ready', 'draft', 'completed']
 
 const GROUP_LABELS: Record<MilestoneStatus, string> = {
   'in-progress': 'In Progress',
+  'reviewing': 'Under Review',
+  'reviewed': 'Reviewed',
   'ready': 'Ready to Start',
   'draft': 'Drafts',
   'completed': 'Completed',
@@ -117,12 +99,12 @@ export function Milestones() {
                       onClick={() => navigate(`/projects/${id}/milestones/${m.id}`)}
                       className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors"
                     >
-                      <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[m.status as MilestoneStatus] ?? 'bg-muted-foreground'}`} />
+                      <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${milestoneStatusDotClass(m.status)}`} />
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-medium text-foreground truncate">{m.title}</span>
-                          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${STATUS_STYLES[m.status as MilestoneStatus] ?? 'bg-muted text-muted-foreground'}`}>
-                            {STATUS_LABELS[m.status as MilestoneStatus] ?? m.status}
+                          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${milestoneStatusBadgeClass(m.status)}`}>
+                            {milestoneStatusLabel(m.status)}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{m.description}</p>

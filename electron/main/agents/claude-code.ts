@@ -127,8 +127,16 @@ class ClaudeCodeSession implements AgentSession {
   }
 
   stop(): void {
-    if (!this.child.killed) {
-      this.child.kill('SIGINT')
+    if (this.child.exitCode !== null) return
+    this.child.kill('SIGTERM')
+    // SIGTERM gives the process a chance to clean up; if it's still alive after
+    // 3 s, force-kill it so we never leave orphaned claude processes.
+    const pid = this.child.pid
+    if (pid) {
+      setTimeout(() => {
+        try { process.kill(pid, 0) } catch { return } // already gone
+        try { process.kill(pid, 'SIGKILL') } catch { /* ignore */ }
+      }, 3000)
     }
   }
 }

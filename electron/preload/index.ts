@@ -13,9 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('read-setup-files', projectPath),
   startSetupSession: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') =>
     ipcRenderer.invoke('start-setup-session', id, projectPath, type),
-  sendSetupMessage: (id: string, message: string) =>
-    ipcRenderer.invoke('send-setup-message', id, message),
-  stopSetupSession: (id: string) => ipcRenderer.invoke('stop-setup-session', id),
+  sendAgentMessage: (id: string, message: string) =>
+    ipcRenderer.invoke('send-agent-message', id, message),
+  stopAgentSession: (id: string) => ipcRenderer.invoke('stop-agent-session', id),
   writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) =>
     ipcRenderer.invoke('write-setup-file', projectPath, type, content),
 
@@ -53,5 +53,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteMilestone: (projectPath: string, id: string) => ipcRenderer.invoke('delete-milestone', projectPath, id),
   updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: unknown) => ipcRenderer.invoke('update-milestone-task', projectPath, milestoneId, taskId, patch),
   writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => ipcRenderer.invoke('write-milestone-markdown', projectPath, id, content),
-  startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[]) => ipcRenderer.invoke('start-milestone-planning-session', id, projectPath, inboxItemIds),
+  readMilestoneMarkdown: (projectPath: string, id: string) => ipcRenderer.invoke('read-milestone-markdown', projectPath, id),
+  startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => ipcRenderer.invoke('start-milestone-planning-session', id, projectPath, inboxItemIds, title, description),
+
+  onMilestonePlanningDone: (callback: (sessionId: string, milestoneId: string) => void) => {
+    const handler = (_: unknown, sessionId: string, milestoneId: string) => callback(sessionId, milestoneId)
+    ipcRenderer.on('milestone-planning-done', handler)
+    return () => ipcRenderer.removeListener('milestone-planning-done', handler)
+  },
+
+  onMilestoneReviewDone: (callback: (milestoneId: string) => void) => {
+    const handler = (_: unknown, milestoneId: string) => callback(milestoneId)
+    ipcRenderer.on('milestone-review-done', handler)
+    return () => ipcRenderer.removeListener('milestone-review-done', handler)
+  },
 })

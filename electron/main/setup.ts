@@ -2,12 +2,35 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { BrowserWindow } from 'electron'
 import type { SetupChatData } from '../../src/types/electron.d'
-import { AgentSessionManager } from './agents/manager'
-import { ClaudeCodeAgent } from './agents/claude-code'
+import { conversationAgent } from './agents/service'
 
 export type SetupType = 'vision' | 'soul' | 'init'
 
-const VISION_PROMPT = `You are a project Vision advisor. Guide the user to clarify their project's Vision and produce a structured VISION.md file.
+// System prompts define capability boundaries only — what the agent may read/write.
+// Task instructions (what to collect, conversation strategy, output format) go via stdin.
+const SYSTEM_PROMPTS: Record<SetupType, string> = {
+  vision:
+    'You are a project Vision advisor. ' +
+    'You may read any file in the project. ' +
+    'You may only write to VISION.md in the project root. ' +
+    'Do not write any other files or execute shell commands.',
+
+  soul:
+    'You are a project Soul advisor. ' +
+    'You may read any file in the project. ' +
+    'You may only write to .anima/soul.md (create .anima/ if needed). ' +
+    'Do not write any other files or execute shell commands.',
+
+  init:
+    'You are a project analyst. ' +
+    'You may read any file in the project. ' +
+    'You may only write to VISION.md and .anima/soul.md (create .anima/ if needed). ' +
+    'Do not write any other files or execute shell commands.',
+}
+
+// Detailed instructions go into the first stdin message, not into process args.
+const FIRST_MESSAGES: Record<SetupType, string> = {
+  vision: `Guide the user to clarify their project's Vision and produce a structured VISION.md file.
 
 Collect these four elements (all required):
 1. Identity: What is this project (one-sentence definition)
@@ -38,9 +61,9 @@ When all four elements are clear, output the complete file wrapped in a markdown
 {long-term vision}
 \`\`\`
 
-After showing the preview, ask whether the user wants to confirm writing it or continue editing.`
+After showing the preview, ask whether the user wants to confirm writing it or continue editing.`,
 
-const SOUL_PROMPT = `You are a project principles advisor. Help the user define their project's Soul — the operating principles and engineering standards. Soul will serve as the behavioral guidelines for all future AI agents.
+  soul: `Help the user define their project's Soul — the operating principles and engineering standards that will guide all future AI agents.
 
 Collect these five dimensions (all required):
 1. Principles: The 3-5 most important operating principles (specific and actionable, not slogans)
@@ -77,20 +100,18 @@ When all five dimensions are clear, output the complete file wrapped in a markdo
 {iteration pace and style}
 \`\`\`
 
-After showing the preview, ask whether the user wants to confirm writing it or continue editing.`
+After showing the preview, ask whether the user wants to confirm writing it or continue editing.`,
 
-const INIT_PROMPT = `You are a project analyst for Anima, an autonomous AI project manager.
+  init: `Explore the project in the current working directory, then write two files using your file tools.
 
-Your task: explore the project in the current working directory, then write two files directly using your file writing tools.
-
-Process:
-1. Use tools to explore the project (list files, read README, package.json, source files, configs, etc.)
+Steps:
+1. Use tools to read the project (list files, read README, package.json, source files, configs, etc.)
 2. Understand: what the project is, who it's for, what problem it solves, the tech stack, coding style
 3. If the project is empty or minimal, generate sensible starter templates
 4. Write VISION.md to the project root
-5. Write .anima/soul.md (create the .anima directory first if it does not exist)
+5. Write .anima/soul.md (create the .anima directory first if needed)
 
-VISION.md content format:
+VISION.md format:
 # Vision: {Project Name}
 
 ## Identity
@@ -105,7 +126,7 @@ VISION.md content format:
 ## Long-term Goal
 {end state vision}
 
-.anima/soul.md content format:
+.anima/soul.md format:
 # Soul: {Project Name}
 
 ## Principles
@@ -125,10 +146,8 @@ VISION.md content format:
 ## Iteration Style
 {pace, step size, release strategy}
 
-Be specific based on evidence you find. Do not ask questions. Just explore and write the files.`
-
-const manager = new AgentSessionManager()
-const claudeAgent = new ClaudeCodeAgent()
+Be specific based on evidence you find. Do not ask questions. Explore and write the files now.`,
+}
 
 export function checkProjectSetup(projectPath: string): { hasVision: boolean; hasSoul: boolean } {
   const hasVision = fs.existsSync(path.join(projectPath, 'VISION.md'))
@@ -142,20 +161,13 @@ export function startSetupSession(
   type: SetupType,
   win: BrowserWindow
 ): void {
-  const systemPrompt = type === 'vision' ? VISION_PROMPT : type === 'soul' ? SOUL_PROMPT : INIT_PROMPT
-  manager.start(id, claudeAgent, {
+  conversationAgent.start(id, {
     projectPath,
-    systemPrompt,
+    systemPrompt: SYSTEM_PROMPTS[type],
     onEvent: (event) => win.webContents.send('setup-chat-data', id, event satisfies SetupChatData),
   })
-}
-
-export function sendSetupMessage(id: string, text: string): void {
-  manager.send(id, text)
-}
-
-export function stopSetupSession(id: string): void {
-  manager.stop(id)
+  // Detailed instructions go via stdin — keeps --system-prompt arg minimal.
+  setTimeout(() => conversationAgent.send(id, FIRST_MESSAGES[type]), 500)
 }
 
 export function readSetupFiles(projectPath: string): { vision: string | null; soul: string | null } {

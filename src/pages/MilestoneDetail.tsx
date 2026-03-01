@@ -11,22 +11,9 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { milestoneStatusLabel, milestoneStatusBadgeClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
-import type { Milestone, MilestoneStatus, InboxItem } from '@/types/index'
-
-const STATUS_STYLES: Record<MilestoneStatus, string> = {
-  'draft': 'bg-muted text-muted-foreground',
-  'ready': 'bg-blue-500/10 text-blue-600',
-  'in-progress': 'bg-primary/10 text-primary',
-  'completed': 'bg-green-500/10 text-green-600',
-}
-
-const STATUS_LABELS: Record<MilestoneStatus, string> = {
-  'draft': 'Draft',
-  'ready': 'Ready',
-  'in-progress': 'In Progress',
-  'completed': 'Completed',
-}
+import type { Milestone, InboxItem } from '@/types/index'
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -40,33 +27,6 @@ const TYPE_STYLES: Record<string, string> = {
   idea: 'bg-blue-500/10 text-blue-600 border border-blue-500/30',
   bug: 'bg-red-500/10 text-red-600 border border-red-500/30',
   feature: 'bg-green-500/10 text-green-600 border border-green-500/30',
-}
-
-function generateMarkdown(milestone: Milestone): string {
-  const lines: string[] = [
-    `# ${milestone.title}`,
-    '',
-    `**Status:** ${milestone.status}`,
-    '',
-    '## Description',
-    '',
-    milestone.description,
-    '',
-  ]
-  if (milestone.acceptanceCriteria.length > 0) {
-    lines.push('## Acceptance Criteria', '')
-    for (const c of milestone.acceptanceCriteria) lines.push(`- ${c}`)
-    lines.push('')
-  }
-  if (milestone.tasks.length > 0) {
-    lines.push('## Tasks', '')
-    milestone.tasks.forEach((t, i) => {
-      lines.push(`${i + 1}. [${t.completed ? 'x' : ' '}] ${t.title}`)
-      if (t.description) lines.push(`   ${t.description}`)
-    })
-    lines.push('')
-  }
-  return lines.join('\n')
 }
 
 export function MilestoneDetail() {
@@ -88,24 +48,34 @@ export function MilestoneDetail() {
     Promise.all([
       window.electronAPI.getMilestones(project.path),
       window.electronAPI.getInboxItems(project.path),
-    ]).then(([milestones, items]) => {
+      window.electronAPI.readMilestoneMarkdown(project.path, mid!),
+    ]).then(([milestones, items, md]) => {
       const m = milestones.find((ms) => ms.id === mid) ?? null
       setMilestone(m)
-      if (m) setMarkdownContent(generateMarkdown(m))
+      setMarkdownContent(md ?? '')
       setInboxItems(items)
       setLoading(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, mid])
 
+  // Refresh when the background review completes
+  useEffect(() => {
+    return window.electronAPI.onMilestoneReviewDone((milestoneId) => {
+      if (milestoneId !== mid || !project) return
+      window.electronAPI.getMilestones(project.path).then((milestones) => {
+        setMilestone(milestones.find((ms) => ms.id === mid) ?? null)
+      })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mid, project?.id])
+
   const handleTaskToggle = async (taskId: string) => {
     if (!project || !milestone) return
     const task = milestone.tasks.find((t) => t.id === taskId)
     if (!task) return
     const newCompleted = !task.completed
-    const updated = { ...milestone, tasks: milestone.tasks.map((t) => (t.id === taskId ? { ...t, completed: newCompleted } : t)) }
-    setMilestone(updated)
-    setMarkdownContent(generateMarkdown(updated))
+    setMilestone({ ...milestone, tasks: milestone.tasks.map((t) => (t.id === taskId ? { ...t, completed: newCompleted } : t)) })
     await window.electronAPI.updateMilestoneTask(project.path, milestone.id, taskId, { completed: newCompleted })
   }
 
@@ -114,7 +84,6 @@ export function MilestoneDetail() {
     const updated: Milestone = { ...milestone, status: 'ready' }
     await window.electronAPI.saveMilestone(project.path, updated)
     setMilestone(updated)
-    setMarkdownContent(generateMarkdown(updated))
   }
 
   const handleMarkCompleted = async () => {
@@ -122,7 +91,6 @@ export function MilestoneDetail() {
     const updated: Milestone = { ...milestone, status: 'completed', completedAt: new Date().toISOString() }
     await window.electronAPI.saveMilestone(project.path, updated)
     setMilestone(updated)
-    setMarkdownContent(generateMarkdown(updated))
   }
 
   const handleSaveMarkdown = async () => {
@@ -155,6 +123,8 @@ export function MilestoneDetail() {
   const completedCount = milestone.tasks.filter((t) => t.completed).length
   const allDone = completedCount === milestone.tasks.length && milestone.tasks.length > 0
   const isDraft = milestone.status === 'draft'
+  const isReviewing = milestone.status === 'reviewing'
+  const isReviewed = milestone.status === 'reviewed'
 
   return (
     <div className="p-6 space-y-4">
@@ -162,8 +132,8 @@ export function MilestoneDetail() {
       <div className="rounded-xl border border-border bg-card p-4 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-sm font-semibold text-foreground">{milestone.title}</h2>
-          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${STATUS_STYLES[milestone.status as MilestoneStatus] ?? 'bg-muted text-muted-foreground'}`}>
-            {STATUS_LABELS[milestone.status as MilestoneStatus] ?? milestone.status}
+          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${milestoneStatusBadgeClass(milestone.status)}`}>
+            {milestoneStatusLabel(milestone.status)}
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{milestone.description}</p>
@@ -178,6 +148,31 @@ export function MilestoneDetail() {
           </button>
         </div>
       </div>
+
+      {/* Reviewing banner */}
+      {isReviewing && (
+        <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-4 py-2.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse shrink-0" />
+          <span className="text-xs text-yellow-700 dark:text-yellow-400">AI review in progress…</span>
+        </div>
+      )}
+
+      {/* Review result */}
+      {isReviewed && milestone.review && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Review
+            </p>
+            <Button size="sm" className="h-7 text-xs" onClick={handleMarkReady}>
+              Approve →
+            </Button>
+          </div>
+          <pre className="whitespace-pre-wrap text-xs text-muted-foreground bg-muted/30 rounded-lg border border-border p-3 leading-relaxed">
+            {milestone.review}
+          </pre>
+        </div>
+      )}
 
       {/* Draft actions */}
       {isDraft && (

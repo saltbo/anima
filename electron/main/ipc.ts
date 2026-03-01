@@ -6,8 +6,6 @@ import {
   checkProjectSetup,
   readSetupFiles,
   startSetupSession,
-  sendSetupMessage,
-  stopSetupSession,
   writeSetupFile,
 } from './setup'
 import type { SetupType } from './setup'
@@ -21,8 +19,10 @@ import {
   deleteMilestone,
   updateMilestoneTask,
   writeMilestoneMarkdown,
+  readMilestoneMarkdown,
   startMilestonePlanningSession,
 } from './milestones'
+import { conversationAgent } from './agents/service'
 import type { InboxItem, InboxItemPriority, MilestoneTask } from '../../src/types/index'
 
 export function setupIPC(getWindow: () => BrowserWindow | null): void {
@@ -87,12 +87,12 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
     if (win) startSetupSession(id, projectPath, type, win)
   })
 
-  ipcMain.handle('send-setup-message', (_, id: string, message: string) => {
-    sendSetupMessage(id, message)
+  ipcMain.handle('send-agent-message', (_, id: string, message: string) => {
+    conversationAgent.send(id, message)
   })
 
-  ipcMain.handle('stop-setup-session', (_, id: string) => {
-    stopSetupSession(id)
+  ipcMain.handle('stop-agent-session', (_, id: string) => {
+    conversationAgent.stop(id)
   })
 
   ipcMain.handle('write-setup-file', (_, projectPath: string, type: SetupType, content: string) => {
@@ -135,8 +135,12 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
     writeMilestoneMarkdown(projectPath, id, content)
   })
 
-  ipcMain.handle('start-milestone-planning-session', (_, id: string, projectPath: string, inboxItemIds: string[]) => {
+  ipcMain.handle('read-milestone-markdown', (_, projectPath: string, id: string) => {
+    return readMilestoneMarkdown(projectPath, id)
+  })
+
+  ipcMain.handle('start-milestone-planning-session', (_, id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => {
     const win = getWindow()
-    if (win) startMilestonePlanningSession(id, projectPath, inboxItemIds, win)
+    if (win) startMilestonePlanningSession(id, projectPath, inboxItemIds, title, description, win)
   })
 }

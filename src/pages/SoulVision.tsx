@@ -157,6 +157,11 @@ export function SoulVision() {
 
   const sessionId = project ? `${project.id}-init` : ''
 
+  // Stop the agent process when navigating away from this page
+  useEffect(() => {
+    return () => { window.electronAPI.stopAgentSession(sessionId) }
+  }, [sessionId])
+
   // Load files on mount / project change
   useEffect(() => {
     if (!project) return
@@ -193,14 +198,10 @@ export function SoulVision() {
     if (!project) return
     setStatus('generating')
     await window.electronAPI.startSetupSession(sessionId, project.path, 'init')
-    window.electronAPI.sendSetupMessage(
-      sessionId,
-      'Analyze this project and write both VISION.md and .anima/soul.md now.'
-    )
   }, [project, sessionId])
 
   const handleReinit = useCallback(() => {
-    window.electronAPI.stopSetupSession(sessionId)
+    window.electronAPI.stopAgentSession(sessionId)
     setStatus('idle')
   }, [sessionId])
 
