@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { useProjects } from '@/store/projects'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { Project } from '@/types'
 
@@ -24,76 +26,79 @@ function ProjectCard({ project }: { project: Project }) {
   }
 
   return (
-    <div className="bg-app-surface border border-app-border rounded-xl p-4 flex flex-col gap-3 hover:border-white/20 transition-colors">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-app-text-primary">{project.name}</h3>
-          <p className="text-xs text-app-text-secondary mt-0.5 truncate max-w-[180px]">{project.path}</p>
+    <Card className="flex flex-col hover:border-white/20 transition-colors">
+      <CardHeader className="p-4 pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="text-sm">{project.name}</CardTitle>
+          <StatusBadge status={project.status} />
         </div>
-        <StatusBadge status={project.status} />
-      </div>
+        <CardDescription className="truncate text-xs">{project.path}</CardDescription>
+      </CardHeader>
 
-      <div className="text-xs text-app-text-secondary space-y-1">
+      <CardContent className="px-4 pb-2 flex-1 text-xs text-muted-foreground space-y-1">
         {project.currentMilestone && (
-          <div>Milestone: <span className="text-app-text-primary">{project.currentMilestone}</span></div>
+          <div>
+            Milestone: <span className="text-foreground">{project.currentMilestone}</span>
+          </div>
         )}
         {project.status === 'awake' && project.round > 0 && (
-          <div>Round: <span className="text-app-text-primary">{project.round}</span></div>
+          <div>
+            Round: <span className="text-foreground">{project.round}</span>
+          </div>
         )}
         {project.status === 'sleeping' && project.nextWakeTime && (
           <div>
             Next check:{' '}
-            <span className="text-app-text-primary">
-              {new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <span className="text-foreground">
+              {new Date(project.nextWakeTime).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </span>
           </div>
         )}
         {project.status === 'paused' && (
           <div className="text-status-paused">Needs intervention</div>
         )}
-      </div>
+      </CardContent>
 
-      <div className="flex gap-2 mt-auto">
-        <button
-          onClick={handleView}
-          className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-app-text-primary transition-colors"
-        >
+      <CardFooter className="px-4 pb-4 gap-2">
+        <Button variant="secondary" size="sm" className="flex-1" onClick={handleView}>
           View
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
           className={cn(
-            'flex-1 text-xs font-medium py-1.5 rounded-lg transition-colors',
+            'flex-1',
             project.status === 'paused'
-              ? 'bg-status-awake/10 hover:bg-status-awake/20 text-status-awake'
-              : 'bg-app-accent/10 hover:bg-app-accent/20 text-app-accent'
+              ? 'bg-status-awake/10 hover:bg-status-awake/20 text-status-awake border-0'
+              : ''
           )}
+          variant={project.status === 'paused' ? 'outline' : 'default'}
         >
           {actionLabel()}
-        </button>
-      </div>
-    </div>
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-app-surface border border-app-border flex items-center justify-center text-3xl">
+      <div className="w-16 h-16 rounded-2xl bg-card border border-border flex items-center justify-center text-3xl">
         ✦
       </div>
       <div>
-        <h2 className="text-lg font-semibold text-app-text-primary">Add your first project</h2>
-        <p className="text-sm text-app-text-secondary mt-1">
+        <h2 className="text-lg font-semibold text-foreground">Add your first project</h2>
+        <p className="text-sm text-muted-foreground mt-1">
           Give your project a soul and let Anima drive it forward.
         </p>
       </div>
-      <button
-        onClick={onAdd}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-app-accent hover:bg-app-accent/90 text-white text-sm font-medium transition-colors"
-      >
-        <Plus size={14} />
+      <Button onClick={onAdd}>
+        <Plus size={14} className="mr-2" />
         Add your first project
-      </button>
+      </Button>
     </div>
   )
 }
@@ -117,14 +122,11 @@ export function GlobalDashboard() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold text-app-text-primary">All Projects</h1>
-        <button
-          onClick={handleAdd}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-app-accent/10 hover:bg-app-accent/20 text-app-accent text-xs font-medium transition-colors"
-        >
-          <Plus size={12} />
+        <h1 className="text-lg font-semibold text-foreground">All Projects</h1>
+        <Button size="sm" variant="secondary" onClick={handleAdd}>
+          <Plus size={12} className="mr-1.5" />
           Add Project
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
@@ -134,7 +136,7 @@ export function GlobalDashboard() {
         {/* Add Project card */}
         <button
           onClick={handleAdd}
-          className="border border-dashed border-app-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 text-app-text-secondary hover:border-app-accent hover:text-app-accent transition-colors min-h-[140px]"
+          className="border border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors min-h-[140px]"
         >
           <Plus size={20} />
           <span className="text-sm font-medium">Add Project</span>

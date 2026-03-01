@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/badge'
 import { cn, statusColor, statusIcon, statusLabel } from '@/lib/utils'
 import type { ProjectStatus } from '@/types'
 
@@ -9,9 +10,12 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status, showLabel = true, className }: StatusBadgeProps) {
   return (
-    <span className={cn('inline-flex items-center gap-1 text-xs font-medium', statusColor(status), className)}>
+    <Badge
+      variant="outline"
+      className={cn('gap-1 border-0 px-0 font-medium', statusColor(status), className)}
+    >
       <span>{statusIcon(status)}</span>
       {showLabel && <span>{statusLabel(status)}</span>}
-    </span>
+    </Badge>
   )
 }

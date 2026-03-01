@@ -2,6 +2,9 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Settings } from 'lucide-react'
 import { cn, statusIcon, statusColor } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import type { Project } from '@/types'
 
 function ProjectItem({
@@ -14,20 +17,21 @@ function ProjectItem({
   onClick: () => void
 }) {
   return (
-    <button
+    <Button
+      variant="ghost"
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors',
+        'w-full justify-start gap-2.5 px-3 h-9',
         isSelected
-          ? 'bg-white/10 text-app-text-primary'
-          : 'text-app-text-secondary hover:bg-white/5 hover:text-app-text-primary'
+          ? 'bg-secondary text-secondary-foreground'
+          : 'text-muted-foreground hover:text-foreground'
       )}
     >
-      <span className={cn('text-sm', statusColor(project.status))}>
+      <span className={cn('text-sm shrink-0', statusColor(project.status))}>
         {statusIcon(project.status)}
       </span>
-      <span className="flex-1 text-sm font-medium truncate">{project.name}</span>
-    </button>
+      <span className="flex-1 text-sm font-medium truncate text-left">{project.name}</span>
+    </Button>
   )
 }
 
@@ -57,12 +61,15 @@ export function Sidebar() {
   const isSettingsActive = location.pathname === '/settings'
 
   return (
-    <div className="flex flex-col h-full bg-app-sidebar border-r border-app-border select-none">
+    <div className="flex flex-col h-full bg-app-sidebar border-r border-border select-none">
       {/* Title bar safe area for macOS traffic lights */}
-      <div className="h-[52px] flex items-end px-4 pb-3" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      <div
+        className="h-[52px] flex items-end px-4 pb-3"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
         <button
           onClick={handleClickLogo}
-          className="text-sm font-bold text-app-text-primary tracking-wide hover:text-app-accent transition-colors"
+          className="text-sm font-bold text-foreground tracking-wide hover:text-primary transition-colors"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           ✦ Anima
@@ -71,47 +78,53 @@ export function Sidebar() {
 
       {/* Add Project button */}
       <div className="px-3 pb-2">
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleAddProject}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-app-text-secondary hover:text-app-text-primary hover:bg-white/5 transition-colors border border-dashed border-app-border hover:border-app-accent"
+          className="w-full justify-start gap-2 text-muted-foreground border-dashed hover:text-foreground hover:border-primary"
         >
           <Plus size={12} />
-          <span>Add Project</span>
-        </button>
+          Add Project
+        </Button>
       </div>
+
+      <Separator />
 
       {/* Project list */}
-      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
-        {projects.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-app-text-secondary text-center">
-            No projects yet
-          </p>
-        ) : (
-          projects.map((project) => (
-            <ProjectItem
-              key={project.id}
-              project={project}
-              isSelected={selectedProjectId === project.id}
-              onClick={() => handleSelectProject(project)}
-            />
-          ))
-        )}
-      </div>
+      <ScrollArea className="flex-1 py-2">
+        <div className="px-2 space-y-0.5">
+          {projects.length === 0 ? (
+            <p className="px-3 py-4 text-xs text-muted-foreground text-center">No projects yet</p>
+          ) : (
+            projects.map((project) => (
+              <ProjectItem
+                key={project.id}
+                project={project}
+                isSelected={selectedProjectId === project.id}
+                onClick={() => handleSelectProject(project)}
+              />
+            ))
+          )}
+        </div>
+      </ScrollArea>
+
+      <Separator />
 
       {/* Global settings */}
-      <div className="px-2 pb-4">
-        <button
+      <div className="px-2 py-2">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => navigate('/settings')}
           className={cn(
-            'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
-            isSettingsActive
-              ? 'bg-white/10 text-app-text-primary'
-              : 'text-app-text-secondary hover:bg-white/5 hover:text-app-text-primary'
+            'w-full justify-start gap-2.5',
+            isSettingsActive ? 'bg-secondary text-foreground' : 'text-muted-foreground'
           )}
         >
           <Settings size={14} />
-          <span>Settings</span>
-        </button>
+          Settings
+        </Button>
       </div>
     </div>
   )
