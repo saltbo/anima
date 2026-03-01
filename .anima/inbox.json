@@ -1,0 +1,17 @@
+[
+  {
+    "type": "bug",
+    "title": "Login button broken on mobile",
+    "description": "Users cannot tap the login button on iOS Safari",
+    "id": "63efa9dd-ec4e-4ecc-814f-f0db91312323",
+    "createdAt": "2026-03-01T17:07:44.163Z",
+    "milestoneId": "test-milestone-2"
+  },
+  {
+    "type": "feature",
+    "title": "Dark mode support",
+    "description": "Add dark mode toggle in settings",
+    "id": "1d152d84-ba44-4963-a2a4-33a44906d108",
+    "createdAt": "2026-03-01T17:07:53.495Z"
+  }
+]

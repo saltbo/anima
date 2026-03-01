@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MessageSquare, Plus, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, MessageSquare, Plus, X, Loader2, CheckCircle2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,7 +10,7 @@ import { useProjects } from '@/store/projects'
 import type { InboxItem, Milestone, MilestoneTask } from '@/types/index'
 import type { SetupChatData } from '@/types/electron.d'
 
-type Phase = 'setup' | 'chatting' | 'preview' | 'saving'
+type Phase = 'setup' | 'chatting' | 'preview' | 'saving' | 'success'
 
 const TYPE_STYLES: Record<string, string> = {
   idea: 'bg-blue-500/10 text-blue-600 border border-blue-500/30',
@@ -56,6 +56,7 @@ export function MilestoneNew() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
   const [parsedData, setParsedData] = useState<ParsedMilestone | null>(null)
+  const [savedMilestoneId, setSavedMilestoneId] = useState<string | null>(null)
   const accTextRef = useRef('')
   const chatRef = useRef<AgentChatHandle>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -120,7 +121,7 @@ export function MilestoneNew() {
       id: crypto.randomUUID(),
       title: parsedData.title,
       description: parsedData.description,
-      status: 'not-started',
+      status: 'draft',
       acceptanceCriteria: parsedData.acceptanceCriteria,
       tasks,
       inboxItemIds: parsedData.inboxItemIds,
@@ -130,10 +131,11 @@ export function MilestoneNew() {
     await window.electronAPI.saveMilestone(project.path, milestone)
 
     for (const iid of parsedData.inboxItemIds) {
-      await window.electronAPI.updateInboxItem(project.path, iid, { milestoneId: milestone.id })
+      await window.electronAPI.updateInboxItem(project.path, iid, { milestoneId: milestone.id, status: 'included' })
     }
 
-    navigate(`/projects/${id}/milestones/${milestone.id}`)
+    setSavedMilestoneId(milestone.id)
+    setPhase('success')
   }
 
   if (!project) {
@@ -268,6 +270,43 @@ export function MilestoneNew() {
       <div className="flex flex-col h-full items-center justify-center gap-3">
         <Loader2 size={24} className="animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Saving milestone…</p>
+      </div>
+    )
+  }
+
+  // ── Success phase ─────────────────────────────────────────────────────────────
+  if (phase === 'success') {
+    const handleStartImmediately = async () => {
+      if (!project || !savedMilestoneId) return
+      const milestones = await window.electronAPI.getMilestones(project.path)
+      const m = milestones.find((ms) => ms.id === savedMilestoneId)
+      if (m) await window.electronAPI.saveMilestone(project.path, { ...m, status: 'ready' })
+      navigate(`/projects/${id}/milestones/${savedMilestoneId}`)
+    }
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-6 p-8 text-center">
+        <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
+          <CheckCircle2 size={24} className="text-green-500" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Milestone Created</h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+            Saved as draft. You can start it immediately or keep it as a draft to refine later.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 w-full max-w-xs">
+          <Button onClick={handleStartImmediately} className="w-full">
+            <Zap size={14} className="mr-1.5" />
+            Start Immediately
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => navigate(`/projects/${id}/milestones/${savedMilestoneId}`)}
+          >
+            Save as Draft
+          </Button>
+        </div>
       </div>
     )
   }

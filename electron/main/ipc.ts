@@ -20,9 +20,10 @@ import {
   saveMilestone,
   deleteMilestone,
   updateMilestoneTask,
+  writeMilestoneMarkdown,
   startMilestonePlanningSession,
 } from './milestones'
-import type { InboxItem, MilestoneTask } from '../../src/types/index'
+import type { InboxItem, InboxItemPriority, MilestoneTask } from '../../src/types/index'
 
 export function setupIPC(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('get-projects', () => {
@@ -102,7 +103,7 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
     return getInboxItems(projectPath)
   })
 
-  ipcMain.handle('add-inbox-item', (_, projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt'>) => {
+  ipcMain.handle('add-inbox-item', (_, projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'> & { priority: InboxItemPriority }) => {
     return addInboxItem(projectPath, item)
   })
 
@@ -128,6 +129,10 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('update-milestone-task', (_, projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => {
     updateMilestoneTask(projectPath, milestoneId, taskId, patch)
+  })
+
+  ipcMain.handle('write-milestone-markdown', (_, projectPath: string, id: string, content: string) => {
+    writeMilestoneMarkdown(projectPath, id, content)
   })
 
   ipcMain.handle('start-milestone-planning-session', (_, id: string, projectPath: string, inboxItemIds: string[]) => {

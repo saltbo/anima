@@ -31,13 +31,14 @@ declare global {
       onSetupChatData: (callback: (id: string, data: SetupChatData) => void) => () => void
 
       getInboxItems: (projectPath: string) => Promise<InboxItem[]>
-      addInboxItem: (projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt'>) => Promise<InboxItem>
+      addInboxItem: (projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>) => Promise<InboxItem>
       updateInboxItem: (projectPath: string, id: string, patch: Partial<InboxItem>) => Promise<InboxItem | null>
       deleteInboxItem: (projectPath: string, id: string) => Promise<void>
       getMilestones: (projectPath: string) => Promise<Milestone[]>
       saveMilestone: (projectPath: string, milestone: Milestone) => Promise<void>
       deleteMilestone: (projectPath: string, id: string) => Promise<void>
       updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
+      writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => Promise<void>
       startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[]) => Promise<void>
     }
   }

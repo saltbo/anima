@@ -14,17 +14,21 @@ export interface Project {
 }
 
 export type InboxItemType = 'idea' | 'bug' | 'feature'
+export type InboxItemPriority = 'low' | 'medium' | 'high'
+export type InboxItemStatus = 'pending' | 'included' | 'dismissed'
 
 export interface InboxItem {
   id: string
   type: InboxItemType
   title: string
   description?: string
+  priority: InboxItemPriority
+  status: InboxItemStatus
   createdAt: string
   milestoneId?: string
 }
 
-export type MilestoneStatus = 'not-started' | 'in-progress' | 'completed'
+export type MilestoneStatus = 'draft' | 'ready' | 'in-progress' | 'completed'
 
 export interface MilestoneTask {
   id: string

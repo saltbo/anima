@@ -1,7 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import log from 'electron-log/preload'
-
-log.initialize({ spyRendererConsole: false })
+import 'electron-log/preload'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getProjects: () => ipcRenderer.invoke('get-projects'),
@@ -54,5 +52,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveMilestone: (projectPath: string, milestone: unknown) => ipcRenderer.invoke('save-milestone', projectPath, milestone),
   deleteMilestone: (projectPath: string, id: string) => ipcRenderer.invoke('delete-milestone', projectPath, id),
   updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: unknown) => ipcRenderer.invoke('update-milestone-task', projectPath, milestoneId, taskId, patch),
+  writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => ipcRenderer.invoke('write-milestone-markdown', projectPath, id, content),
   startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[]) => ipcRenderer.invoke('start-milestone-planning-session', id, projectPath, inboxItemIds),
 })

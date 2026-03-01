@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
-import type { InboxItem, Milestone, MilestoneTask } from '../../src/types/index'
+import type { InboxItem, InboxItemPriority, InboxItemStatus, Milestone, MilestoneTask } from '../../src/types/index'
 import type { SetupChatData } from '../../src/types/electron.d'
 import { AgentSessionManager } from './agents/manager'
 import { ClaudeCodeAgent } from './agents/claude-code'
@@ -48,6 +48,12 @@ function ensureAnimaDir(projectPath: string): void {
   fs.mkdirSync(path.join(projectPath, '.anima'), { recursive: true })
 }
 
+function ensureMilestonesDir(projectPath: string): string {
+  const dir = path.join(projectPath, '.anima', 'milestones')
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 // ── Inbox ──────────────────────────────────────────────────────────────────
 
 function inboxPath(projectPath: string): string {
@@ -58,7 +64,12 @@ export function getInboxItems(projectPath: string): InboxItem[] {
   try {
     const p = inboxPath(projectPath)
     if (!fs.existsSync(p)) return []
-    return JSON.parse(fs.readFileSync(p, 'utf8')) as InboxItem[]
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8')) as Partial<InboxItem>[]
+    return raw.map((i) => ({
+      priority: 'medium' as InboxItemPriority,
+      status: 'pending' as InboxItemStatus,
+      ...i,
+    })) as InboxItem[]
   } catch {
     return []
   }
@@ -71,10 +82,15 @@ function writeInboxItems(projectPath: string, items: InboxItem[]): void {
 
 export function addInboxItem(
   projectPath: string,
-  item: Omit<InboxItem, 'id' | 'createdAt'>
+  item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>
 ): InboxItem {
   const items = getInboxItems(projectPath)
-  const newItem: InboxItem = { ...item, id: randomUUID(), createdAt: new Date().toISOString() }
+  const newItem: InboxItem = {
+    ...item,
+    id: randomUUID(),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  }
   items.push(newItem)
   writeInboxItems(projectPath, items)
   return newItem
@@ -104,6 +120,46 @@ function milestonesPath(projectPath: string): string {
   return path.join(projectPath, '.anima', 'milestones.json')
 }
 
+function milestoneMdPath(projectPath: string, id: string): string {
+  return path.join(ensureMilestonesDir(projectPath), `${id}.md`)
+}
+
+function generateMilestoneMarkdown(milestone: Milestone): string {
+  const lines: string[] = [
+    `# ${milestone.title}`,
+    '',
+    `**Status:** ${milestone.status}`,
+    '',
+    '## Description',
+    '',
+    milestone.description,
+    '',
+  ]
+
+  if (milestone.acceptanceCriteria.length > 0) {
+    lines.push('## Acceptance Criteria', '')
+    for (const criterion of milestone.acceptanceCriteria) {
+      lines.push(`- ${criterion}`)
+    }
+    lines.push('')
+  }
+
+  if (milestone.tasks.length > 0) {
+    lines.push('## Tasks', '')
+    for (let i = 0; i < milestone.tasks.length; i++) {
+      const task = milestone.tasks[i]
+      const check = task.completed ? 'x' : ' '
+      lines.push(`${i + 1}. [${check}] ${task.title}`)
+      if (task.description) {
+        lines.push(`   ${task.description}`)
+      }
+    }
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}
+
 export function getMilestones(projectPath: string): Milestone[] {
   try {
     const p = milestonesPath(projectPath)
@@ -114,7 +170,7 @@ export function getMilestones(projectPath: string): Milestone[] {
   }
 }
 
-function writeMilestones(projectPath: string, milestones: Milestone[]): void {
+function writeMilestonesJson(projectPath: string, milestones: Milestone[]): void {
   ensureAnimaDir(projectPath)
   fs.writeFileSync(milestonesPath(projectPath), JSON.stringify(milestones, null, 2), 'utf8')
 }
@@ -127,12 +183,17 @@ export function saveMilestone(projectPath: string, milestone: Milestone): void {
   } else {
     milestones.splice(idx, 1, milestone)
   }
-  writeMilestones(projectPath, milestones)
+  writeMilestonesJson(projectPath, milestones)
+  // Write human-readable .md alongside
+  const mdContent = generateMilestoneMarkdown(milestone)
+  fs.writeFileSync(milestoneMdPath(projectPath, milestone.id), mdContent, 'utf8')
 }
 
 export function deleteMilestone(projectPath: string, id: string): void {
   const milestones = getMilestones(projectPath).filter((m) => m.id !== id)
-  writeMilestones(projectPath, milestones)
+  writeMilestonesJson(projectPath, milestones)
+  const mdPath = path.join(projectPath, '.anima', 'milestones', `${id}.md`)
+  if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath)
 }
 
 export function updateMilestoneTask(
@@ -147,7 +208,13 @@ export function updateMilestoneTask(
   const tIdx = m.tasks.findIndex((t) => t.id === taskId)
   if (tIdx === -1) return
   m.tasks[tIdx] = { ...m.tasks[tIdx], ...patch }
-  writeMilestones(projectPath, milestones)
+  writeMilestonesJson(projectPath, milestones)
+  // Regenerate .md
+  fs.writeFileSync(milestoneMdPath(projectPath, milestoneId), generateMilestoneMarkdown(m), 'utf8')
+}
+
+export function writeMilestoneMarkdown(projectPath: string, id: string, content: string): void {
+  fs.writeFileSync(milestoneMdPath(projectPath, id), content, 'utf8')
 }
 
 // ── Agent session ─────────────────────────────────────────────────────────
