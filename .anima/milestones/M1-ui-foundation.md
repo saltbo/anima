@@ -3,7 +3,7 @@
 ## Goal
 
 搭建 Electron + React 应用骨架，建立所有后续功能赖以构建的 UI 框架和工程基础。
-包含应用启动后的第一个用户交互：选择要管理的项目目录。
+Anima 是一个**多项目管理工具**，同时管理多个被赋予"灵魂"的项目并并发运行各自的迭代循环。
 
 ## Tech Stack
 
@@ -22,56 +22,102 @@
 - ESLint + Prettier 代码规范配置
 - macOS (.dmg) 和 Windows (.exe) 打包脚本配置（实际跨平台产物在 CI 中验证）
 
-### 项目选择（Welcome 页）
+### 系统托盘（System Tray）
 
-Anima 管理的是外部项目。应用启动后，首先需要确定"要管理哪个项目目录"。
+Anima 作为后台常驻进程运行，关闭主窗口时缩小到系统托盘，不退出。
 
-**交互逻辑：**
-- 应用首次启动，或没有已打开的项目时，展示 **Welcome 页**
-- Welcome 页提供：
-  - **"Open Project"** 按钮：调用系统目录选择对话框，用户选择项目根目录
-  - **"Recent Projects"** 列表：展示最近打开的项目路径，点击直接打开
+**托盘图标状态（反映所有项目的聚合状态）：**
+- 全部 sleeping → 灰色图标
+- 任意项目 checking → 黄色脉冲图标
+- 任意项目 awake → 亮色跳动图标
+- 任意项目 paused → 红色图标
 
-**数据持久化：**
-- 已打开的项目路径保存在 Anima 自身的 app-level 配置中（与项目无关）
-- 路径: `~/Library/Application Support/Anima/config.json`（macOS）
-- 应用启动时读取 `last_project_path`，若有效则直接打开，跳过 Welcome 页
+**托盘右键菜单：**
+```
+Anima
+─────────────────────
+● project-alpha    Working · M4 / Round 3
+💤 my-website      Sleeping · next: 21:00
+⟳ data-pipeline   Checking…
+─────────────────────
+Add Project
+─────────────────────
+Open Anima
+Quit
+```
 
-**打开项目后：**
-- 进入主界面（具体是 Onboarding 还是 Dashboard，由 M2 的检测逻辑决定）
-- 顶部标题栏展示当前项目名（取目录名）
+**行为：**
+- 点击托盘图标 → 显示/隐藏主窗口
+- 点击菜单中的项目 → 打开主窗口并定位到该项目
+- "Quit" 是唯一真正退出的方式，同时停止所有调度器
 
-### 应用布局
-- 左侧固定导航栏，包含以下入口：
-  - Dashboard（总览）
-  - Milestones（里程碑列表）
-  - Inbox（待办条目）
-  - Settings（设置）
-- 顶部标题栏：显示应用名称、当前打开的项目名、当前页面
-- 主内容区：根据导航切换页面
-- 左侧导航在未打开项目时（Welcome 页）隐藏
+### 应用布局（两级导航）
+
+Anima 采用两级导航结构：
+
+**第一级（左侧边栏）：项目列表**
+- 每个项目一行，显示：状态图标（💤 / ⟳ / ✦ / ⚠）、项目名
+- 底部固定：全局设置入口
+- 顶部固定："+ Add Project" 按钮（调用系统目录选择对话框）
+
+**第二级（主内容区顶部 Tab 栏）：单项目页面**
+- 选中某个项目后，主内容区顶部展示该项目的 Tab：
+  - Dashboard（该项目的生命体征）
+  - Milestones
+  - Inbox
+  - Settings（项目级配置）
+
+**顶部标题栏：**
+- 显示当前选中的项目名 + 项目状态
+
+**初始状态（无项目）：**
+- 主内容区展示引导卡片："Add your first project to get started"
+
+### 全局 Dashboard（项目卡片总览）
+
+当未选中任何具体项目时（或点击 Anima logo），主内容区展示所有项目的卡片总览：
+
+```
+┌────────────────────┐  ┌────────────────────┐
+│ ✦ project-alpha    │  │ 💤 my-website       │
+│  Working            │  │  Sleeping           │
+│  M4 · Round 3      │  │  Next check: 21:00  │
+│  [View]  [Pause]   │  │  [View]  [Wake Now] │
+└────────────────────┘  └────────────────────┘
+┌────────────────────┐  ┌────────────────────┐
+│ ⚠ data-pipeline   │  │   + Add Project     │
+│  Paused · M2       │  │                     │
+│  Needs intervention│  │                     │
+│  [View]  [Resume]  │  │                     │
+└────────────────────┘  └────────────────────┘
+```
 
 ### 页面骨架（内容可为空/占位符）
 
 | 页面 | 路由 | 说明 |
 |------|------|------|
-| Welcome | `/welcome` | 项目选择页（Open / Recent Projects） |
-| Dashboard | `/dashboard` | 总览页，预留核心指标展示区域 |
-| Milestone List | `/milestones` | 里程碑列表页，预留列表和"新建"入口 |
-| Create Milestone | `/milestones/new` | 对话式创建页，预留聊天界面区域 |
-| Iteration Monitor | `/milestones/:id/monitor` | 迭代监控页，预留双 Agent 面板区域 |
-| Inbox | `/inbox` | 待办条目列表页，预留列表和"新建"入口 |
-| Settings | `/settings` | 设置页，预留 Vision / Soul 编辑入口区域 |
+| Global Dashboard | `/` | 所有项目卡片总览 |
+| Project Dashboard | `/projects/:id` | 单项目生命体征（状态、下次唤醒、指标） |
+| Milestone List | `/projects/:id/milestones` | 里程碑列表（含状态分组） |
+| Milestone Detail | `/projects/:id/milestones/:mid` | 查看/编辑 Milestone .md 内容 |
+| Create Milestone | `/projects/:id/milestones/new` | 对话式创建页，预留聊天界面区域 |
+| Iteration Monitor | `/projects/:id/milestones/:mid/monitor` | 迭代监控页，预留双 Agent 面板 |
+| Inbox | `/projects/:id/inbox` | 待办条目列表页 |
+| Project Settings | `/projects/:id/settings` | 项目配置（wake schedule、human review 等） |
+| Global Settings | `/settings` | Anima 全局配置（主题等） |
 
 ## Acceptance Criteria
 
 - [ ] 应用在 macOS 上可正常启动
-- [ ] 首次启动（无历史记录）时展示 Welcome 页
-- [ ] Welcome 页可通过系统对话框选择项目目录
-- [ ] Recent Projects 列表展示历史路径，点击可直接打开
-- [ ] 选择项目后顶部标题栏展示当前项目名
-- [ ] 左侧导航可在 Dashboard / Milestones / Inbox / Settings 间正常切换
-- [ ] Welcome 页时左侧导航隐藏
+- [ ] 关闭主窗口后应用缩小到系统托盘，进程继续运行
+- [ ] 托盘图标反映当前聚合状态（sleeping / checking / awake / paused）
+- [ ] 托盘右键菜单展示所有项目的状态列表
+- [ ] "Quit" 菜单项可完全退出应用
+- [ ] 左侧边栏显示所有已添加项目，含状态图标
+- [ ] "+ Add Project" 可通过系统对话框选择目录并添加项目
+- [ ] 点击项目后主内容区切换为该项目视图（Tab 导航）
+- [ ] 无项目时展示引导卡片
+- [ ] 全局 Dashboard 以卡片形式展示所有项目及其聚合状态
 - [ ] 所有页面骨架可正常渲染（无报错）
 - [ ] `npm run build` 能产出 macOS 安装包（.dmg），Windows 打包脚本配置完毕
 - [ ] 代码通过 ESLint 检查无错误

@@ -2,7 +2,7 @@
 
 Anima 的存储分为两个层次：
 1. **App-level 配置**：Anima 自身的全局配置，存储在系统标准目录，与任何项目无关
-2. **项目级数据**：被管理项目根目录下的 `.anima/` 目录，存放该项目的所有运行时数据
+2. **项目级数据**：每个被管理项目根目录下的 `.anima/` 目录，存放该项目的所有运行时数据
 
 ---
 
@@ -14,10 +14,9 @@ Anima 的存储分为两个层次：
 
 ```json
 {
-  "last_project_path": "/path/to/project",
-  "recent_projects": [
-    "/path/to/project",
-    "/path/to/another-project"
+  "projects": [
+    { "path": "/path/to/project-alpha", "added_at": "2024-01-01T00:00:00Z" },
+    { "path": "/path/to/my-website",    "added_at": "2024-01-02T00:00:00Z" }
   ],
   "theme": "system"
 }
@@ -25,9 +24,12 @@ Anima 的存储分为两个层次：
 
 | 字段 | 说明 |
 |------|------|
-| `last_project_path` | 上次打开的项目路径，启动时自动加载（路径不存在则退回 Welcome 页） |
-| `recent_projects` | 最近打开的项目路径列表，最多保留 10 条，用于 Welcome 页的 Recent Projects 列表 |
+| `projects` | 所有被管理的项目列表，每项包含路径和添加时间 |
+| `projects[].path` | 被管理项目的根目录绝对路径 |
+| `projects[].added_at` | 该项目被添加到 Anima 的时间（ISO 8601） |
 | `theme` | UI 主题：`system` / `light` / `dark` |
+
+Anima 启动时加载所有 `projects`，为每个项目独立启动调度器，互不干扰。
 
 ---
 
@@ -43,12 +45,13 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 .anima/
 ├── soul.md                 # 项目灵魂与原则（Anima 上下文）
 ├── state.json              # 全局状态（status、token、cost 累计）
-├── config.json             # 项目级配置
+├── config.json             # 项目级配置（含唤醒调度）
 ├── inbox/                  # Inbox 条目（bug / feature / optimization）
 │   └── {id}.json
 ├── milestones/             # 里程碑数据
 │   ├── {id}.md             # 里程碑内容文档（Agent 直接读取）
-│   └── {id}.json           # 里程碑运行时状态
+│   ├── {id}.json           # 里程碑运行时状态
+│   └── order.json          # 里程碑在 ready 状态下的优先级排序
 ├── memory/                 # Agent 对项目的认知积累
 │   ├── project.md          # 项目上下文，由 Agent 维护
 │   └── iterations/         # 每次迭代的摘要，由 Agent 写入
@@ -68,6 +71,7 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 | `.anima/inbox/*.json` | ✅ | 待办条目，规划历史的一部分 |
 | `.anima/milestones/*.md` | ✅ | 里程碑内容文档 |
 | `.anima/milestones/*.json` | ✅ | 里程碑运行时状态 |
+| `.anima/milestones/order.json` | ✅ | 里程碑优先级排序 |
 | `.anima/memory/` | ✅ | Agent 的认知积累，跨会话复用 |
 | `.anima/logs/` | ❌ | 纯运行日志，不需要版本化 |
 
@@ -94,25 +98,41 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `status` | `"awake" \| "sleeping" \| "paused"` | `awake`：正在迭代；`sleeping`：空闲；`paused`：人工介入暂停 |
-| `current_milestone` | `string \| null` | 当前活跃的里程碑 ID |
+| `status` | `"sleeping" \| "checking" \| "awake" \| "paused" \| "rate_limited"` | 见下方状态说明 |
+| `current_milestone` | `string \| null` | 当前活跃的里程碑 ID（`awake` 时） |
+| `rate_limit_reset_at` | `string \| null` | ISO 8601，API 额度预计恢复时间（`rate_limited` 时） |
 | `total_tokens` | `number` | 所有会话累计消耗的 token 数 |
 | `total_cost_usd` | `number` | 所有会话累计消耗的美元金额 |
 | `first_activated_at` | `string \| null` | ISO 8601，首次激活时间 |
 | `last_active_at` | `string \| null` | ISO 8601，最近一次活跃时间 |
 
+**`status` 状态说明：**
+
+| 状态 | 含义 |
+|------|------|
+| `sleeping` | 空闲，等待下次唤醒时间 |
+| `checking` | 已唤醒，正在扫描是否有 `ready` 里程碑（短暂过渡态） |
+| `awake` | 发现 `ready` 里程碑，正在迭代 |
+| `paused` | 连续 REJECTED ≥ 3 次，等待人工介入 |
+| `rate_limited` | 触达 Claude API 额度上限，等待额度恢复（见 `rate_limit_reset_at`） |
+
 **`state.json` 与 Milestone 状态的同步规则：**
 
 | 触发事件 | `state.status` | `milestone.status` |
 |----------|---------------|-------------------|
-| Scheduler 开始处理 Milestone | `awake` | `in_progress` |
-| 迭代正常完成（无需人工验收） | `sleeping` | `completed` |
+| 唤醒调度触发 | `checking` | 不变 |
+| 发现 `ready` 里程碑，开始处理 | `awake` | `in_progress` |
+| 无 `ready` 里程碑 | `sleeping` | 不变 |
+| 检测到 API 额度限制 | `rate_limited` | `in_progress`（保持） |
+| 额度恢复，重新唤醒 | `awake` | `in_progress`（保持） |
+| 迭代完成（无需人工验收） | `sleeping` | `completed` |
 | 迭代完成（需人工验收） | `sleeping` | `awaiting_review` |
-| 连续 3 次 REJECTED，Scheduler 暂停 | `paused` | `in_progress`（保持，等待介入） |
+| 连续 3 次 REJECTED，Scheduler 暂停 | `paused` | `in_progress`（保持） |
 | 人工验收通过，merge 完成 | `sleeping` | `completed` |
 | rollback 完成 | `sleeping` | `failed` |
+| 用户取消 in_progress 里程碑 | `sleeping` | `cancelled` |
 
-> `state.current_milestone` 在 Milestone 进入 `in_progress` 时写入，在 `completed` / `failed` 后清空为 `null`。
+> `state.current_milestone` 在 Milestone 进入 `in_progress` 时写入，在 `completed` / `failed` / `cancelled` 后清空为 `null`。
 > 两个文件的状态更新必须在同一事务内完成（先写 milestone JSON，再写 state.json），避免中间状态不一致。
 
 ---
@@ -124,7 +144,11 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 ```json
 {
   "project_name": "",
-  "auto_start": true,
+  "wake_schedule": {
+    "type": "interval",
+    "interval_minutes": 120,
+    "times": []
+  },
   "default_requires_human_review": false,
   "agent_timeout_ms": 600000,
   "max_iterations_per_milestone": 20
@@ -134,10 +158,17 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `project_name` | `string` | `""` | 项目名（默认取目录名） |
-| `auto_start` | `boolean` | `true` | 检测到 pending 里程碑时是否自动开始 |
+| `wake_schedule.type` | `"interval" \| "times" \| "manual"` | `"interval"` | 唤醒模式 |
+| `wake_schedule.interval_minutes` | `number` | `120` | `interval` 模式：每隔 N 分钟检查一次 |
+| `wake_schedule.times` | `string[]` | `[]` | `times` 模式：每天固定唤醒时间，如 `["09:00", "21:00"]` |
 | `default_requires_human_review` | `boolean` | `false` | 创建里程碑时的默认人工验收选项 |
 | `agent_timeout_ms` | `number` | `600000` | 单次 Agent 调用超时时间（毫秒），默认 10 分钟 |
-| `max_iterations_per_milestone` | `number` | `20` | 单个里程碑最大迭代轮次，超过后 Scheduler 暂停等待人工介入 |
+| `max_iterations_per_milestone` | `number` | `20` | 单个里程碑最大迭代轮次，超过后 Scheduler 暂停 |
+
+**`wake_schedule.type` 说明：**
+- `interval`：按固定间隔检查，适合持续推进的项目
+- `times`：每天在指定时间点唤醒，适合希望控制"工作时段"的项目
+- `manual`：只响应手动唤醒，不自动触发
 
 ---
 
@@ -181,7 +212,7 @@ Inbox 条目，是 Milestone 规划的素材来源。
   "title": "里程碑标题",
   "file": ".anima/milestones/uuid-v4.md",
   "requires_human_review": false,
-  "status": "pending",
+  "status": "draft",
   "branch_name": "milestone/uuid-v4",
   "base_commit": null,
   "iteration_count": 0,
@@ -197,23 +228,49 @@ Inbox 条目，是 Milestone 规划的素材来源。
 **status 流转：**
 
 ```
-pending → in_progress → awaiting_review → completed
-                      ↘ failed
+draft ──── 用户"标记为就绪" ────→ ready
+  │                                 │
+  └─── 删除（无需 cancel）           ├── Scheduler 拾取 ──→ in_progress
+                                    │                         │
+                                    └── 删除                  ├──→ awaiting_review ──→ completed
+                                                              │                    ├──→ in_progress（打回重做）
+                                                              │                    └──→ cancelled
+                                                              ├──→ completed
+                                                              ├──→ cancelled（用户中止 + rollback）
+                                                              └──→ failed（严重失败 + rollback）
 ```
 
 | 状态 | 说明 |
 |------|------|
-| `pending` | 等待迭代开始（手动触发或 Scheduler 自动检测） |
-| `in_progress` | 正在迭代（包含 Scheduler 暂停等待人工介入的中间状态） |
-| `awaiting_review` | Developer/Acceptor 循环完成，等待人工验收（`requires_human_review: true`） |
+| `draft` | 刚创建，尚未就绪；Scheduler 忽略此状态 |
+| `ready` | 用户确认就绪，Scheduler 可拾取；支持拖拽排序 |
+| `in_progress` | 正在迭代（含 Scheduler 暂停等待人工介入的中间状态） |
+| `awaiting_review` | Developer/Acceptor 循环完成，等待人工验收 |
 | `completed` | 已完成并 merge 到 main |
-| `failed` | 迭代失败，已 rollback |
+| `cancelled` | 用户主动中止；`in_progress` 时触发 branch rollback，`awaiting_review` 时仅归档不 rollback |
+| `failed` | 严重失败，已 rollback（由 M6 处理） |
+
+**`draft` / `ready` 可直接删除**（无代码产出，无需归档）。`in_progress` 及之后的状态不可删除，只能取消（`cancelled`）。
+
+---
+
+### `milestones/order.json`
+
+记录 `ready` 状态里程碑的优先级排序（仅 `ready` 状态的 ID 参与排序，其他状态忽略）。Scheduler 按此顺序依次处理。
+
+```json
+{
+  "order": ["uuid-1", "uuid-3", "uuid-2"]
+}
+```
+
+用户在 Milestone 列表页对 `ready` 里程碑拖拽排序后，实时写入此文件。
 
 ---
 
 ### `memory/project.md`
 
-由 Developer Agent 在每次迭代结束时主动维护。记录 Agent 对项目的积累认知，供后续迭代复用。
+由 Developer Agent 在每次迭代结束时主动维护。
 
 ```markdown
 # Project Memory
@@ -235,9 +292,7 @@ pending → in_progress → awaiting_review → completed
 
 ### `memory/iterations/{timestamp}-{milestone-id}.md`
 
-每次迭代结束后由 Developer Agent 写入，记录本次做了什么、遇到了什么。
-
-文件名格式：`20240101-120000-{milestone-id}.md`
+每次迭代结束后由 Developer Agent 写入。文件名格式：`20240101-120000-{milestone-id}.md`
 
 ```markdown
 # Iteration Summary
@@ -249,28 +304,19 @@ pending → in_progress → awaiting_review → completed
 - **Cost**: $0.12
 
 ## What was done
-（实现了哪些功能）
-
 ## Problems encountered
-（遇到的问题和解决方式）
-
 ## Decisions made
-（做出的设计决策和原因）
 ```
 
 ---
 
 ## Token & Cost 统计
 
-Claude Code CLI 在交互过程中会输出 token 使用信息。Anima 通过解析 `node-pty` 的输出流提取这些数据，并累加到 `state.json` 和对应的 `milestones/{id}.json` 中。
-
-具体解析规则在 M4 实现阶段确定（依赖实际 CLI 输出格式）。
+Claude Code CLI 输出 token 使用信息，Anima 通过解析 `node-pty` 输出流提取并累加到 `state.json` 和 `milestones/{id}.json`。具体解析规则在 M4 实现阶段确定。
 
 ---
 
 ## README Badge 更新
-
-Anima 通过匹配 README.md 中的注释标记，整块替换 badge 内容：
 
 ```markdown
 <!-- anima:status:start -->
@@ -283,10 +329,11 @@ Anima 通过匹配 README.md 中的注释标记，整块替换 badge 内容：
 | status | badge 颜色 |
 |--------|-----------|
 | `awake` | `brightgreen` |
+| `checking` | `yellow` |
 | `sleeping` | `lightgrey` |
 | `paused` | `red` |
+| `rate_limited` | `orange` |
 
 **更新时机：**
-1. 迭代开始时（status → awake）
+1. 状态切换时（sleeping / checking / awake / paused）
 2. 每次 milestone 完成后（累计 token/cost 变化）
-3. 迭代结束/暂停时（status → sleeping / paused）

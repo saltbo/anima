@@ -60,15 +60,14 @@ Inbox 是一个简单的待办列表，存放尚未规划进里程碑的 bug、�
 4. Agent 确认信息完整后，询问是否需要人工验收（`requires_human_review`）
 5. Agent 生成 Milestone `.md` 文档并在聊天界面内以 Markdown 代码块展示预览
 6. 用户可选择：
-   - **"确认创建"** → 保存 `.md` 和 `.json`，被选中的 Inbox 条目状态更新为 `included`，进入创建成功页
+   - **"确认创建"** → 保存 `.md` 和 `.json`（`status: draft`），被选中的 Inbox 条目状态更新为 `included`，进入创建成功页
    - **"继续修改"** → 继续对话，重新迭代后再次生成预览
 
-**创建成功后的 UX（重要）：**
+**创建成功后的 UX：**
 - 展示成功提示，显示 Milestone 标题和 ID
 - 提供两个选项：
-  - **"立即开始迭代"** → 手动触发 Scheduler，跳过自动检测等待，直接开始该 Milestone 的迭代
-  - **"稍后开始"** → 返回 Milestone 列表，该 Milestone 保持 `pending` 状态，等待 Scheduler 自动触发（下次启动或手动从列表触发）
-- Milestone 列表页中，`pending` 状态的 Milestone 提供"开始"按钮，允许手动触发
+  - **"立即开始迭代"** → 状态更新为 `ready`，Scheduler 立即拾取 → `in_progress`
+  - **"存为草稿"** → 保持 `draft` 状态，用户可在 Milestone 详情页审阅和编辑后再手动标记为就绪
 
 **Agent 系统提示词（System Prompt）：**
 
@@ -123,7 +122,7 @@ Inbox 是一个简单的待办列表，存放尚未规划进里程碑的 bug、�
   "title": "...",
   "file": ".anima/milestones/{id}.md",
   "requires_human_review": false,
-  "status": "pending",
+  "status": "draft",
   "branch_name": "milestone/uuid",
   "base_commit": null,
   "iteration_count": 0,
@@ -138,11 +137,23 @@ Inbox 是一个简单的待办列表，存放尚未规划进里程碑的 bug、�
 
 ### Milestone 列表页
 
-- 展示所有里程碑，显示标题、状态、是否需要人工验收、创建时间
-- `pending` 状态的 Milestone 显示"开始"按钮，可手动触发迭代
-- `in_progress` 状态的 Milestone 显示"查看监控"按钮，跳转到 Iteration Monitor
-- 点击 Milestone 标题可查看对应的 `.md` 文档内容
-- 顶部"新建"按钮跳转到创建对话框
+列表按状态分组展示，组内支持不同操作：
+
+| 状态 | 显示 | 可用操作 |
+|------|------|----------|
+| `draft` | 草稿标签 | 查看/编辑详情、"标记为就绪"、删除 |
+| `ready` | 就绪标签 | 查看详情、拖拽排序、"取消就绪"（退回 draft）、删除 |
+| `in_progress` | 进行中 + 当前轮次 | "查看监控"、"取消迭代"（→ cancelled） |
+| `awaiting_review` | 等待验收标签 | "开始验收"、"打回重做"、"取消"（→ cancelled） |
+| `completed` | 完成标签 | 查看详情（只读） |
+| `cancelled` / `failed` | 对应标签 | 查看详情（只读） |
+
+**`ready` 状态里程碑支持拖拽排序**，排序结果写入 `milestones/order.json`，Scheduler 按此顺序依次处理。
+
+**Milestone 详情页（`draft` 状态）：**
+- 展示 `.md` 文件内容，提供内嵌 Markdown 编辑器（可直接修改）
+- 保存后内容写回 `.md` 文件
+- 底部操作栏："标记为就绪"（→ `ready`）、"删除"
 
 ## Acceptance Criteria
 
@@ -153,9 +164,11 @@ Inbox 是一个简单的待办列表，存放尚未规划进里程碑的 bug、�
 - [ ] Agent 能通过追问将模糊描述整合成规范的 Milestone 文档（含各功能的验收标准）
 - [ ] Milestone 文档预览以 Markdown 代码块形式展示在聊天界面内
 - [ ] 用户可选择"确认创建"或"继续修改"
-- [ ] 确认后 Milestone `.md` 文件正确保存到 `.anima/milestones/`
-- [ ] 确认后 Milestone 状态 JSON 正确创建，`status: pending`
+- [ ] 确认后 Milestone `.md` 和 `.json` 正确保存，初始 `status: draft`
 - [ ] 被选中的 Inbox 条目状态更新为 `included`
-- [ ] 创建成功页提供"立即开始迭代"和"稍后开始"两个选项
-- [ ] Milestone 列表页 `pending` 状态条目显示"开始"按钮，可手动触发
+- [ ] 创建成功页提供"立即开始迭代"（→ `ready` + 立即执行）和"存为草稿"两个选项
+- [ ] `draft` 状态 Milestone 详情页提供内嵌编辑器，可修改 `.md` 内容
+- [ ] `draft` 状态 Milestone 可通过"标记为就绪"转为 `ready`
+- [ ] `ready` 状态 Milestone 支持拖拽排序，结果写入 `order.json`
+- [ ] Milestone 列表按状态分组，各状态操作正确
 - [ ] 重启后数据仍然存在

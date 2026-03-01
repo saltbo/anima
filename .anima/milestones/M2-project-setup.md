@@ -9,19 +9,19 @@
 
 ## 触发时机
 
-用户在 M1 的 Welcome 页选择项目目录后，Anima 检测该目录：
+用户在 M1 点击 **"+ Add Project"** 选择项目目录后，Anima 检测该目录：
 
 - 没有 `VISION.md` → 进入 Vision 创建引导
 - 没有 `.anima/soul.md` → 进入 Soul 创建引导
-- 两者都有 → 直接进入主界面（Dashboard）
+- 两者都有 → 直接进入该项目的 Dashboard
 
-两者独立检测，可以只缺其中一个。
+两者独立检测，可以只缺其中一个。支持多个项目同时处于不同的引导阶段。
 
 ## Features
 
 ### Onboarding 界面
 
-检测到缺失文件时，展示 Onboarding 欢迎页（全屏覆盖主界面），说明：
+检测到缺失文件时，在该项目的主内容区展示 Onboarding 引导页（替代项目 Dashboard），说明：
 - 什么是 Vision（项目要去哪里）
 - 什么是 Soul（项目如何行事）
 - 为什么需要它们
@@ -163,8 +163,9 @@
 
 ## Acceptance Criteria
 
-- [ ] 选择项目后检测 `VISION.md` 和 `.anima/soul.md` 是否存在
-- [ ] 缺失时自动进入 Onboarding，先 Vision 后 Soul 依次引导
+- [ ] 添加项目后检测 `VISION.md` 和 `.anima/soul.md` 是否存在
+- [ ] 缺失时在该项目内容区展示 Onboarding，先 Vision 后 Soul 依次引导
+- [ ] 多个项目可同时处于不同引导阶段，互不干扰
 - [ ] Agent 能通过追问引导用户完成 Vision 四个要素（Identity / Problem / Audience / Long-term Goal）
 - [ ] Agent 能通过追问引导用户完成 Soul 五个维度（Principles / Tech Preferences / Red Lines / Quality Bar / Iteration Style）
 - [ ] 生成内容以 Markdown 代码块形式展示在聊天界面内
