@@ -54,6 +54,7 @@ export function MilestoneNew() {
   const [phase, setPhase] = useState<Phase>('setup')
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [starting, setStarting] = useState(false)
   const [input, setInput] = useState('')
   const [parsedData, setParsedData] = useState<ParsedMilestone | null>(null)
   const [savedMilestoneId, setSavedMilestoneId] = useState<string | null>(null)
@@ -87,7 +88,8 @@ export function MilestoneNew() {
   }, [])
 
   const handleStartPlanning = async () => {
-    if (!project) return
+    if (!project || starting) return
+    setStarting(true)
     accTextRef.current = ''
     await window.electronAPI.startMilestonePlanningSession(
       sessionId,
@@ -205,8 +207,8 @@ export function MilestoneNew() {
         </div>
 
         <div className="px-6 py-4 border-t border-border">
-          <Button className="w-full" onClick={handleStartPlanning}>
-            Start Planning →
+          <Button className="w-full" onClick={handleStartPlanning} disabled={starting}>
+            {starting ? 'Starting…' : 'Start Planning →'}
           </Button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
-import { Plus, Inbox as InboxIcon, Trash2, Pencil, EyeOff } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { Plus, Search, Trash2, EyeOff, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { useProjects } from '@/store/projects'
 import type { InboxItem, InboxItemType, InboxItemPriority } from '@/types/index'
@@ -22,46 +23,113 @@ const TYPE_STYLES: Record<InboxItemType, string> = {
 }
 
 const PRIORITY_ORDER: Record<InboxItemPriority, number> = { high: 0, medium: 1, low: 2 }
-const PRIORITY_STYLES: Record<InboxItemPriority, string> = {
-  high: 'text-red-500',
-  medium: 'text-yellow-500',
-  low: 'text-muted-foreground',
-}
-const PRIORITY_LABELS: Record<InboxItemPriority, string> = {
-  high: '↑ High',
-  medium: '— Med',
-  low: '↓ Low',
+const PRIORITY_LABEL: Record<InboxItemPriority, string> = { high: '↑ High', medium: '— Med', low: '↓ Low' }
+const PRIORITY_COLOR: Record<InboxItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
+
+const STATUS_LABEL: Record<string, string> = { pending: 'Pending', included: 'Included', dismissed: 'Dismissed' }
+const STATUS_STYLE: Record<string, string> = {
+  pending: 'bg-muted text-muted-foreground',
+  included: 'bg-primary/10 text-primary',
+  dismissed: 'bg-muted text-muted-foreground opacity-60',
 }
 
-function TypeBadge({ type }: { type: InboxItemType }) {
-  return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[type]}`}>
-      {type}
-    </span>
-  )
-}
+type SortKey = 'priority' | 'date'
+type TypeFilter = InboxItemType | 'all'
 
 function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const d = Math.floor(diff / 86400000)
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
   if (d === 0) return 'today'
-  if (d === 1) return '1 day ago'
-  return `${d} days ago`
+  if (d === 1) return '1d ago'
+  return `${d}d ago`
 }
 
 const EMPTY_FORM = { type: 'idea' as InboxItemType, title: '', description: '', priority: 'medium' as InboxItemPriority }
 
+// ── Row component defined OUTSIDE parent to avoid focus loss on re-render ──
+
+interface RowProps {
+  item: InboxItem
+  onOpen: (item: InboxItem) => void
+  onDismiss: (item: InboxItem) => void
+  onRestore: (item: InboxItem) => void
+  onDeleteRequest: (item: InboxItem) => void
+}
+
+function InboxRow({ item, onOpen, onDismiss, onRestore, onDeleteRequest }: RowProps) {
+  const isDismissed = item.status === 'dismissed'
+  const isIncluded = item.status === 'included'
+  return (
+    <div className={`flex items-center gap-3 px-3 py-2.5 border-b border-border hover:bg-accent/40 transition-colors ${isDismissed ? 'opacity-50' : ''}`}>
+      <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
+        {item.type}
+      </span>
+
+      <button
+        className="flex-1 text-left text-sm text-foreground truncate hover:text-primary transition-colors"
+        onClick={() => onOpen(item)}
+      >
+        {item.title}
+      </button>
+
+      <span className={`shrink-0 text-[11px] font-medium ${PRIORITY_COLOR[item.priority]}`}>
+        {PRIORITY_LABEL[item.priority]}
+      </span>
+
+      <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_STYLE[item.status]}`}>
+        {STATUS_LABEL[item.status]}
+      </span>
+
+      <span className="shrink-0 text-xs text-muted-foreground w-12 text-right">{timeAgo(item.createdAt)}</span>
+
+      <div className="shrink-0 flex items-center gap-0.5">
+        {!isIncluded && !isDismissed && (
+          <button
+            onClick={() => onDismiss(item)}
+            title="Dismiss"
+            className="p-1.5 rounded text-muted-foreground hover:text-yellow-600 hover:bg-yellow-500/10 transition-colors"
+          >
+            <EyeOff size={13} />
+          </button>
+        )}
+        {isDismissed && (
+          <button
+            onClick={() => onRestore(item)}
+            title="Restore"
+            className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          >
+            <RefreshCw size={13} />
+          </button>
+        )}
+        {!isIncluded && (
+          <button
+            onClick={() => onDeleteRequest(item)}
+            title="Delete"
+            className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ──────────────────────────────────────────────────────────
+
 export function Inbox() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { projects } = useProjects()
   const project = projects.find((p) => p.id === id)
 
   const [items, setItems] = useState<InboxItem[]>([])
   const [addOpen, setAddOpen] = useState(false)
-  const [editItem, setEditItem] = useState<InboxItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<InboxItem | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
-  const [showDismissed, setShowDismissed] = useState(false)
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [sortBy, setSortBy] = useState<SortKey>('priority')
 
   useEffect(() => {
     if (!project) return
@@ -69,14 +137,16 @@ export function Inbox() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id])
 
-  const sortedItems = [...items].sort((a, b) => {
-    const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
-    if (pd !== 0) return pd
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  })
-
-  const activeItems = sortedItems.filter((i) => i.status !== 'dismissed')
-  const dismissedItems = sortedItems.filter((i) => i.status === 'dismissed')
+  const filtered = items
+    .filter((i) => typeFilter === 'all' || i.type === typeFilter)
+    .filter((i) => !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'priority') {
+        const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+        return pd !== 0 ? pd : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
 
   const handleAdd = async () => {
     if (!project || !form.title.trim()) return
@@ -93,142 +163,36 @@ export function Inbox() {
     setSubmitting(false)
   }
 
-  const handleEditSave = async () => {
-    if (!project || !editItem || !form.title.trim()) return
-    setSubmitting(true)
-    const updated = await window.electronAPI.updateInboxItem(project.path, editItem.id, {
-      type: form.type,
-      title: form.title.trim(),
-      description: form.description.trim() || undefined,
-      priority: form.priority,
-    })
-    if (updated) {
-      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
-    }
-    setEditItem(null)
-    setForm(EMPTY_FORM)
-    setSubmitting(false)
-  }
-
-  const openEdit = (item: InboxItem) => {
-    setForm({ type: item.type, title: item.title, description: item.description ?? '', priority: item.priority })
-    setEditItem(item)
-  }
-
   const handleDismiss = async (item: InboxItem) => {
-    if (!project || item.milestoneId) return
+    if (!project) return
     const updated = await window.electronAPI.updateInboxItem(project.path, item.id, { status: 'dismissed' })
     if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
-  const handleDelete = async (item: InboxItem) => {
-    if (!project || item.milestoneId) return
-    await window.electronAPI.deleteInboxItem(project.path, item.id)
-    setItems((prev) => prev.filter((i) => i.id !== item.id))
+  const handleRestore = async (item: InboxItem) => {
+    if (!project) return
+    const updated = await window.electronAPI.updateInboxItem(project.path, item.id, { status: 'pending' })
+    if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
-  const ItemCard = ({ item }: { item: InboxItem }) => (
-    <div className={`flex items-start gap-3 p-3 rounded-lg border border-border bg-card ${item.status === 'dismissed' ? 'opacity-50' : ''}`}>
-      <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <TypeBadge type={item.type} />
-          <span className={`text-[10px] font-semibold ${PRIORITY_STYLES[item.priority]}`}>
-            {PRIORITY_LABELS[item.priority]}
-          </span>
-          <span className="text-sm font-medium text-foreground truncate">{item.title}</span>
-        </div>
-        {item.description && (
-          <p className="text-xs text-muted-foreground">{item.description}</p>
-        )}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{timeAgo(item.createdAt)}</span>
-          {item.status === 'included' && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">
-              Assigned
-            </span>
-          )}
-          {item.status === 'dismissed' && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-medium">
-              Dismissed
-            </span>
-          )}
-        </div>
-      </div>
-      {item.status !== 'included' && item.status !== 'dismissed' && (
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            onClick={() => openEdit(item)}
-            title="Edit"
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <Pencil size={13} />
-          </button>
-          <button
-            onClick={() => handleDismiss(item)}
-            title="Dismiss"
-            className="p-1.5 rounded text-muted-foreground hover:text-yellow-600 hover:bg-yellow-500/10 transition-colors"
-          >
-            <EyeOff size={13} />
-          </button>
-          <button
-            onClick={() => handleDelete(item)}
-            title="Delete"
-            className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      )}
-    </div>
-  )
+  const handleDelete = async () => {
+    if (!project || !deleteTarget) return
+    await window.electronAPI.deleteInboxItem(project.path, deleteTarget.id)
+    setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id))
+    setDeleteTarget(null)
+  }
 
-  const FormContent = () => (
-    <div className="space-y-3 py-2">
-      <div className="flex gap-2">
-        <Select
-          value={form.type}
-          onValueChange={(v) => setForm((f) => ({ ...f, type: v as InboxItemType }))}
-        >
-          <SelectTrigger className="flex-1">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="idea">Idea</SelectItem>
-            <SelectItem value="bug">Bug</SelectItem>
-            <SelectItem value="feature">Feature</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
-          value={form.priority}
-          onValueChange={(v) => setForm((f) => ({ ...f, priority: v as InboxItemPriority }))}
-        >
-          <SelectTrigger className="flex-1">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="high">↑ High</SelectItem>
-            <SelectItem value="medium">— Medium</SelectItem>
-            <SelectItem value="low">↓ Low</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Input
-        placeholder="Title (required)"
-        value={form.title}
-        onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-      />
-      <Textarea
-        placeholder="Description (optional)"
-        value={form.description}
-        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-        rows={3}
-      />
-    </div>
-  )
+  const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'idea', label: 'Idea' },
+    { value: 'bug', label: 'Bug' },
+    { value: 'feature', label: 'Feature' },
+  ]
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <h2 className="text-sm font-semibold text-foreground">Inbox</h2>
         <Button size="sm" onClick={() => { setForm(EMPTY_FORM); setAddOpen(true) }}>
           <Plus size={12} className="mr-1.5" />
@@ -236,40 +200,81 @@ export function Inbox() {
         </Button>
       </div>
 
-      {activeItems.length === 0 && dismissedItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-          <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center">
-            <InboxIcon size={20} className="text-muted-foreground" />
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
+        <div className="relative flex-1 max-w-xs">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-7 h-7 text-xs"
+          />
+        </div>
+
+        <div className="flex items-center gap-1">
+          {TYPE_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setTypeFilter(f.value)}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                typeFilter === f.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
+          <SelectTrigger className="h-7 text-xs w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="priority">Sort: Priority</SelectItem>
+            <SelectItem value="date">Sort: Date</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* List */}
+      <div className="flex-1 overflow-auto">
+        {/* Column header */}
+        {filtered.length > 0 && (
+          <div className="flex items-center gap-3 px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="w-14">Type</span>
+            <span className="flex-1">Title</span>
+            <span className="w-12 text-right">Priority</span>
+            <span className="w-16 text-right">Status</span>
+            <span className="w-12 text-right">Date</span>
+            <span className="w-16" />
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Inbox is empty</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Drop ideas, bugs, and feature requests here. They&apos;ll be picked up during milestone
-              planning.
+        )}
+
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {items.length === 0 ? 'Inbox is empty' : 'No items match your filter'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {items.length === 0 ? 'Add ideas, bugs, and feature requests here.' : 'Try adjusting your search or filter.'}
             </p>
           </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {activeItems.map((item) => <ItemCard key={item.id} item={item} />)}
-
-          {dismissedItems.length > 0 && (
-            <div className="pt-2">
-              <button
-                onClick={() => setShowDismissed((v) => !v)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showDismissed ? '▾' : '▸'} {dismissedItems.length} dismissed
-              </button>
-              {showDismissed && (
-                <div className="mt-2 space-y-2">
-                  {dismissedItems.map((item) => <ItemCard key={item.id} item={item} />)}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+        ) : (
+          filtered.map((item) => (
+            <InboxRow
+              key={item.id}
+              item={item}
+              onOpen={(i) => navigate(`/projects/${id}/inbox/${i.id}`)}
+              onDismiss={handleDismiss}
+              onRestore={handleRestore}
+              onDeleteRequest={setDeleteTarget}
+            />
+          ))
+        )}
+      </div>
 
       {/* Add dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -277,7 +282,48 @@ export function Inbox() {
           <DialogHeader>
             <DialogTitle>Add Inbox Item</DialogTitle>
           </DialogHeader>
-          <FormContent />
+          <div className="space-y-3 py-2">
+            <div className="flex gap-2">
+              <Select
+                value={form.type}
+                onValueChange={(v) => setForm((f) => ({ ...f, type: v as InboxItemType }))}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="idea">Idea</SelectItem>
+                  <SelectItem value="bug">Bug</SelectItem>
+                  <SelectItem value="feature">Feature</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={form.priority}
+                onValueChange={(v) => setForm((f) => ({ ...f, priority: v as InboxItemPriority }))}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">↑ High</SelectItem>
+                  <SelectItem value="medium">— Medium</SelectItem>
+                  <SelectItem value="low">↓ Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Input
+              placeholder="Title (required)"
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            />
+            <Textarea
+              placeholder="Description (optional)"
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              rows={3}
+            />
+          </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={handleAdd} disabled={!form.title.trim() || submitting}>Add</Button>
@@ -285,16 +331,18 @@ export function Inbox() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit dialog */}
-      <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) setEditItem(null) }}>
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Inbox Item</DialogTitle>
+            <DialogTitle>Delete Item</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{deleteTarget?.title}&quot;? This cannot be undone.
+            </DialogDescription>
           </DialogHeader>
-          <FormContent />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditItem(null)}>Cancel</Button>
-            <Button onClick={handleEditSave} disabled={!form.title.trim() || submitting}>Save</Button>
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

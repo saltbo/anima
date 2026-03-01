@@ -7,6 +7,7 @@ import { MilestoneDetail } from '@/pages/MilestoneDetail'
 import { MilestoneNew } from '@/pages/MilestoneNew'
 import { IterationMonitor } from '@/pages/IterationMonitor'
 import { Inbox } from '@/pages/Inbox'
+import { InboxDetail } from '@/pages/InboxDetail'
 import { ProjectSettings } from '@/pages/ProjectSettings'
 import { ProjectSetup } from '@/pages/ProjectSetup'
 import { SoulVision } from '@/pages/SoulVision'
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="projects/:id/milestones/:mid" element={<MilestoneDetail />} />
         <Route path="projects/:id/milestones/:mid/monitor" element={<IterationMonitor />} />
         <Route path="projects/:id/inbox" element={<Inbox />} />
+        <Route path="projects/:id/inbox/:itemId" element={<InboxDetail />} />
         <Route path="projects/:id/settings" element={<ProjectSettings />} />
       </Route>
     </Routes>

@@ -189,6 +189,7 @@ export class ClaudeCodeAgent implements Agent {
     let stdoutBuffer = ''
     // Track whether { type: 'result' } was received so we can emit a fallback on abnormal exit
     let resultSeen = false
+    let stderrErrorEmitted = false
     const trackingOnEvent = (event: AgentEvent): void => {
       if (event.event === 'done') resultSeen = true
       onEvent(event)
@@ -209,6 +210,7 @@ export class ClaudeCodeAgent implements Agent {
       const trimmed = data.toString().trim()
       log.warn('stderr', { session: id, stderr: trimmed })
       if (trimmed) {
+        stderrErrorEmitted = true
         onEvent({ event: 'error', message: trimmed })
       }
     })
@@ -222,11 +224,12 @@ export class ClaudeCodeAgent implements Agent {
       if (stdoutBuffer.trim()) {
         parseLine(stdoutBuffer, trackingOnEvent)
       }
-      // Emit a fallback terminal event if the CLI exited without a { type: 'result' } message
+      // Emit a fallback terminal event if the CLI exited without a { type: 'result' } message.
+      // Skip the generic "Process exited" error if stderr already sent a descriptive error.
       if (!resultSeen) {
-        if (code !== 0) {
-          onEvent({ event: 'error', message: `Process exited with code ${code}, signal ${signal}` })
-        } else {
+        if (code !== 0 && !stderrErrorEmitted) {
+          onEvent({ event: 'error', message: `Process exited with code ${code}` })
+        } else if (code === 0) {
           onEvent({ event: 'done' })
         }
       }
