@@ -125,7 +125,9 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 {
   "project_name": "",
   "auto_start": true,
-  "default_requires_human_review": false
+  "default_requires_human_review": false,
+  "agent_timeout_ms": 600000,
+  "max_iterations_per_milestone": 20
 }
 ```
 
@@ -134,6 +136,8 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 | `project_name` | `string` | `""` | 项目名（默认取目录名） |
 | `auto_start` | `boolean` | `true` | 检测到 pending 里程碑时是否自动开始 |
 | `default_requires_human_review` | `boolean` | `false` | 创建里程碑时的默认人工验收选项 |
+| `agent_timeout_ms` | `number` | `600000` | 单次 Agent 调用超时时间（毫秒），默认 10 分钟 |
+| `max_iterations_per_milestone` | `number` | `20` | 单个里程碑最大迭代轮次，超过后 Scheduler 暂停等待人工介入 |
 
 ---
 
@@ -181,7 +185,7 @@ Inbox 条目，是 Milestone 规划的素材来源。
   "branch_name": "milestone/uuid-v4",
   "base_commit": null,
   "iteration_count": 0,
-  "retry_count": 0,
+  "consecutive_rejections": 0,
   "tokens_used": 0,
   "cost_usd": 0.00,
   "created_at": "2024-01-01T00:00:00Z",

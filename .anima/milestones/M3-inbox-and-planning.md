@@ -127,7 +127,7 @@ Inbox 是一个简单的待办列表，存放尚未规划进里程碑的 bug、�
   "branch_name": "milestone/uuid",
   "base_commit": null,
   "iteration_count": 0,
-  "retry_count": 0,
+  "consecutive_rejections": 0,
   "tokens_used": 0,
   "cost_usd": 0.00,
   "created_at": "...",
