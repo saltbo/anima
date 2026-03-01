@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Anima</title>
+    <!-- Anti-flash: apply theme class before React renders -->
+    <script>
+      ;(function () {
+        var stored = localStorage.getItem('anima-theme') || 'system'
+        var resolved =
+          stored === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+            : stored
+        document.documentElement.classList.add(resolved)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

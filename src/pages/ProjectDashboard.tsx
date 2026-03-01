@@ -8,9 +8,7 @@ export function ProjectDashboard() {
   const project = projects.find((p) => p.id === id)
 
   if (!project) {
-    return (
-      <div className="p-6 text-app-text-secondary">Project not found.</div>
-    )
+    return <div className="p-6 text-muted-foreground">Project not found.</div>
   }
 
   return (
@@ -20,36 +18,35 @@ export function ProjectDashboard() {
           <StatusBadge status={project.status} />
         </MetricCard>
         <MetricCard label="Current Milestone">
-          <span className="text-sm font-semibold text-app-text-primary">
-            {project.currentMilestone ?? '—'}
-          </span>
+          <span className="text-sm font-semibold">{project.currentMilestone ?? '—'}</span>
         </MetricCard>
         <MetricCard label="Current Round">
-          <span className="text-sm font-semibold text-app-text-primary">
-            {project.round > 0 ? project.round : '—'}
-          </span>
+          <span className="text-sm font-semibold">{project.round > 0 ? project.round : '—'}</span>
         </MetricCard>
         <MetricCard label="Next Wake">
-          <span className="text-sm font-semibold text-app-text-primary">
+          <span className="text-sm font-semibold">
             {project.nextWakeTime
-              ? new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              ? new Date(project.nextWakeTime).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
               : '—'}
           </span>
         </MetricCard>
       </div>
 
-      <div className="bg-app-surface border border-app-border rounded-xl p-4">
-        <h3 className="text-xs font-semibold text-app-text-secondary uppercase tracking-wider mb-3">
+      <div className="bg-card border border-border rounded-xl p-4">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Project Path
         </h3>
-        <p className="text-sm text-app-text-primary font-mono">{project.path}</p>
+        <p className="text-sm text-foreground font-mono">{project.path}</p>
       </div>
 
-      <div className="bg-app-surface border border-app-border rounded-xl p-4">
-        <h3 className="text-xs font-semibold text-app-text-secondary uppercase tracking-wider mb-3">
+      <div className="bg-card border border-border rounded-xl p-4">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Activity
         </h3>
-        <p className="text-sm text-app-text-secondary">
+        <p className="text-sm text-muted-foreground">
           No activity yet. Configure a wake schedule and add milestones to start.
         </p>
       </div>
@@ -59,8 +56,8 @@ export function ProjectDashboard() {
 
 function MetricCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="bg-app-surface border border-app-border rounded-xl p-4">
-      <div className="text-xs text-app-text-secondary mb-2">{label}</div>
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="text-xs text-muted-foreground mb-2">{label}</div>
       {children}
     </div>
   )

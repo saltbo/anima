@@ -12,7 +12,7 @@ export function ProjectTabs() {
   const { id } = useParams<{ id: string }>()
 
   return (
-    <div className="flex items-center gap-1 px-4 border-b border-app-border">
+    <div className="flex items-center gap-1 px-4 border-b border-border bg-background">
       {TABS.map((tab) => (
         <NavLink
           key={tab.label}
@@ -22,8 +22,8 @@ export function ProjectTabs() {
             cn(
               'px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
               isActive
-                ? 'border-app-accent text-app-text-primary'
-                : 'border-transparent text-app-text-secondary hover:text-app-text-primary'
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )
           }
         >

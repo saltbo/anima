@@ -4,17 +4,8 @@ module.exports = {
   content: ['./src/**/*.{ts,tsx}', './index.html'],
   theme: {
     extend: {
-      // App-specific semantic tokens
       colors: {
-        app: {
-          bg: '#0f0f0f',
-          sidebar: '#141414',
-          surface: '#1c1c1c',
-          border: '#2a2a2a',
-          'text-primary': '#e5e5e5',
-          'text-secondary': '#888888',
-          accent: '#6366f1',
-        },
+        // Status indicator colors (theme-independent)
         status: {
           sleeping: '#888888',
           checking: '#f59e0b',
@@ -22,7 +13,10 @@ module.exports = {
           paused: '#ef4444',
           'rate-limited': '#f97316',
         },
-        // shadcn/ui CSS-variable-based tokens
+        // App-specific CSS-variable-based colors
+        'app-sidebar': 'hsl(var(--app-sidebar))',
+        'app-accent': 'hsl(var(--app-accent))',
+        // shadcn/ui semantic tokens
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

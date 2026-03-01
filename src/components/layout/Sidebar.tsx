@@ -22,9 +22,7 @@ function ProjectItem({
       onClick={onClick}
       className={cn(
         'w-full justify-start gap-2.5 px-3 h-9',
-        isSelected
-          ? 'bg-secondary text-secondary-foreground'
-          : 'text-muted-foreground hover:text-foreground'
+        isSelected ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground'
       )}
     >
       <span className={cn('text-sm shrink-0', statusColor(project.status))}>
@@ -69,7 +67,7 @@ export function Sidebar() {
       >
         <button
           onClick={handleClickLogo}
-          className="text-sm font-bold text-foreground tracking-wide hover:text-primary transition-colors"
+          className="text-sm font-bold text-foreground tracking-wide hover:text-app-accent transition-colors"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           ✦ Anima
@@ -82,7 +80,7 @@ export function Sidebar() {
           variant="outline"
           size="sm"
           onClick={handleAddProject}
-          className="w-full justify-start gap-2 text-muted-foreground border-dashed hover:text-foreground hover:border-primary"
+          className="w-full justify-start gap-2 text-muted-foreground border-dashed hover:text-foreground hover:border-app-accent"
         >
           <Plus size={12} />
           Add Project
