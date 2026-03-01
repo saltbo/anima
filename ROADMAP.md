@@ -34,13 +34,13 @@ Git: merge to main + tag
 
 | # | 里程碑 | 核心交付 | 状态 |
 |---|--------|----------|------|
-| M1 | [UI Foundation](milestones/M1-ui-foundation.md) | Electron 应用骨架、布局、页面导航 | pending |
-| M2 | [Project Setup](milestones/M2-project-setup.md) | 引导创建 VISION.md + .anima/soul.md | pending |
-| M3 | [Inbox & Milestone Planning](milestones/M3-inbox-and-planning.md) | Inbox CRUD + 对话式创建 Milestone 文档 | pending |
-| M4 | [Iteration Loop](milestones/M4-iteration-loop.md) | Developer-Acceptor 自动迭代引擎，含 Git 分支创建 | pending |
-| M5 | [Human Acceptance](milestones/M5-human-acceptance.md) | 人工验收流、retry 介入、自动流转 | pending |
-| M6 | [Git Integration](milestones/M6-git-integration.md) | merge + tag + rollback | pending |
-| M7 | [GitHub Issues](milestones/M7-github-issues.md) | GitHub Issues 自动同步到 Inbox | pending |
+| M1 | [UI Foundation](.anima/milestones/M1-ui-foundation.md) | Electron 应用骨架、布局、页面导航 | pending |
+| M2 | [Project Setup](.anima/milestones/M2-project-setup.md) | 引导创建 VISION.md + .anima/soul.md | pending |
+| M3 | [Inbox & Milestone Planning](.anima/milestones/M3-inbox-and-planning.md) | Inbox CRUD + 对话式创建 Milestone 文档 | pending |
+| M4 | [Iteration Loop](.anima/milestones/M4-iteration-loop.md) | Developer-Acceptor 自动迭代引擎，含 Git 分支创建 | pending |
+| M5 | [Human Acceptance](.anima/milestones/M5-human-acceptance.md) | 人工验收流、retry 介入、自动流转 | pending |
+| M6 | [Git Integration](.anima/milestones/M6-git-integration.md) | merge + tag + rollback | pending |
+| M7 | [GitHub Issues](.anima/milestones/M7-github-issues.md) | GitHub Issues 自动同步到 Inbox | pending |
 
 ## Key Design Decisions
 

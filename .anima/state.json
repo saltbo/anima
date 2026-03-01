@@ -1,0 +1,8 @@
+{
+  "status": "sleeping",
+  "current_milestone": null,
+  "total_tokens": 0,
+  "total_cost_usd": 0.00,
+  "first_activated_at": null,
+  "last_active_at": null
+}

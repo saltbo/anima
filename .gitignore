@@ -20,7 +20,7 @@ release/
 logs/
 .anima/logs/
 
-# Runtime state
+# Runtime temp
 .anima/*.lock
 .anima/*.tmp
 
