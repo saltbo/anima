@@ -1,8 +1,41 @@
 # Storage Design
 
+Anima 的存储分为两个层次：
+1. **App-level 配置**：Anima 自身的全局配置，存储在系统标准目录，与任何项目无关
+2. **项目级数据**：被管理项目根目录下的 `.anima/` 目录，存放该项目的所有运行时数据
+
+---
+
+## 1. App-level 配置（Anima 自身）
+
+存储路径：
+- macOS: `~/Library/Application Support/Anima/config.json`
+- Windows: `%APPDATA%\Anima\config.json`
+
+```json
+{
+  "last_project_path": "/path/to/project",
+  "recent_projects": [
+    "/path/to/project",
+    "/path/to/another-project"
+  ],
+  "theme": "system"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `last_project_path` | 上次打开的项目路径，启动时自动加载（路径不存在则退回 Welcome 页） |
+| `recent_projects` | 最近打开的项目路径列表，最多保留 10 条，用于 Welcome 页的 Recent Projects 列表 |
+| `theme` | UI 主题：`system` / `light` / `dark` |
+
+---
+
+## 2. 项目级数据（被管理项目）
+
 Anima 在被管理项目的根目录下创建 `.anima/` 目录，存放所有运行时数据。
 
-## 目录结构
+### 目录结构
 
 ```
 VISION.md                   # 项目愿景（项目根目录，对外公开）
@@ -24,19 +57,19 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
     └── anima.log
 ```
 
-## Git 追踪策略
+### Git 追踪策略
 
 | 路径 | 追踪 | 原因 |
 |------|------|------|
 | `VISION.md` | ✅ | 项目愿景，随代码一起记录 |
 | `.anima/soul.md` | ✅ | 项目灵魂，Anima 上下文 |
-| `state.json` | ✅ | 项目生命体征，随代码一起记录 |
-| `config.json` | ✅ | 项目配置 |
-| `inbox/*.json` | ✅ | 待办条目，规划历史的一部分 |
-| `milestones/*.md` | ✅ | 里程碑内容文档 |
-| `milestones/*.json` | ✅ | 里程碑运行时状态 |
-| `memory/` | ✅ | Agent 的认知积累，跨会话复用 |
-| `logs/` | ❌ | 纯运行日志，不需要版本化 |
+| `.anima/state.json` | ✅ | 项目生命体征，随代码一起记录 |
+| `.anima/config.json` | ✅ | 项目配置 |
+| `.anima/inbox/*.json` | ✅ | 待办条目，规划历史的一部分 |
+| `.anima/milestones/*.md` | ✅ | 里程碑内容文档 |
+| `.anima/milestones/*.json` | ✅ | 里程碑运行时状态 |
+| `.anima/memory/` | ✅ | Agent 的认知积累，跨会话复用 |
+| `.anima/logs/` | ❌ | 纯运行日志，不需要版本化 |
 
 ---
 
@@ -61,12 +94,26 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `status` | `"awake" \| "sleeping"` | `awake`：正在迭代；`sleeping`：空闲 |
+| `status` | `"awake" \| "sleeping" \| "paused"` | `awake`：正在迭代；`sleeping`：空闲；`paused`：人工介入暂停 |
 | `current_milestone` | `string \| null` | 当前活跃的里程碑 ID |
 | `total_tokens` | `number` | 所有会话累计消耗的 token 数 |
 | `total_cost_usd` | `number` | 所有会话累计消耗的美元金额 |
 | `first_activated_at` | `string \| null` | ISO 8601，首次激活时间 |
 | `last_active_at` | `string \| null` | ISO 8601，最近一次活跃时间 |
+
+**`state.json` 与 Milestone 状态的同步规则：**
+
+| 触发事件 | `state.status` | `milestone.status` |
+|----------|---------------|-------------------|
+| Scheduler 开始处理 Milestone | `awake` | `in_progress` |
+| 迭代正常完成（无需人工验收） | `sleeping` | `completed` |
+| 迭代完成（需人工验收） | `sleeping` | `awaiting_review` |
+| 连续 3 次 REJECTED，Scheduler 暂停 | `paused` | `in_progress`（保持，等待介入） |
+| 人工验收通过，merge 完成 | `sleeping` | `completed` |
+| rollback 完成 | `sleeping` | `failed` |
+
+> `state.current_milestone` 在 Milestone 进入 `in_progress` 时写入，在 `completed` / `failed` 后清空为 `null`。
+> 两个文件的状态更新必须在同一事务内完成（先写 milestone JSON，再写 state.json），避免中间状态不一致。
 
 ---
 
@@ -81,8 +128,6 @@ VISION.md                   # 项目愿景（项目根目录，对外公开）
   "default_requires_human_review": false
 }
 ```
-
-**字段说明：**
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -102,6 +147,7 @@ Inbox 条目，是 Milestone 规划的素材来源。
   "type": "bug | feature | optimization",
   "title": "...",
   "description": "...",
+  "priority": "low | medium | high",
   "source": "manual | github",
   "source_ref": null,
   "status": "pending | included | dismissed",
@@ -113,6 +159,7 @@ Inbox 条目，是 Milestone 规划的素材来源。
 | 字段 | 说明 |
 |------|------|
 | `type` | 条目类型：bug 修复 / 新功能 / 优化 |
+| `priority` | 优先级：`low` / `medium` / `high`，用于列表排序和规划参考 |
 | `source` | 来源：手动创建 / GitHub Issue |
 | `source_ref` | GitHub 来源时填写，如 `"owner/repo#42"` |
 | `status` | `pending`：待规划；`included`：已纳入某个 Milestone；`dismissed`：已忽略 |
@@ -152,10 +199,10 @@ pending → in_progress → awaiting_review → completed
 
 | 状态 | 说明 |
 |------|------|
-| `pending` | 等待迭代 |
-| `in_progress` | 正在迭代 |
-| `awaiting_review` | 等待人工验收（`requires_human_review: true` 时） |
-| `completed` | 已完成并 merge |
+| `pending` | 等待迭代开始（手动触发或 Scheduler 自动检测） |
+| `in_progress` | 正在迭代（包含 Scheduler 暂停等待人工介入的中间状态） |
+| `awaiting_review` | Developer/Acceptor 循环完成，等待人工验收（`requires_human_review: true`） |
+| `completed` | 已完成并 merge 到 main |
 | `failed` | 迭代失败，已 rollback |
 
 ---
@@ -213,7 +260,7 @@ pending → in_progress → awaiting_review → completed
 
 Claude Code CLI 在交互过程中会输出 token 使用信息。Anima 通过解析 `node-pty` 的输出流提取这些数据，并累加到 `state.json` 和对应的 `milestones/{id}.json` 中。
 
-具体解析规则在 M3 实现阶段确定（依赖实际 CLI 输出格式）。
+具体解析规则在 M4 实现阶段确定（依赖实际 CLI 输出格式）。
 
 ---
 
@@ -233,8 +280,9 @@ Anima 通过匹配 README.md 中的注释标记，整块替换 badge 内容：
 |--------|-----------|
 | `awake` | `brightgreen` |
 | `sleeping` | `lightgrey` |
+| `paused` | `red` |
 
 **更新时机：**
 1. 迭代开始时（status → awake）
 2. 每次 milestone 完成后（累计 token/cost 变化）
-3. 迭代结束/暂停时（status → sleeping）
+3. 迭代结束/暂停时（status → sleeping / paused）

@@ -52,3 +52,7 @@ Git: merge to main + tag
 6. **人工验收在创建时标注**：`requires_human_review` 字段在 Milestone 创建对话中确定。
 7. **分支随迭代开始创建**：M4 启动时建立 `milestone/{id}` 分支。M6 负责 merge + tag + rollback。
 8. **Main 分支保护**：只有里程碑完成后才 merge 到 main，中间过程完全隔离。
+9. **项目路径通过 Welcome 页选择**：Anima 是桌面应用，管理的是外部项目。启动时若无已打开的项目，显示 Welcome 页让用户选择目录。项目路径存储在 Anima 自身的 app-level 配置（系统 Application Support 目录），与被管理项目的 `.anima/` 目录严格分离。
+10. **Claude Code CLI 两种调用模式**：
+    - **对话模式**（M2 Vision/Soul 创建、M3 Milestone 创建）：通过 `node-pty` 驱动 `claude` CLI 的交互模式，Anima 将用户输入转发至 stdin，将 CLI stdout 流式转发至 UI 聊天界面。Agent 的 System Prompt 通过 `--system-prompt` 参数注入，或在会话开始时作为第一条消息发送。
+    - **任务模式**（M4 Developer Agent、Acceptor Agent）：通过 `node-pty` 以 `claude --print` 或等效方式发送完整 prompt，Agent 自主执行任务（读文件、写代码、运行命令、git commit），完成后输出结构化报告（`ALL_FEATURES_COMPLETE` / `ACCEPTED` / `REJECTED: {原因}`）。Anima 解析输出中的关键词驱动 Scheduler 状态机。
