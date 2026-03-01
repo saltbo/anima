@@ -3,13 +3,18 @@ import type { Agent, AgentSession, AgentStartOptions } from './index'
 export class AgentSessionManager {
   private sessions = new Map<string, AgentSession>()
 
-  start(id: string, agent: Agent, options: AgentStartOptions): void {
+  start(id: string, agent: Agent, options: Omit<AgentStartOptions, 'id' | 'onDone'>): void {
     const existing = this.sessions.get(id)
     if (existing) {
       existing.stop()
       this.sessions.delete(id)
     }
-    const session = agent.start(options)
+    const session = agent.start({
+      ...options,
+      id,
+      // Auto-remove the session entry once the process terminates
+      onDone: () => this.sessions.delete(id),
+    })
     this.sessions.set(id, session)
   }
 

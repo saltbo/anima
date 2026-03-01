@@ -108,20 +108,21 @@ function parseLine(line: string, onEvent: (event: AgentEvent) => void): void {
 
 class ClaudeCodeSession implements AgentSession {
   private child: ChildProcess
-  private sessionId: string
+  private id: string
 
-  constructor(child: ChildProcess, sessionId: string) {
+  constructor(child: ChildProcess, id: string) {
     this.child = child
-    this.sessionId = sessionId
+    this.id = id
   }
 
   sendMessage(text: string): void {
-    if (!this.child.stdin) {
-      log.warn('sendMessage: no stdin, dropping message', { session: this.sessionId })
+    // Guard against writing to a dead process (killed or already exited)
+    if (!this.child.stdin || this.child.killed || this.child.exitCode !== null) {
+      log.warn('sendMessage: process not running, dropping message', { session: this.id })
       return
     }
     const payload = JSON.stringify({ type: 'user', message: { role: 'user', content: text } })
-    log.debug('stdin-write', { session: this.sessionId, payload })
+    log.debug('stdin-write', { session: this.id, payload })
     this.child.stdin.write(payload + '\n')
   }
 
@@ -134,17 +135,17 @@ class ClaudeCodeSession implements AgentSession {
 
 export class ClaudeCodeAgent implements Agent {
   start(options: AgentStartOptions): AgentSession {
-    const { projectPath, systemPrompt, onEvent } = options
-    const sessionId = `${Date.now()}`
+    const { projectPath, systemPrompt, onEvent, onDone } = options
+    const id = options.id ?? `session-${Date.now()}`
 
     const cliPath = resolveCliPath('claude')
-    log.debug('resolveCliPath', { result: cliPath ?? 'NOT FOUND' })
+    log.debug('resolveCliPath', { session: id, result: cliPath ?? 'NOT FOUND' })
     if (!cliPath) {
       onEvent({
         event: 'error',
         message: 'claude CLI not found. Please install it via: npm install -g @anthropic-ai/claude-code',
       })
-      // Return a no-op session
+      onDone?.()
       return { sendMessage: () => {}, stop: () => {} }
     }
 
@@ -168,56 +169,72 @@ export class ClaudeCodeAgent implements Agent {
       '--system-prompt', systemPrompt,
     ]
 
-    log.info('spawn', { session: sessionId, cli: cliPath, args: args.slice(0, -2).join(' '), cwd: projectPath })
+    log.info('spawn', { session: id, cli: cliPath, args: args.slice(0, -2).join(' '), cwd: projectPath })
 
     const child = spawn(cliPath, args, {
       cwd: projectPath,
       env: {
+        ...process.env,   // preserve API keys, proxy settings, etc.
         PATH: newPath,
         HOME: homeDir,
         USER: os.userInfo().username,
         SHELL: '/bin/bash',
         TERM: 'xterm-256color',
-      } as NodeJS.ProcessEnv,
+      },
     })
 
-    log.info('pid', { session: sessionId, pid: child.pid ?? 'unknown' })
+    log.info('pid', { session: id, pid: child.pid ?? 'unknown' })
 
-    const session = new ClaudeCodeSession(child, sessionId)
+    const session = new ClaudeCodeSession(child, id)
     let stdoutBuffer = ''
+    // Track whether { type: 'result' } was received so we can emit a fallback on abnormal exit
+    let resultSeen = false
+    const trackingOnEvent = (event: AgentEvent): void => {
+      if (event.event === 'done') resultSeen = true
+      onEvent(event)
+    }
 
     child.stdout?.on('data', (data: Buffer) => {
       const raw = data.toString()
-      log.debug('stdout', { session: sessionId, raw: raw.replace(/\n/g, '\\n') })
+      log.debug('stdout', { session: id, raw: raw.replace(/\n/g, '\\n') })
       stdoutBuffer += raw
       const lines = stdoutBuffer.split('\n')
       stdoutBuffer = lines.pop() || ''
       for (const line of lines) {
-        parseLine(line, onEvent)
+        parseLine(line, trackingOnEvent)
       }
     })
 
     child.stderr?.on('data', (data: Buffer) => {
       const trimmed = data.toString().trim()
-      log.warn('stderr', { session: sessionId, stderr: trimmed })
+      log.warn('stderr', { session: id, stderr: trimmed })
       if (trimmed) {
         onEvent({ event: 'error', message: trimmed })
       }
     })
 
     child.on('spawn', () => {
-      log.info('spawned', { session: sessionId })
+      log.info('spawned', { session: id })
     })
 
     child.on('close', (code, signal) => {
-      log.info('close', { session: sessionId, code, signal })
+      log.info('close', { session: id, code, signal })
       if (stdoutBuffer.trim()) {
-        parseLine(stdoutBuffer, onEvent)
+        parseLine(stdoutBuffer, trackingOnEvent)
       }
+      // Emit a fallback terminal event if the CLI exited without a { type: 'result' } message
+      if (!resultSeen) {
+        if (code !== 0) {
+          onEvent({ event: 'error', message: `Process exited with code ${code}, signal ${signal}` })
+        } else {
+          onEvent({ event: 'done' })
+        }
+      }
+      onDone?.()
     })
 
     child.on('error', (err) => {
-      log.error('process error', { session: sessionId, error: err.message })
+      log.error('process error', { session: id, error: err.message })
       onEvent({ event: 'error', message: err.message })
     })
 

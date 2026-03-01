@@ -9,9 +9,13 @@ export type AgentEvent =
   | { event: 'error'; message: string }
 
 export interface AgentStartOptions {
+  /** Logical session id forwarded from the manager; used for log correlation */
+  id?: string
   projectPath: string
   systemPrompt: string
   onEvent: (event: AgentEvent) => void
+  /** Called once when the underlying process terminates (naturally or on error) */
+  onDone?: () => void
 }
 
 export interface AgentSession {
