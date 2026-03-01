@@ -45,4 +45,5 @@ Git: merge to main + tag
 1. **全部 Agent 走 Claude Code CLI**：milestone 创建和迭代循环都通过 `node-pty` 驱动 `claude` CLI，保持一致性。
 2. **开发即提交**：Developer Agent 在每次迭代后自行 commit，一个里程碑内多个 commit 是正常现象。
 3. **人工验收在创建时标注**：`requires_human_review` 字段在里程碑创建对话中确定，不依赖运行时判断。
-4. **Main 分支保护**：所有开发在 `milestone/{id}` 分支进行，只有里程碑完成后才 merge。
+4. **分支随迭代开始创建**：M3 启动迭代时立即建立 `milestone/{id}` 分支，所有开发在该分支进行。M5 负责完成后的 merge + tag + rollback。
+5. **Main 分支保护**：只有里程碑完成后才 merge 到 main，中间过程完全隔离。

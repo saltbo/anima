@@ -9,8 +9,10 @@
 ### 自动触发
 - 应用启动时检测是否有 `status: pending` 的里程碑
 - 自动选取最早创建的 pending 里程碑开始迭代
-- 迭代开始时将里程碑状态更新为 `in_progress`
-- 在里程碑对应的 Git 分支上进行开发（分支由 M5 管理，M3 假设分支已存在）
+- 迭代开始时：
+  1. 基于当前 main 分支创建 `milestone/{id}` 分支
+  2. 将工作目录切换到该分支
+  3. 将里程碑状态更新为 `in_progress`，记录 `base_commit`
 
 ### Agent 进程管理
 - 通过 `node-pty` 分别启动两个独立的 `claude` CLI 进程：
@@ -64,8 +66,9 @@ while 里程碑未完成:
 ## Acceptance Criteria
 
 - [ ] 应用启动后自动检测并开始处理 pending 里程碑
+- [ ] 迭代开始时自动创建 `milestone/{id}` 分支并切换到该分支
 - [ ] Developer 和 Acceptor 两个 Agent 进程同时运行且输出各自显示在对应面板
-- [ ] Developer 实现完成后主动 commit（可在 Git log 中验证）
+- [ ] Developer 的 commit 出现在 milestone 分支上，main 分支不受影响
 - [ ] Acceptor 的 REJECTED 反馈能正确传回 Developer
 - [ ] 连续 3 次 REJECTED 后 Scheduler 暂停并进入等待状态
 - [ ] `ALL_FEATURES_COMPLETE` 信号能正确终止循环
