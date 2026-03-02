@@ -61,18 +61,13 @@ export class ProjectRepository {
       'INSERT INTO projects (id, path, name, added_at, wake_schedule) VALUES (?, ?, ?, ?, ?)'
     ).run(id, projectPath, name, addedAt, defaultSchedule)
 
-    return this.getById(id)!
+    const project = this.getById(id)
+    if (!project) throw new Error(`Failed to retrieve newly inserted project: ${id}`)
+    return project
   }
 
   remove(id: string): void {
     this.db.prepare('DELETE FROM projects WHERE id = ?').run(id)
-  }
-
-  resolveProjectId(projectPath: string): string | null {
-    const row = this.db.prepare('SELECT id FROM projects WHERE path = ?').get(projectPath) as
-      | { id: string }
-      | undefined
-    return row?.id ?? null
   }
 
   /** Update specific fields on a project (state or metadata). */

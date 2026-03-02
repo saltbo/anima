@@ -46,7 +46,7 @@ export function InboxDetail() {
 
   useEffect(() => {
     if (!project) return
-    window.electronAPI.getInboxItems(project.path).then((items) => {
+    window.electronAPI.getInboxItems(project.id).then((items) => {
       const found = items.find((i) => i.id === itemId) ?? null
       setItem(found)
       if (found) setEditForm({ type: found.type, title: found.title, description: found.description ?? '', priority: found.priority })
@@ -64,7 +64,7 @@ export function InboxDetail() {
   const handleSaveEdit = async () => {
     if (!project || !item || !editForm.title.trim()) return
     setSaving(true)
-    const updated = await window.electronAPI.updateInboxItem(project.path, item.id, {
+    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, {
       type: editForm.type,
       title: editForm.title.trim(),
       description: editForm.description.trim() || undefined,
@@ -77,19 +77,19 @@ export function InboxDetail() {
 
   const handleDismiss = async () => {
     if (!project || !item) return
-    const updated = await window.electronAPI.updateInboxItem(project.path, item.id, { status: 'dismissed' })
+    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'dismissed' })
     if (updated) setItem(updated)
   }
 
   const handleRestore = async () => {
     if (!project || !item) return
-    const updated = await window.electronAPI.updateInboxItem(project.path, item.id, { status: 'pending' })
+    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'pending' })
     if (updated) setItem(updated)
   }
 
   const handleDelete = async () => {
     if (!project || !item) return
-    await window.electronAPI.deleteInboxItem(project.path, item.id)
+    await window.electronAPI.deleteInboxItem(project.id, item.id)
     navigate(`/projects/${id}/inbox`)
   }
 

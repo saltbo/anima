@@ -32,7 +32,7 @@ export function MilestoneNew() {
 
   useEffect(() => {
     if (!project) return
-    window.electronAPI.getInboxItems(project.path).then(setInboxItems)
+    window.electronAPI.getInboxItems(project.id).then(setInboxItems)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id])
 
@@ -52,7 +52,7 @@ export function MilestoneNew() {
     setStarting(true)
     await window.electronAPI.startMilestonePlanning(
       sessionId,
-      project.path,
+      project.id,
       Array.from(selectedIds),
       title.trim(),
       description.trim()

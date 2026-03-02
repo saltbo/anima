@@ -37,7 +37,7 @@ export function Milestones() {
 
   useEffect(() => {
     if (!project) return
-    window.electronAPI.getMilestones(project.path).then((ms) => {
+    window.electronAPI.getMilestones(project.id).then((ms) => {
       setMilestones(ms)
       setLoading(false)
     })

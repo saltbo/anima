@@ -58,21 +58,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // ── Inbox ──────────────────────────────────────────────────────────────────
-  getInboxItems: (projectPath: string) => ipcRenderer.invoke('inbox:list', projectPath),
-  addInboxItem: (projectPath: string, item: unknown) => ipcRenderer.invoke('inbox:add', projectPath, item),
-  updateInboxItem: (projectPath: string, id: string, patch: unknown) => ipcRenderer.invoke('inbox:update', projectPath, id, patch),
-  deleteInboxItem: (projectPath: string, id: string) => ipcRenderer.invoke('inbox:delete', projectPath, id),
+  getInboxItems: (projectId: string) => ipcRenderer.invoke('inbox:list', projectId),
+  addInboxItem: (projectId: string, item: unknown) => ipcRenderer.invoke('inbox:add', projectId, item),
+  updateInboxItem: (projectId: string, id: string, patch: unknown) => ipcRenderer.invoke('inbox:update', projectId, id, patch),
+  deleteInboxItem: (projectId: string, id: string) => ipcRenderer.invoke('inbox:delete', projectId, id),
 
   // ── Milestones ─────────────────────────────────────────────────────────────
-  getMilestones: (projectPath: string) => ipcRenderer.invoke('milestones:list', projectPath),
-  saveMilestone: (projectPath: string, milestone: unknown) => ipcRenderer.invoke('milestones:save', projectPath, milestone),
-  deleteMilestone: (projectPath: string, id: string) => ipcRenderer.invoke('milestones:delete', projectPath, id),
-  updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: unknown) =>
-    ipcRenderer.invoke('milestones:updateTask', projectPath, milestoneId, taskId, patch),
-  readMilestoneMarkdown: (projectPath: string, id: string) => ipcRenderer.invoke('milestones:readDoc', projectPath, id),
-  writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => ipcRenderer.invoke('milestones:writeDoc', projectPath, id, content),
-  startMilestonePlanning: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) =>
-    ipcRenderer.invoke('milestones:startPlanning', id, projectPath, inboxItemIds, title, description),
+  getMilestones: (projectId: string) => ipcRenderer.invoke('milestones:list', projectId),
+  saveMilestone: (projectId: string, milestone: unknown) => ipcRenderer.invoke('milestones:save', projectId, milestone),
+  deleteMilestone: (projectId: string, id: string) => ipcRenderer.invoke('milestones:delete', projectId, id),
+  updateMilestoneTask: (projectId: string, milestoneId: string, taskId: string, patch: unknown) =>
+    ipcRenderer.invoke('milestones:updateTask', projectId, milestoneId, taskId, patch),
+  readMilestoneMarkdown: (projectId: string, id: string) => ipcRenderer.invoke('milestones:readDoc', projectId, id),
+  writeMilestoneMarkdown: (projectId: string, id: string, content: string) => ipcRenderer.invoke('milestones:writeDoc', projectId, id, content),
+  startMilestonePlanning: (id: string, projectId: string, inboxItemIds: string[], title: string, description: string) =>
+    ipcRenderer.invoke('milestones:startPlanning', id, projectId, inboxItemIds, title, description),
 
   onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => {
     const handler = (_: unknown, planningId: string, milestoneId: string) => callback(planningId, milestoneId)

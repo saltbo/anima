@@ -57,7 +57,8 @@ export class ProjectScheduler {
       this.wakeTimer = null
     }
     this.activeExecutor?.abort()
-    this.activeExecutor = null
+    // Don't null activeExecutor here — let executeWithExecutor's await handle cleanup
+    // to avoid race with executor's onComplete callback
     log.info('scheduler stopped', { project: this.projectId })
   }
 
@@ -78,7 +79,7 @@ export class ProjectScheduler {
     // Abort active executor if in-progress
     if (milestone.status === 'in-progress' && this.activeExecutor) {
       this.activeExecutor.abort()
-      this.activeExecutor = null
+      // Don't null activeExecutor — let executeWithExecutor's await handle cleanup
     }
 
     // Update milestone status

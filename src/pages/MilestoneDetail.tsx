@@ -152,9 +152,9 @@ export function MilestoneDetail() {
   useEffect(() => {
     if (!project) return
     Promise.all([
-      window.electronAPI.getMilestones(project.path),
-      window.electronAPI.getInboxItems(project.path),
-      window.electronAPI.readMilestoneMarkdown(project.path, mid!),
+      window.electronAPI.getMilestones(project.id),
+      window.electronAPI.getInboxItems(project.id),
+      window.electronAPI.readMilestoneMarkdown(project.id, mid!),
     ]).then(([milestones, items, md]) => {
       const m = milestones.find((ms) => ms.id === mid) ?? null
       setMilestone(m)
@@ -169,7 +169,7 @@ export function MilestoneDetail() {
   useEffect(() => {
     return window.electronAPI.onMilestoneReviewDone((milestoneId) => {
       if (milestoneId !== mid || !project) return
-      window.electronAPI.getMilestones(project.path).then((milestones) => {
+      window.electronAPI.getMilestones(project.id).then((milestones) => {
         const m = milestones.find((ms) => ms.id === mid) ?? null
         setMilestone(m)
         if (m) setIterations(m.iterations ?? [])
@@ -319,27 +319,27 @@ export function MilestoneDetail() {
   const handleMarkReady = async () => {
     if (!project || !milestone) return
     const updated: Milestone = { ...milestone, status: 'ready' }
-    await window.electronAPI.saveMilestone(project.path, updated)
+    await window.electronAPI.saveMilestone(project.id, updated)
     setMilestone(updated)
   }
 
   const handleMarkCompleted = async () => {
     if (!project || !milestone) return
     const updated: Milestone = { ...milestone, status: 'completed', completedAt: new Date().toISOString() }
-    await window.electronAPI.saveMilestone(project.path, updated)
+    await window.electronAPI.saveMilestone(project.id, updated)
     setMilestone(updated)
   }
 
   const handleSaveMarkdown = async () => {
     if (!project || !milestone) return
     setSavingMarkdown(true)
-    await window.electronAPI.writeMilestoneMarkdown(project.path, milestone.id, markdownContent)
+    await window.electronAPI.writeMilestoneMarkdown(project.id, milestone.id, markdownContent)
     setSavingMarkdown(false)
   }
 
   const handleDelete = async () => {
     if (!project || !milestone) return
-    await window.electronAPI.deleteMilestone(project.path, milestone.id)
+    await window.electronAPI.deleteMilestone(project.id, milestone.id)
     navigate(`/projects/${id}/milestones`)
   }
 
@@ -353,7 +353,7 @@ export function MilestoneDetail() {
   const handleEditCancelled = async () => {
     if (!project || !milestone) return
     const updated: Milestone = { ...milestone, status: 'draft' }
-    await window.electronAPI.saveMilestone(project.path, updated)
+    await window.electronAPI.saveMilestone(project.id, updated)
     setMilestone(updated)
   }
 

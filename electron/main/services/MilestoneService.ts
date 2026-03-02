@@ -103,30 +103,30 @@ export class MilestoneService {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
-  getMilestones(projectPath: string): Milestone[] {
-    const projectId = this.resolveId(projectPath)
-    if (!projectId) return []
+  getMilestones(projectId: string): Milestone[] {
     return this.milestoneRepo.getByProjectId(projectId)
   }
 
-  saveMilestone(projectPath: string, milestone: Milestone): void {
-    const projectId = this.resolveId(projectPath)
-    if (!projectId) return
+  saveMilestone(projectId: string, milestone: Milestone): void {
     this.milestoneRepo.save(projectId, milestone)
   }
 
-  deleteMilestone(projectPath: string, id: string): void {
+  deleteMilestone(projectId: string, id: string): void {
     this.milestoneRepo.delete(id)
-    const mdPath = path.join(projectPath, '.anima', 'milestones', `${id}.md`)
-    if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath)
+    const projectPath = this.resolvePath(projectId)
+    if (projectPath) {
+      const mdPath = path.join(projectPath, '.anima', 'milestones', `${id}.md`)
+      if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath)
+    }
   }
 
-  updateMilestoneTask(projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>): void {
-    void projectPath
+  updateMilestoneTask(milestoneId: string, taskId: string, patch: Partial<MilestoneTask>): void {
     this.milestoneRepo.updateTask(milestoneId, taskId, patch)
   }
 
-  readMilestoneMarkdown(projectPath: string, id: string): string | null {
+  readMilestoneMarkdown(projectId: string, id: string): string | null {
+    const projectPath = this.resolvePath(projectId)
+    if (!projectPath) return null
     const mdPath = milestoneMdPath(projectPath, id)
     if (fs.existsSync(mdPath)) return fs.readFileSync(mdPath, 'utf8')
     const draftPath = milestoneDraftMdPath(projectPath, id)
@@ -134,7 +134,9 @@ export class MilestoneService {
     return null
   }
 
-  writeMilestoneMarkdown(projectPath: string, id: string, content: string): void {
+  writeMilestoneMarkdown(projectId: string, id: string, content: string): void {
+    const projectPath = this.resolvePath(projectId)
+    if (!projectPath) return
     fs.writeFileSync(milestoneMdPath(projectPath, id), content, 'utf8')
   }
 
@@ -142,13 +144,13 @@ export class MilestoneService {
 
   startPlanningSession(
     agentId: string,
-    projectPath: string,
+    projectId: string,
     inboxItemIds: string[],
     title: string,
     description: string
   ): void {
-    const projectId = this.resolveId(projectPath)
-    if (!projectId) return
+    const projectPath = this.resolvePath(projectId)
+    if (!projectPath) return
 
     const milestoneId = randomUUID()
     const draftPath = milestoneDraftMdPath(projectPath, milestoneId)
@@ -191,7 +193,7 @@ export class MilestoneService {
               this.milestoneRepo.save(projectId, { ...m, status: 'reviewing' })
             }
             this.getWindow()?.webContents.send('milestones:planningDone', agentId, milestoneId)
-            this.startReview(milestoneId, projectPath)
+            this.startReview(milestoneId, projectId)
           }
         },
       })
@@ -200,9 +202,9 @@ export class MilestoneService {
       })
   }
 
-  startReview(milestoneId: string, projectPath: string): void {
-    const projectId = this.resolveId(projectPath)
-    if (!projectId) return
+  startReview(milestoneId: string, projectId: string): void {
+    const projectPath = this.resolvePath(projectId)
+    if (!projectPath) return
 
     const agentKey = `${milestoneId}-review`
     let reviewResult = ''
@@ -226,7 +228,7 @@ export class MilestoneService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private resolveId(projectPath: string): string | null {
-    return this.projectRepo.resolveProjectId(projectPath)
+  private resolvePath(projectId: string): string | null {
+    return this.projectRepo.getById(projectId)?.path ?? null
   }
 }

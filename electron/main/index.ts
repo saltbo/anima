@@ -89,7 +89,7 @@ app.whenReady().then(() => {
   // ── Services ──────────────────────────────────────────────────────────
   const gitService = new GitService()
   const projectService = new ProjectService(projectRepo)
-  const inboxService = new InboxService(inboxRepo, projectRepo)
+  const inboxService = new InboxService(inboxRepo)
   const milestoneService = new MilestoneService(
     milestoneRepo, inboxRepo, projectRepo,
     conversationAgent, taskAgent, getWindow

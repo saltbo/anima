@@ -1,38 +1,22 @@
 import type { InboxItem } from '../../../src/types/index'
 import type { InboxRepository } from '../repositories/InboxRepository'
-import type { ProjectRepository } from '../repositories/ProjectRepository'
 
 export class InboxService {
-  constructor(
-    private inboxRepo: InboxRepository,
-    private projectRepo: ProjectRepository
-  ) {}
+  constructor(private inboxRepo: InboxRepository) {}
 
-  getItems(projectPath: string): InboxItem[] {
-    const projectId = this.resolveId(projectPath)
-    if (!projectId) return []
+  getItems(projectId: string): InboxItem[] {
     return this.inboxRepo.getByProjectId(projectId)
   }
 
-  addItem(projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>): InboxItem {
-    const projectId = this.resolveId(projectPath)
-    if (!projectId) throw new Error(`Project not found for path: ${projectPath}`)
+  addItem(projectId: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>): InboxItem {
     return this.inboxRepo.add(projectId, item)
   }
 
-  updateItem(projectPath: string, id: string, patch: Partial<InboxItem>): InboxItem | null {
-    // projectPath unused for update since we have the item id,
-    // but we keep the param for IPC contract compatibility
-    void projectPath
+  updateItem(id: string, patch: Partial<InboxItem>): InboxItem | null {
     return this.inboxRepo.update(id, patch)
   }
 
-  deleteItem(projectPath: string, id: string): void {
-    void projectPath
+  deleteItem(id: string): void {
     this.inboxRepo.delete(id)
-  }
-
-  private resolveId(projectPath: string): string | null {
-    return this.projectRepo.resolveProjectId(projectPath)
   }
 }

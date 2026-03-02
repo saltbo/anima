@@ -48,19 +48,19 @@ declare global {
       onAgentEvents: (callback: (agentKey: string, events: AgentEvent[]) => void) => () => void
 
       // ── Inbox ────────────────────────────────────────────────────────────
-      getInboxItems: (projectPath: string) => Promise<InboxItem[]>
-      addInboxItem: (projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>) => Promise<InboxItem>
-      updateInboxItem: (projectPath: string, id: string, patch: Partial<InboxItem>) => Promise<InboxItem | null>
-      deleteInboxItem: (projectPath: string, id: string) => Promise<void>
+      getInboxItems: (projectId: string) => Promise<InboxItem[]>
+      addInboxItem: (projectId: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>) => Promise<InboxItem>
+      updateInboxItem: (projectId: string, id: string, patch: Partial<InboxItem>) => Promise<InboxItem | null>
+      deleteInboxItem: (projectId: string, id: string) => Promise<void>
 
       // ── Milestones ───────────────────────────────────────────────────────
-      getMilestones: (projectPath: string) => Promise<Milestone[]>
-      saveMilestone: (projectPath: string, milestone: Milestone) => Promise<void>
-      deleteMilestone: (projectPath: string, id: string) => Promise<void>
-      updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
-      readMilestoneMarkdown: (projectPath: string, id: string) => Promise<string | null>
-      writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => Promise<void>
-      startMilestonePlanning: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => Promise<void>
+      getMilestones: (projectId: string) => Promise<Milestone[]>
+      saveMilestone: (projectId: string, milestone: Milestone) => Promise<void>
+      deleteMilestone: (projectId: string, id: string) => Promise<void>
+      updateMilestoneTask: (projectId: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
+      readMilestoneMarkdown: (projectId: string, id: string) => Promise<string | null>
+      writeMilestoneMarkdown: (projectId: string, id: string, content: string) => Promise<void>
+      startMilestonePlanning: (id: string, projectId: string, inboxItemIds: string[], title: string, description: string) => Promise<void>
       onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => () => void
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
       onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void

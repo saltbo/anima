@@ -78,7 +78,7 @@ export class MilestoneExecutor {
   async execute(milestone: Milestone): Promise<ExecutorResult> {
     let feedback = ''
 
-    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    for (let attempt = 0; attempt < MAX_ITERATIONS; attempt++) {
       if (this.aborted) return { outcome: 'aborted' }
 
       const round = milestone.iterations.length + 1
@@ -90,7 +90,7 @@ export class MilestoneExecutor {
 
       const startedAt = new Date().toISOString()
       this.updateIterationState(milestone.id, round, startedAt)
-      log.info('starting iteration', { milestone: milestone.id, round })
+      log.info('starting iteration', { milestone: milestone.id, round, attempt: attempt + 1 })
 
       const result = await this.runBattle(milestone, round, feedback)
 
@@ -111,8 +111,7 @@ export class MilestoneExecutor {
       milestone = this.milestoneRepo.getById(milestone.id) ?? milestone
     }
 
-    const finalRound = milestone.iterations.length
-    this.handleMaxIterations(milestone, finalRound)
+    this.handleMaxIterations(milestone, milestone.iterations.length)
     return { outcome: 'max_iterations' }
   }
 

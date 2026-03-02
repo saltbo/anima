@@ -133,7 +133,7 @@ export function Inbox() {
 
   useEffect(() => {
     if (!project) return
-    window.electronAPI.getInboxItems(project.path).then(setItems)
+    window.electronAPI.getInboxItems(project.id).then(setItems)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id])
 
@@ -151,7 +151,7 @@ export function Inbox() {
   const handleAdd = async () => {
     if (!project || !form.title.trim()) return
     setSubmitting(true)
-    const newItem = await window.electronAPI.addInboxItem(project.path, {
+    const newItem = await window.electronAPI.addInboxItem(project.id, {
       type: form.type,
       title: form.title.trim(),
       description: form.description.trim() || undefined,
@@ -165,19 +165,19 @@ export function Inbox() {
 
   const handleDismiss = async (item: InboxItem) => {
     if (!project) return
-    const updated = await window.electronAPI.updateInboxItem(project.path, item.id, { status: 'dismissed' })
+    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'dismissed' })
     if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
   const handleRestore = async (item: InboxItem) => {
     if (!project) return
-    const updated = await window.electronAPI.updateInboxItem(project.path, item.id, { status: 'pending' })
+    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'pending' })
     if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
   const handleDelete = async () => {
     if (!project || !deleteTarget) return
-    await window.electronAPI.deleteInboxItem(project.path, deleteTarget.id)
+    await window.electronAPI.deleteInboxItem(project.id, deleteTarget.id)
     setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id))
     setDeleteTarget(null)
   }
