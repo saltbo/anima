@@ -1,5 +1,10 @@
 export type ProjectStatus = 'sleeping' | 'checking' | 'awake' | 'paused' | 'rate_limited'
 
+export interface Iteration {
+  milestoneId: string
+  count: number
+}
+
 /** Minimal registry entry stored in global config.json */
 export interface Project {
   id: string
@@ -61,9 +66,7 @@ export interface Milestone {
 /** Combined Project + ProjectState for UI consumption */
 export interface ProjectView extends Project {
   status: ProjectStatus
-  currentMilestone: string | null
-  iterationCount: number
-  round: number  // alias for iterationCount
+  currentIteration: Iteration | null
   nextWakeTime: string | null
   totalTokens: number
   totalCost: number
@@ -81,8 +84,7 @@ export interface WakeSchedule {
 /** Per-project runtime state stored in .anima/state.json */
 export interface ProjectState {
   status: ProjectStatus
-  currentMilestone: string | null
-  iterationCount: number
+  currentIteration: Iteration | null
   nextWakeTime: string | null
   wakeSchedule: WakeSchedule
   totalTokens: number

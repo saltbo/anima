@@ -17,9 +17,7 @@ function stateToView(project: Project, state: ProjectState): ProjectView {
   return {
     ...project,
     status: state.status,
-    currentMilestone: state.currentMilestone,
-    iterationCount: state.iterationCount,
-    round: state.iterationCount,
+    currentIteration: state.currentIteration,
     nextWakeTime: state.nextWakeTime,
     totalTokens: state.totalTokens,
     totalCost: state.totalCost,
@@ -29,8 +27,7 @@ function stateToView(project: Project, state: ProjectState): ProjectView {
 
 const DEFAULT_STATE: ProjectState = {
   status: 'sleeping',
-  currentMilestone: null,
-  iterationCount: 0,
+  currentIteration: null,
   nextWakeTime: null,
   wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
   totalTokens: 0,
@@ -72,8 +69,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         next.set(update.projectId, {
           ...existing,
           status: update.status,
-          currentMilestone: update.currentMilestone,
-          iterationCount: update.iterationCount,
+          currentIteration: update.currentIteration,
           rateLimitResetAt: update.rateLimitResetAt,
         })
         return next

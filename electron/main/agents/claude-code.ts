@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { createLogger } from '../logger'
-import type { Agent, AgentEvent, AgentSession, AgentStartOptions } from './index'
+import type { Agent, AgentEvent, AgentHandle, AgentStartOptions } from './index'
 
 const log = createLogger('claude-code-agent')
 
@@ -106,7 +106,7 @@ function parseLine(line: string, onEvent: (event: AgentEvent) => void): void {
   }
 }
 
-class ClaudeCodeSession implements AgentSession {
+class ClaudeCodeSession implements AgentHandle {
   private child: ChildProcess
   private id: string
 
@@ -142,7 +142,7 @@ class ClaudeCodeSession implements AgentSession {
 }
 
 export class ClaudeCodeAgent implements Agent {
-  start(options: AgentStartOptions): AgentSession {
+  start(options: AgentStartOptions): AgentHandle {
     const { projectPath, systemPrompt, onEvent, onDone } = options
     const id = options.id ?? `session-${Date.now()}`
 
@@ -154,7 +154,8 @@ export class ClaudeCodeAgent implements Agent {
         message: 'claude CLI not found. Please install it via: npm install -g @anthropic-ai/claude-code',
       })
       onDone?.()
-      return { sendMessage: () => {}, stop: () => {} }
+      const noop: AgentHandle = { sendMessage: () => {}, stop: () => {} }
+      return noop
     }
 
     const homeDir = os.homedir()

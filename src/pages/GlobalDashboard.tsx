@@ -54,14 +54,11 @@ function ProjectCard({ project }: { project: ProjectView }) {
 
         {/* Status-specific info */}
         <div className="text-xs text-muted-foreground space-y-1">
-          {project.currentMilestone && (
+          {project.currentIteration && (
             <div className="truncate">
               <span className="text-foreground/40">Milestone</span>
               {' '}
-              <span className="text-foreground/80">{project.currentMilestone}</span>
-              {project.round > 0 && (
-                <span className="text-foreground/40 ml-2">· Round {project.round}</span>
-              )}
+              <span className="text-foreground/80">{project.currentIteration.milestoneId}</span>
             </div>
           )}
           {project.status === 'sleeping' && project.nextWakeTime && (

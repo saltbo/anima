@@ -57,17 +57,17 @@ export function ProjectDashboard() {
           <span className={cn('text-sm font-semibold', statusColor(project.status))}>
             {statusLabel(project.status)}
           </span>
-          {project.currentMilestone && (
+          {project.currentIteration && (
             <>
               <span className="text-muted-foreground/30">·</span>
-              <span className="text-sm text-muted-foreground">{project.currentMilestone}</span>
+              <span className="text-sm text-muted-foreground">{project.currentIteration.milestoneId}</span>
             </>
           )}
         </div>
 
         <div className="text-sm text-muted-foreground">
-          {project.status === 'awake' && project.round > 0 && (
-            <span>Round <span className="text-foreground font-medium">{project.round}</span> in progress</span>
+          {project.status === 'awake' && project.currentIteration && (
+            <span>Iteration <span className="text-foreground font-medium">{project.currentIteration.count}</span> in progress</span>
           )}
           {project.status === 'sleeping' && project.nextWakeTime && (
             <span>Next check at <span className="text-foreground font-medium">
@@ -99,8 +99,8 @@ export function ProjectDashboard() {
         />
         <StatCard
           icon={RefreshCw}
-          label="Round"
-          value={project.round > 0 ? String(project.round) : '—'}
+          label="Iteration"
+          value={project.currentIteration ? String(project.currentIteration.count) : '—'}
         />
       </div>
 

@@ -1,7 +1,7 @@
-import type { Agent, AgentSession, AgentStartOptions } from './index'
+import type { Agent, AgentHandle, AgentStartOptions } from './index'
 
 export class AgentSessionManager {
-  private sessions = new Map<string, AgentSession>()
+  private sessions = new Map<string, AgentHandle>()
 
   start(id: string, agent: Agent, options: Omit<AgentStartOptions, 'id' | 'onDone'>, onDone?: () => void): void {
     const existing = this.sessions.get(id)

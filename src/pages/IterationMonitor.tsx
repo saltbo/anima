@@ -25,9 +25,9 @@ function statusLabel(s: ProjectIterationStatus): string {
     case 'sleeping': return 'Sleeping'
     case 'checking': return 'Checking for milestones…'
     case 'awake':
-      return s.round > 0
-        ? `Iteration ${s.iterationCount} · Battle round ${s.round}`
-        : `Iteration ${s.iterationCount}`
+      return s.currentIteration
+        ? `Iteration ${s.currentIteration.count}`
+        : 'Working'
     case 'paused': return 'Paused — awaiting human review'
     case 'rate_limited':
       return s.rateLimitResetAt
@@ -72,9 +72,7 @@ export function IterationMonitor() {
   const [status, setStatus] = useState<ProjectIterationStatus>({
     projectId: id ?? '',
     status: 'sleeping',
-    currentMilestone: null,
-    iterationCount: 0,
-    round: 0,
+    currentIteration: null,
     rateLimitResetAt: null,
   })
   const [activeAgent, setActiveAgent] = useState<'developer' | 'acceptor' | null>(null)
@@ -86,8 +84,7 @@ export function IterationMonitor() {
       setStatus((prev) => ({
         ...prev,
         status: state.status,
-        currentMilestone: state.currentMilestone,
-        iterationCount: state.iterationCount,
+        currentIteration: state.currentIteration,
         rateLimitResetAt: state.rateLimitResetAt,
       }))
     })
@@ -114,9 +111,9 @@ export function IterationMonitor() {
     return () => cleanups.forEach((c) => c())
   }, [id])
 
-  // Derive session IDs from milestone ID + iterationCount
-  const devSessionId = status.iterationCount > 0 ? `${mid}-dev-${status.iterationCount}` : null
-  const accSessionId = status.iterationCount > 0 ? `${mid}-acc-${status.iterationCount}` : null
+  // Derive session IDs from milestone ID + iteration count
+  const devSessionId = status.currentIteration ? `${mid}-dev-${status.currentIteration.count}` : null
+  const accSessionId = status.currentIteration ? `${mid}-acc-${status.currentIteration.count}` : null
 
   const handleWake = () => {
     if (id) window.electronAPI.wakeProject(id)

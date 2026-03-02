@@ -3,7 +3,7 @@ import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
 import type { InboxItem, InboxItemPriority, InboxItemStatus, Milestone, MilestoneTask } from '../../src/types/index'
-import type { SetupChatData } from '../../src/types/electron.d'
+import type { AgentEvent } from '../../src/types/agent'
 import { conversationAgent, taskAgent } from './agents/service'
 
 // Capability boundary: agent reads anything, writes only to its designated milestone file.
@@ -241,13 +241,13 @@ export function startMilestonePlanningSession(
     updateInboxItem(projectPath, iid, { milestoneId, status: 'included' })
   }
 
-  const emit = (data: SetupChatData) => win.webContents.send('setup-chat-data', id, data)
+  const emit = (data: AgentEvent) => win.webContents.send('setup-chat-data', id, data)
 
   conversationAgent.start(id, {
     projectPath,
     systemPrompt: MILESTONE_PLANNING_ROLE,
     onEvent: (event) => {
-      emit(event satisfies SetupChatData)
+      emit(event)
       // When agent finishes a turn and has written the draft file, promote it.
       if (event.event === 'done' && fs.existsSync(draftPath)) {
         const mdPath = milestoneMdPath(projectPath, milestoneId)

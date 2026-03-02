@@ -4,8 +4,7 @@ import type { ProjectState } from '../../src/types/index'
 
 const DEFAULT_STATE: ProjectState = {
   status: 'sleeping',
-  currentMilestone: null,
-  iterationCount: 0,
+  currentIteration: null,
   nextWakeTime: null,
   wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
   totalTokens: 0,

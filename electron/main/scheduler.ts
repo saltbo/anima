@@ -6,7 +6,8 @@ import { getProjectState, patchProjectState } from './state'
 import { createMilestoneBranch, getCurrentBranch, checkoutBranch, getCommitLog, hasUncommittedChanges } from './git'
 import { conversationAgent } from './agents/service'
 import type { AgentEvent } from './agents/index'
-import type { Milestone, WakeSchedule, ProjectState } from '../../src/types/index'
+import type { Milestone, WakeSchedule, Iteration } from '../../src/types/index'
+import type { ProjectIterationStatus } from '../../src/types/electron.d'
 
 const log = createLogger('scheduler')
 
@@ -151,15 +152,6 @@ export interface SchedulerOptions {
   getWindow: () => BrowserWindow | null
 }
 
-type IterationStatus = {
-  projectId: string
-  status: ProjectState['status']
-  currentMilestone: string | null
-  iterationCount: number
-  round: number
-  rateLimitResetAt: string | null
-}
-
 export class ProjectScheduler {
   private projectId: string
   private projectPath: string
@@ -248,10 +240,10 @@ export class ProjectScheduler {
 
   private async recoverIfNeeded(): Promise<void> {
     const state = getProjectState(this.projectPath)
-    if (state.status === 'awake' && state.currentMilestone) {
-      log.info('restart recovery: resuming iteration', { milestone: state.currentMilestone })
+    if (state.status === 'awake' && state.currentIteration) {
+      log.info('restart recovery: resuming iteration', { milestone: state.currentIteration.milestoneId })
       const milestones = getMilestones(this.projectPath)
-      const m = milestones.find((ms) => ms.id === state.currentMilestone)
+      const m = milestones.find((ms) => ms.id === state.currentIteration?.milestoneId)
       if (m) {
         // Ensure we're on the right branch
         try {
@@ -315,16 +307,17 @@ export class ProjectScheduler {
         iterationCount: milestone.iterationCount ?? 0,
       }
       saveMilestone(this.projectPath, updated)
+      const iter: Iteration = { milestoneId: milestone.id, count: 0 }
       patchProjectState(this.projectPath, {
         status: 'awake',
-        currentMilestone: milestone.id,
+        currentIteration: iter,
       })
       this.broadcastStatus()
 
       await this.runIterationLoop(updated, '')
     } catch (err) {
       log.error('iteration error', { error: String(err) })
-      patchProjectState(this.projectPath, { status: 'sleeping', currentMilestone: null })
+      patchProjectState(this.projectPath, { status: 'sleeping', currentIteration: null })
       this.broadcastStatus()
       this.scheduleNextWake()
     }
@@ -335,17 +328,24 @@ export class ProjectScheduler {
 
     while (this.running) {
       const state = getProjectState(this.projectPath)
-      const iterationCount = (state.iterationCount ?? 0) + 1
+      const iterationCount = (state.currentIteration?.count ?? 0) + 1
 
       if (iterationCount > MAX_ITERATIONS) {
         log.warn('max iterations reached', { milestone: milestone.id })
-        patchProjectState(this.projectPath, { status: 'paused', currentMilestone: milestone.id })
+        const pausedMs = getMilestones(this.projectPath)
+        const pausedM = pausedMs.find((ms) => ms.id === milestone.id)
+        if (pausedM) {
+          pausedM.iterationCount = iterationCount
+          saveMilestone(this.projectPath, pausedM)
+        }
+        patchProjectState(this.projectPath, { status: 'paused', currentIteration: { milestoneId: milestone.id, count: iterationCount } })
         this.broadcastStatus()
         this.notifyUI('iteration-paused', { projectId: this.projectId, milestoneId: milestone.id, reason: 'max_iterations' })
         return
       }
 
-      patchProjectState(this.projectPath, { iterationCount })
+      const iter: Iteration = { milestoneId: milestone.id, count: iterationCount }
+      patchProjectState(this.projectPath, { currentIteration: iter })
       this.broadcastStatus()
       log.info('starting iteration', { milestone: milestone.id, iteration: iterationCount })
 
@@ -394,7 +394,7 @@ export class ProjectScheduler {
       while (round < MAX_ROUNDS_PER_ITERATION && this.running) {
         round++
         log.info('battle round', { milestone: milestone.id, iteration: iterationCount, round })
-        this.broadcastBattleRound(iterationCount, round)
+        this.broadcastStatus()
 
         const accMsg = buildAcceptorMessage(milestone, developerReport, iterationCount)
         const accTodos: TodoItem[] = []
@@ -466,11 +466,12 @@ export class ProjectScheduler {
         if (m) {
           m.status = 'completed'
           m.completedAt = new Date().toISOString()
+          m.iterationCount = iterationCount
           saveMilestone(this.projectPath, m)
         }
         patchProjectState(this.projectPath, {
           status: 'sleeping',
-          currentMilestone: null,
+          currentIteration: null,
         })
         this.broadcastStatus()
         this.notifyUI('milestone-completed', { projectId: this.projectId, milestoneId: milestone.id })
@@ -677,27 +678,10 @@ export class ProjectScheduler {
     const win = this.getWindow()
     if (!win) return
     const state = getProjectState(this.projectPath)
-    const status: IterationStatus = {
+    const status: ProjectIterationStatus = {
       projectId: this.projectId,
       status: state.status,
-      currentMilestone: state.currentMilestone,
-      iterationCount: state.iterationCount,
-      round: 0,
-      rateLimitResetAt: state.rateLimitResetAt,
-    }
-    win.webContents.send('project-status-changed', status)
-  }
-
-  private broadcastBattleRound(iteration: number, round: number): void {
-    const win = this.getWindow()
-    if (!win) return
-    const state = getProjectState(this.projectPath)
-    const status: IterationStatus = {
-      projectId: this.projectId,
-      status: state.status,
-      currentMilestone: state.currentMilestone,
-      iterationCount: iteration,
-      round,
+      currentIteration: state.currentIteration,
       rateLimitResetAt: state.rateLimitResetAt,
     }
     win.webContents.send('project-status-changed', status)

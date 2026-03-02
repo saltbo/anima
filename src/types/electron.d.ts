@@ -1,14 +1,5 @@
-import type { Project, InboxItem, Milestone, MilestoneTask, ProjectState, WakeSchedule } from './index'
-
-export type SetupChatData =
-  | { event: 'text'; text: string }
-  | { event: 'thinking'; thinking: string }
-  | { event: 'tool_use'; toolName: string; toolInput: string; toolCallId: string }
-  | { event: 'tool_result'; toolCallId: string; content: string; isError: boolean }
-  | { event: 'system'; model: string; sessionId: string }
-  | { event: 'rate_limit'; utilization: number }
-  | { event: 'done'; result?: string }
-  | { event: 'error'; message: string }
+import type { Project, InboxItem, Milestone, MilestoneTask, ProjectState, WakeSchedule, Iteration } from './index'
+import type { AgentEvent } from './agent'
 
 export type AgentRole = 'developer' | 'acceptor'
 
@@ -16,15 +7,13 @@ export interface IterationAgentEvent {
   projectId: string
   role: AgentRole
   sessionId: string
-  event: SetupChatData
+  event: AgentEvent
 }
 
 export interface ProjectIterationStatus {
   projectId: string
   status: ProjectState['status']
-  currentMilestone: string | null
-  iterationCount: number
-  round: number
+  currentIteration: Iteration | null
   rateLimitResetAt: string | null
 }
 
@@ -46,7 +35,7 @@ declare global {
       onProjectsUpdated: (callback: (projects: Project[]) => void) => () => void
       onNavigate: (callback: (path: string) => void) => () => void
       onTriggerAddProject: (callback: () => void) => () => void
-      onSetupChatData: (callback: (id: string, data: SetupChatData) => void) => () => void
+      onSetupChatData: (callback: (id: string, data: AgentEvent) => void) => () => void
 
       getInboxItems: (projectPath: string) => Promise<InboxItem[]>
       addInboxItem: (projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>) => Promise<InboxItem>
