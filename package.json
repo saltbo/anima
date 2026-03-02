@@ -22,6 +22,12 @@
     "files": [
       "out/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "resources/soul-templates",
+        "to": "soul-templates"
+      }
+    ],
     "mac": {
       "target": [
         {

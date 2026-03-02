@@ -37,6 +37,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('setup:writeFile', projectPath, type, content),
   startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) =>
     ipcRenderer.invoke('setup:startAgent', id, projectPath, type, userContext),
+  listSoulTemplates: () =>
+    ipcRenderer.invoke('setup:listTemplates'),
+  applySoulTemplate: (projectPath: string, templateId: string) =>
+    ipcRenderer.invoke('setup:applyTemplate', projectPath, templateId),
+  startSoulAgent: (id: string, projectPath: string, templateId: string) =>
+    ipcRenderer.invoke('setup:startSoulAgent', id, projectPath, templateId),
 
   // ── Agent ──────────────────────────────────────────────────────────────────
   readAgentEvents: (agentKey: string) => ipcRenderer.invoke('agent:readEvents', agentKey),

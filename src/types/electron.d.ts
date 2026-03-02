@@ -36,6 +36,9 @@ declare global {
       readSetupFiles: (projectPath: string) => Promise<{ vision: string | null; soul: string | null }>
       writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
       startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) => Promise<void>
+      listSoulTemplates: () => Promise<Array<{ id: string; name: string; description: string; content: string }>>
+      applySoulTemplate: (projectPath: string, templateId: string) => Promise<void>
+      startSoulAgent: (id: string, projectPath: string, templateId: string) => Promise<void>
 
       // ── Agent ────────────────────────────────────────────────────────────
       readAgentEvents: (agentKey: string) => Promise<AgentEvent[]>
