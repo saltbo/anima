@@ -3,7 +3,7 @@ import { Plus, FolderOpen, Clock, Zap, DollarSign } from 'lucide-react'
 import { useProjects } from '@/store/projects'
 import { cn, statusBgColor, statusLabel } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import type { ProjectView } from '@/types'
+import type { Project } from '@/types'
 
 function formatDuration(addedAt: string): string {
   const ms = Date.now() - new Date(addedAt).getTime()
@@ -21,7 +21,7 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
-function ProjectCard({ project }: { project: ProjectView }) {
+function ProjectCard({ project }: { project: Project }) {
   const navigate = useNavigate()
   const { setSelectedProjectId } = useProjects()
 

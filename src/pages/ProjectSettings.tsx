@@ -18,18 +18,15 @@ export function ProjectSettings() {
   const project = projects.find((p) => p.id === id)
 
   const [schedule, setSchedule] = useState<WakeSchedule>({ mode: 'manual', intervalMinutes: null, times: [] })
-  const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newTime, setNewTime] = useState('09:00')
 
+  // Initialize schedule from project data
   useEffect(() => {
-    if (!project) return
-    window.electronAPI.getProjectState(project.path).then((state) => {
-      setSchedule(state.wakeSchedule)
-      setLoaded(true)
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id])
+    if (project) {
+      setSchedule(project.wakeSchedule)
+    }
+  }, [project])
 
   if (!project) return <div className="p-6 text-muted-foreground">Project not found.</div>
 
@@ -40,7 +37,7 @@ export function ProjectSettings() {
 
   const handleSaveSchedule = async () => {
     setSaving(true)
-    await window.electronAPI.updateWakeSchedule(project.id, project.path, schedule)
+    await window.electronAPI.updateWakeSchedule(project.id, schedule)
     setSaving(false)
   }
 
@@ -64,98 +61,94 @@ export function ProjectSettings() {
       </Section>
 
       <Section title="Wake Schedule">
-        {!loaded ? (
-          <div className="h-8 rounded bg-muted animate-pulse" />
-        ) : (
-          <div className="space-y-4">
-            {/* Mode selector */}
-            <div className="space-y-2">
-              {MODE_OPTIONS.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    schedule.mode === opt.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-foreground/20'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="wake-mode"
-                    value={opt.value}
-                    checked={schedule.mode === opt.value}
-                    onChange={() => setSchedule({ ...schedule, mode: opt.value })}
-                    className="mt-0.5 accent-primary"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            {/* Interval config */}
-            {schedule.mode === 'interval' && (
-              <div className="flex items-center gap-3 pl-1">
-                <span className="text-sm text-muted-foreground">Every</span>
+        <div className="space-y-4">
+          {/* Mode selector */}
+          <div className="space-y-2">
+            {MODE_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  schedule.mode === opt.value
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-foreground/20'
+                }`}
+              >
                 <input
-                  type="number"
-                  min={1}
-                  max={1440}
-                  value={schedule.intervalMinutes ?? 60}
-                  onChange={(e) => setSchedule({ ...schedule, intervalMinutes: Math.max(1, parseInt(e.target.value) || 60) })}
-                  className="w-20 h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                  type="radio"
+                  name="wake-mode"
+                  value={opt.value}
+                  checked={schedule.mode === opt.value}
+                  onChange={() => setSchedule({ ...schedule, mode: opt.value })}
+                  className="mt-0.5 accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">minutes</span>
-              </div>
-            )}
-
-            {/* Times config */}
-            {schedule.mode === 'times' && (
-              <div className="space-y-3 pl-1">
-                {schedule.times.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {schedule.times.map((time) => (
-                      <span
-                        key={time}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted text-sm font-mono text-foreground"
-                      >
-                        {time}
-                        <button
-                          onClick={() => handleRemoveTime(time)}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <X size={12} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <Button size="sm" variant="outline" className="h-8 text-xs gap-1 cursor-pointer" onClick={handleAddTime}>
-                    <Plus size={12} />
-                    Add Time
-                  </Button>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
                 </div>
-              </div>
-            )}
-
-            {/* Save button */}
-            <div className="flex justify-end pt-1">
-              <Button size="sm" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={handleSaveSchedule} disabled={saving}>
-                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                Save Schedule
-              </Button>
-            </div>
+              </label>
+            ))}
           </div>
-        )}
+
+          {/* Interval config */}
+          {schedule.mode === 'interval' && (
+            <div className="flex items-center gap-3 pl-1">
+              <span className="text-sm text-muted-foreground">Every</span>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={schedule.intervalMinutes ?? 60}
+                onChange={(e) => setSchedule({ ...schedule, intervalMinutes: Math.max(1, parseInt(e.target.value) || 60) })}
+                className="w-20 h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <span className="text-sm text-muted-foreground">minutes</span>
+            </div>
+          )}
+
+          {/* Times config */}
+          {schedule.mode === 'times' && (
+            <div className="space-y-3 pl-1">
+              {schedule.times.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {schedule.times.map((time) => (
+                    <span
+                      key={time}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted text-sm font-mono text-foreground"
+                    >
+                      {time}
+                      <button
+                        onClick={() => handleRemoveTime(time)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
+                  className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 cursor-pointer" onClick={handleAddTime}>
+                  <Plus size={12} />
+                  Add Time
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Save button */}
+          <div className="flex justify-end pt-1">
+            <Button size="sm" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={handleSaveSchedule} disabled={saving}>
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Save Schedule
+            </Button>
+          </div>
+        </div>
       </Section>
 
       <Section title="Human Review">

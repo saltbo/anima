@@ -5,7 +5,6 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { getDb, closeDb } from './db/index'
 import { initSchema } from './db/schema'
 import { ProjectRepository } from './repositories/ProjectRepository'
-import { ProjectStateRepository } from './repositories/ProjectStateRepository'
 import { InboxRepository } from './repositories/InboxRepository'
 import { MilestoneRepository } from './repositories/MilestoneRepository'
 import { ProjectService } from './services/ProjectService'
@@ -84,13 +83,12 @@ app.whenReady().then(() => {
 
   // ── Repositories ──────────────────────────────────────────────────────
   const projectRepo = new ProjectRepository(db)
-  const stateRepo = new ProjectStateRepository(db)
   const inboxRepo = new InboxRepository(db)
   const milestoneRepo = new MilestoneRepository(db)
 
   // ── Services ──────────────────────────────────────────────────────────
   const gitService = new GitService()
-  const projectService = new ProjectService(projectRepo, stateRepo)
+  const projectService = new ProjectService(projectRepo)
   const inboxService = new InboxService(inboxRepo, projectRepo)
   const milestoneService = new MilestoneService(
     milestoneRepo, inboxRepo, projectRepo,
@@ -98,7 +96,7 @@ app.whenReady().then(() => {
   )
   const setupService = new SetupService(conversationAgent)
   schedulerService = new SchedulerService(
-    projectRepo, stateRepo, milestoneRepo, gitService, getWindow
+    projectRepo, milestoneRepo, gitService, getWindow
   )
 
   // ── Wire up ───────────────────────────────────────────────────────────

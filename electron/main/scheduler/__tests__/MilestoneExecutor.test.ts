@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { ProjectState, Milestone, Iteration } from '../../../../src/types/index'
+import type { Project, Milestone, Iteration } from '../../../../src/types/index'
 
 // ── Mock dependencies ───────────────────────────────────────────────────────
 
@@ -29,7 +29,11 @@ const { MilestoneExecutor } = await import('../MilestoneExecutor')
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_STATE: ProjectState = {
+const DEFAULT_PROJECT: Project = {
+  id: 'proj-1',
+  path: '/test/project',
+  name: 'test',
+  addedAt: '2026-01-01',
   status: 'awake',
   currentIteration: { milestoneId: 'm-1', round: 0 },
   nextWakeTime: null,
@@ -77,17 +81,20 @@ const mockNotifier = {
 
 /** Create mock repos that simulate in-memory state */
 function createMockRepos(milestone: Milestone) {
-  let currentState = { ...DEFAULT_STATE }
+  let currentProject = { ...DEFAULT_PROJECT }
   const milestoneStore = { current: milestone }
 
-  const stateRepo = {
-    get: vi.fn(() => currentState),
-    patch: vi.fn((_id: string, patch: Partial<ProjectState>) => {
-      currentState = { ...currentState, ...patch }
-      return currentState
+  const projectRepo = {
+    getAll: vi.fn(() => [currentProject]),
+    getById: vi.fn(() => currentProject),
+    getByPath: vi.fn(() => currentProject),
+    add: vi.fn(),
+    remove: vi.fn(),
+    resolveProjectId: vi.fn(() => 'proj-1'),
+    patch: vi.fn((_id: string, patch: Partial<Project>) => {
+      currentProject = { ...currentProject, ...patch }
+      return currentProject
     }),
-    save: vi.fn((_id: string, state: ProjectState) => { currentState = state }),
-    getByPath: vi.fn(() => currentState),
   }
 
   const milestoneRepo = {
@@ -109,26 +116,26 @@ function createMockRepos(milestone: Milestone) {
     isGitRepo: vi.fn().mockResolvedValue(true),
   }
 
-  return { stateRepo, milestoneRepo, gitService, milestoneStore }
+  return { projectRepo, milestoneRepo, gitService, milestoneStore }
 }
 
 function createExecutor(
   milestone: Milestone,
   overrides: { onRateLimit?: (r: string) => void; onComplete?: () => void } = {}
 ) {
-  const { stateRepo, milestoneRepo, gitService } = createMockRepos(milestone)
+  const { projectRepo, milestoneRepo, gitService } = createMockRepos(milestone)
   return {
     executor: new MilestoneExecutor({
       projectId: 'proj-1',
       projectPath: '/test/project',
       notifier: mockNotifier as any,
-      stateRepo: stateRepo as any,
+      projectRepo: projectRepo as any,
       milestoneRepo: milestoneRepo as any,
       gitService: gitService as any,
       onRateLimit: overrides.onRateLimit ?? vi.fn(),
       onComplete: overrides.onComplete ?? vi.fn(),
     }),
-    stateRepo,
+    projectRepo,
     milestoneRepo,
   }
 }
@@ -292,11 +299,11 @@ describe('MilestoneExecutor', () => {
     it('returns max_iterations when round exceeds limit', async () => {
       const milestone = createMilestone({ iterations: createIterations(20) })
 
-      const { executor, stateRepo } = createExecutor(milestone)
+      const { executor, projectRepo } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('max_iterations')
-      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', expect.objectContaining({
+      expect(projectRepo.patch).toHaveBeenCalledWith('proj-1', expect.objectContaining({
         status: 'paused',
       }))
       expect(mockNotifier.notifyIterationPaused).toHaveBeenCalledWith('m-1', 'max_iterations')
@@ -306,13 +313,13 @@ describe('MilestoneExecutor', () => {
   describe('abort', () => {
     it('returns aborted when abort() is called between iterations', async () => {
       const milestone = createMilestone()
-      const { stateRepo, milestoneRepo, gitService } = createMockRepos(milestone)
+      const { projectRepo, milestoneRepo, gitService } = createMockRepos(milestone)
 
       const executor = new MilestoneExecutor({
         projectId: 'proj-1',
         projectPath: '/test/project',
         notifier: mockNotifier as any,
-        stateRepo: stateRepo as any,
+        projectRepo: projectRepo as any,
         milestoneRepo: milestoneRepo as any,
         gitService: gitService as any,
         onRateLimit: vi.fn(),
@@ -326,12 +333,13 @@ describe('MilestoneExecutor', () => {
       })
 
       let iterCount = 0
-      stateRepo.patch.mockImplementation((_id: string, patch: Partial<ProjectState>) => {
+      projectRepo.patch.mockImplementation((_id: string, patch: Partial<Project>) => {
+        const updated = { ...DEFAULT_PROJECT, ...patch }
         if (patch.status === 'awake' && patch.currentIteration) {
           iterCount++
           if (iterCount >= 2) executor.abort()
         }
-        return { ...DEFAULT_STATE, ...patch } as ProjectState
+        return updated as Project
       })
 
       const result = await executor.execute(milestone)

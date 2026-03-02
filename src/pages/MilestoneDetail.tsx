@@ -20,7 +20,7 @@ import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClas
 import { useProjects } from '@/store/projects'
 import { AgentChat } from '@/components/AgentChat'
 import type { ProjectIterationStatus } from '@/types/electron.d'
-import type { Milestone, InboxItem, ProjectState, Iteration, IterationOutcome } from '@/types/index'
+import type { Milestone, InboxItem, ProjectStatus, Iteration, IterationOutcome } from '@/types/index'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ const TYPE_STYLES: Record<string, string> = {
 
 // ── Iteration helpers (from IterationMonitor) ────────────────────────────────
 
-function StatusIcon({ status }: { status: ProjectState['status'] }) {
+function StatusIcon({ status }: { status: ProjectStatus }) {
   switch (status) {
     case 'awake': return <Zap size={13} className="text-green-400" />
     case 'checking': return <Loader2 size={13} className="text-yellow-400 animate-spin" />
@@ -137,12 +137,12 @@ export function MilestoneDetail() {
   const [savingMarkdown, setSavingMarkdown] = useState(false)
 
   // ── Iteration state (from IterationMonitor) ────────────────────────────────
-  const [status, setStatus] = useState<ProjectIterationStatus>({
+  const [status, setStatus] = useState<ProjectIterationStatus>(() => ({
     projectId: id ?? '',
-    status: 'sleeping',
-    currentIteration: null,
-    rateLimitResetAt: null,
-  })
+    status: project?.status ?? 'sleeping',
+    currentIteration: project?.currentIteration ?? null,
+    rateLimitResetAt: project?.rateLimitResetAt ?? null,
+  }))
   const [activeAgent, setActiveAgent] = useState<'developer' | 'acceptor' | null>(null)
   const [iterations, setIterations] = useState<Iteration[]>([])
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
@@ -178,17 +178,15 @@ export function MilestoneDetail() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mid, project?.id])
 
-  // Load initial project state
+  // Sync status from project prop changes
   useEffect(() => {
     if (!project) return
-    window.electronAPI.getProjectState(project.path).then((state) => {
-      setStatus((prev) => ({
-        ...prev,
-        status: state.status,
-        currentIteration: state.currentIteration,
-        rateLimitResetAt: state.rateLimitResetAt,
-      }))
-    })
+    setStatus((prev) => ({
+      ...prev,
+      status: project.status,
+      currentIteration: project.currentIteration,
+      rateLimitResetAt: project.rateLimitResetAt,
+    }))
   }, [project])
 
   // Listen for status + agent + milestone events
@@ -347,7 +345,7 @@ export function MilestoneDetail() {
 
   const handleCancel = async () => {
     if (!project || !milestone) return
-    await window.electronAPI.cancelMilestone(project.id, project.path, milestone.id)
+    await window.electronAPI.cancelMilestone(project.id, milestone.id)
     setMilestone({ ...milestone, status: 'cancelled' })
     setCancelOpen(false)
   }
@@ -365,7 +363,7 @@ export function MilestoneDetail() {
 
   const handleCancelIteration = () => {
     if (!id || !mid || !project) return
-    window.electronAPI.cancelMilestone(id, project.path, mid)
+    window.electronAPI.cancelMilestone(id, mid)
   }
 
   // Resolve which agent props to show based on sub-tab

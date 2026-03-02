@@ -2,14 +2,14 @@ import { Tray, Menu, app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { createTrayIcons, type TrayIconStatus } from './icons'
 import type { ProjectService } from '../services/ProjectService'
-import type { ProjectView, ProjectStatus } from '../../../src/types/index'
+import type { Project, ProjectStatus } from '../../../src/types/index'
 
 let tray: Tray | null = null
 let trayIcons: ReturnType<typeof createTrayIcons> | null = null
 
-function getAggregateStatus(views: ProjectView[]): TrayIconStatus {
-  if (views.length === 0) return 'sleeping'
-  const states = views.map((v) => v.status)
+function getAggregateStatus(projects: Project[]): TrayIconStatus {
+  if (projects.length === 0) return 'sleeping'
+  const states = projects.map((p) => p.status)
   if (states.some((s) => s === 'paused')) return 'paused'
   if (states.some((s) => s === 'awake')) return 'awake'
   if (states.some((s) => s === 'checking' || s === 'rate_limited')) return 'checking'
@@ -27,16 +27,16 @@ function statusIcon(status: ProjectStatus): string {
   }
 }
 
-function statusText(view: ProjectView): string {
-  switch (view.status) {
+function statusText(project: Project): string {
+  switch (project.status) {
     case 'sleeping':
-      return view.nextWakeTime
-        ? `Sleeping · next: ${new Date(view.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      return project.nextWakeTime
+        ? `Sleeping · next: ${new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
         : 'Sleeping'
     case 'checking': return 'Checking…'
     case 'awake':
-      return view.currentIteration
-        ? `Working · Round ${view.currentIteration.round}`
+      return project.currentIteration
+        ? `Working · Round ${project.currentIteration.round}`
         : 'Working'
     case 'paused': return 'Paused'
     case 'rate_limited': return 'Rate Limited'
@@ -74,18 +74,18 @@ export function updateTray(
 ): void {
   if (!tray || !trayIcons) return
 
-  const views = projectService.listWithState()
-  const status = getAggregateStatus(views)
+  const projects = projectService.list()
+  const status = getAggregateStatus(projects)
   tray.setImage(trayIcons[status])
 
-  const projectItems = views.map((view) => ({
-    label: `${statusIcon(view.status)}  ${view.name.padEnd(20)}  ${statusText(view)}`,
+  const projectItems = projects.map((project) => ({
+    label: `${statusIcon(project.status)}  ${project.name.padEnd(20)}  ${statusText(project)}`,
     click: () => {
       const win = getWindow?.()
       if (win) {
         win.show()
         win.focus()
-        win.webContents.send('window:navigate', `/projects/${view.id}`)
+        win.webContents.send('window:navigate', `/projects/${project.id}`)
       }
     },
   }))
@@ -93,7 +93,7 @@ export function updateTray(
   const menuTemplate: Electron.MenuItemConstructorOptions[] = [
     { label: 'Anima', enabled: false },
     { type: 'separator' },
-    ...(views.length > 0
+    ...(projects.length > 0
       ? projectItems
       : [{ label: 'No projects added yet', enabled: false }]),
     { type: 'separator' },

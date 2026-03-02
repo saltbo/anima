@@ -3,22 +3,12 @@ import { createLogger } from '../logger'
 
 const log = createLogger('db-schema')
 
-const CURRENT_VERSION = 1
-
 const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS schema_version (
-  version INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS projects (
-  id          TEXT PRIMARY KEY,
-  path        TEXT NOT NULL UNIQUE,
-  name        TEXT NOT NULL,
-  added_at    TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS project_state (
-  project_id          TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  id                  TEXT PRIMARY KEY,
+  path                TEXT NOT NULL UNIQUE,
+  name                TEXT NOT NULL,
+  added_at            TEXT NOT NULL,
   status              TEXT NOT NULL DEFAULT 'sleeping',
   current_iteration   TEXT,
   next_wake_time      TEXT,
@@ -74,33 +64,6 @@ CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
 `
 
 export function initSchema(db: Database.Database): void {
-  const version = getSchemaVersion(db)
-  if (version >= CURRENT_VERSION) {
-    log.info('schema up to date', { version })
-    return
-  }
-
-  log.info('initializing schema', { from: version, to: CURRENT_VERSION })
+  log.info('initializing schema')
   db.exec(SCHEMA_SQL)
-
-  if (version === 0) {
-    db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(CURRENT_VERSION)
-  } else {
-    db.prepare('UPDATE schema_version SET version = ?').run(CURRENT_VERSION)
-  }
-
-  log.info('schema initialized', { version: CURRENT_VERSION })
-}
-
-function getSchemaVersion(db: Database.Database): number {
-  try {
-    const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'").get() as
-      | { name: string }
-      | undefined
-    if (!row) return 0
-    const ver = db.prepare('SELECT version FROM schema_version').get() as { version: number } | undefined
-    return ver?.version ?? 0
-  } catch {
-    return 0
-  }
 }

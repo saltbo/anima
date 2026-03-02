@@ -1,6 +1,6 @@
 import { createLogger } from '../logger'
 import { conversationAgent } from '../agents/service'
-import type { ProjectStateRepository } from '../repositories/ProjectStateRepository'
+import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from '../services/GitService'
 import type { Milestone, Iteration, IterationOutcome } from '../../../src/types/index'
@@ -28,7 +28,7 @@ export interface ExecutorOptions {
   projectId: string
   projectPath: string
   notifier: Notifier
-  stateRepo: ProjectStateRepository
+  projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
   gitService: GitService
   onRateLimit: (resetAt: string) => void
@@ -53,7 +53,7 @@ export class MilestoneExecutor {
   private projectId: string
   private projectPath: string
   private notifier: Notifier
-  private stateRepo: ProjectStateRepository
+  private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
   private gitService: GitService
   private onRateLimit: (resetAt: string) => void
@@ -66,7 +66,7 @@ export class MilestoneExecutor {
     this.projectId = options.projectId
     this.projectPath = options.projectPath
     this.notifier = options.notifier
-    this.stateRepo = options.stateRepo
+    this.projectRepo = options.projectRepo
     this.milestoneRepo = options.milestoneRepo
     this.gitService = options.gitService
     this.onRateLimit = options.onRateLimit
@@ -161,8 +161,9 @@ export class MilestoneExecutor {
             log.info('developer system event', { sessionId: event.sessionId, devKey })
             this.notifier.broadcastAgentEvent('developer', devKey)
             this.capturedSessionIds.developerSessionId = event.sessionId
-            const cur = this.stateRepo.get(this.projectId).currentIteration
-            if (cur) this.stateRepo.patch(this.projectId, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
+            const project = this.projectRepo.getById(this.projectId)
+            const cur = project?.currentIteration
+            if (cur) this.projectRepo.patch(this.projectId, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
           }
           if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
             const todos = parseTodoWrite(event.toolInput)
@@ -185,8 +186,9 @@ export class MilestoneExecutor {
           log.info('acceptor system event', { sessionId: event.sessionId, accKey })
           this.notifier.broadcastAgentEvent('acceptor', accKey)
           this.capturedSessionIds.acceptorSessionId = event.sessionId
-          const cur = this.stateRepo.get(this.projectId).currentIteration
-          if (cur) this.stateRepo.patch(this.projectId, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
+          const project = this.projectRepo.getById(this.projectId)
+          const cur = project?.currentIteration
+          if (cur) this.projectRepo.patch(this.projectId, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
         }
         if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
           const parsed = parseTodoWrite(event.toolInput)
@@ -245,7 +247,7 @@ export class MilestoneExecutor {
     if (isRateLimitError(msg)) {
       const resetAt = parseResetTime(msg)
       log.warn('rate limit detected', { resetAt })
-      this.stateRepo.patch(this.projectId, { status: 'rate_limited', rateLimitResetAt: resetAt })
+      this.projectRepo.patch(this.projectId, { status: 'rate_limited', rateLimitResetAt: resetAt })
       this.broadcastStatus()
       this.notifier.notifyRateLimited(resetAt)
       this.onRateLimit(resetAt)
@@ -264,8 +266,9 @@ export class MilestoneExecutor {
     if (m) {
       this.milestoneRepo.save(this.projectId, { ...m, iterationCount: round })
     }
-    const cur = this.stateRepo.get(this.projectId).currentIteration
-    this.stateRepo.patch(this.projectId, {
+    const project = this.projectRepo.getById(this.projectId)
+    const cur = project?.currentIteration
+    this.projectRepo.patch(this.projectId, {
       status: 'paused',
       currentIteration: cur ?? { milestoneId: milestone.id, round },
     })
@@ -284,7 +287,7 @@ export class MilestoneExecutor {
         iterationCount: round,
       })
     }
-    this.stateRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
+    this.projectRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
     this.broadcastStatus()
     this.notifier.notifyMilestoneCompleted(milestone.id)
     this.onComplete()
@@ -292,7 +295,7 @@ export class MilestoneExecutor {
 
   private updateIterationState(milestoneId: string, round: number, startedAt: string): void {
     const iter: Iteration = { milestoneId, round, startedAt }
-    this.stateRepo.patch(this.projectId, { status: 'awake', currentIteration: iter })
+    this.projectRepo.patch(this.projectId, { status: 'awake', currentIteration: iter })
     this.broadcastStatus()
   }
 
@@ -321,7 +324,7 @@ export class MilestoneExecutor {
   }
 
   private broadcastStatus(): void {
-    const state = this.stateRepo.get(this.projectId)
-    this.notifier.broadcastStatus(state)
+    const project = this.projectRepo.getById(this.projectId)
+    if (project) this.notifier.broadcastStatus(project)
   }
 }

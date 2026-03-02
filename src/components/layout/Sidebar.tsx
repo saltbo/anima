@@ -3,14 +3,14 @@ import { Plus, Settings } from 'lucide-react'
 import { cn, statusBgColor } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { ProjectView } from '@/types'
+import type { Project } from '@/types'
 
 function ProjectItem({
   project,
   isSelected,
   onClick,
 }: {
-  project: ProjectView
+  project: Project
   isSelected: boolean
   onClick: () => void
 }) {
@@ -35,7 +35,7 @@ export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const handleSelectProject = (project: ProjectView) => {
+  const handleSelectProject = (project: Project) => {
     setSelectedProjectId(project.id)
     navigate(`/projects/${project.id}`)
   }

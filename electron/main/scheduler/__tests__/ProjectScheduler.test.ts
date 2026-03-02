@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { ProjectState, Milestone, WakeSchedule } from '../../../../src/types/index'
+import type { Project, Milestone, WakeSchedule } from '../../../../src/types/index'
 
 // ── Mock dependencies ───────────────────────────────────────────────────────
 
@@ -30,7 +30,11 @@ const { MilestoneExecutor } = await import('../MilestoneExecutor')
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_STATE: ProjectState = {
+const DEFAULT_PROJECT: Project = {
+  id: 'proj-1',
+  path: '/test/project',
+  name: 'test',
+  addedAt: '2026-01-01',
   status: 'sleeping',
   currentIteration: null,
   nextWakeTime: null,
@@ -57,18 +61,21 @@ function createMilestone(overrides: Partial<Milestone> = {}): Milestone {
 }
 
 function createMockRepos() {
-  let currentState = { ...DEFAULT_STATE }
+  let currentProject = { ...DEFAULT_PROJECT }
 
-  const stateRepo = {
-    get: vi.fn(() => currentState),
-    patch: vi.fn((_id: string, patch: Partial<ProjectState>) => {
-      currentState = { ...currentState, ...patch }
-      return currentState
+  const projectRepo = {
+    getAll: vi.fn(() => [currentProject]),
+    getById: vi.fn(() => currentProject),
+    getByPath: vi.fn(() => currentProject),
+    add: vi.fn(),
+    remove: vi.fn(),
+    resolveProjectId: vi.fn(() => 'proj-1'),
+    patch: vi.fn((_id: string, patch: Partial<Project>) => {
+      currentProject = { ...currentProject, ...patch }
+      return currentProject
     }),
-    save: vi.fn((_id: string, state: ProjectState) => { currentState = state }),
-    getByPath: vi.fn(() => currentState),
     // Expose for test assertions
-    _setState: (s: ProjectState) => { currentState = s },
+    _setProject: (p: Project) => { currentProject = p },
   }
 
   const milestoneRepo = {
@@ -90,11 +97,11 @@ function createMockRepos() {
     isGitRepo: vi.fn().mockResolvedValue(true),
   }
 
-  return { stateRepo, milestoneRepo, gitService }
+  return { projectRepo, milestoneRepo, gitService }
 }
 
 function createScheduler(repos?: ReturnType<typeof createMockRepos>) {
-  const { stateRepo, milestoneRepo, gitService } = repos ?? createMockRepos()
+  const { projectRepo, milestoneRepo, gitService } = repos ?? createMockRepos()
   const mockWin = {
     isDestroyed: () => false,
     webContents: { send: vi.fn() },
@@ -104,11 +111,11 @@ function createScheduler(repos?: ReturnType<typeof createMockRepos>) {
       projectId: 'proj-1',
       projectPath: '/test/project',
       getWindow: () => mockWin as any,
-      stateRepo: stateRepo as any,
+      projectRepo: projectRepo as any,
       milestoneRepo: milestoneRepo as any,
       gitService: gitService as any,
     }),
-    stateRepo,
+    projectRepo,
     milestoneRepo,
     gitService,
   }
@@ -147,62 +154,62 @@ describe('ProjectScheduler', () => {
     it('goes back to sleep when no ready milestones', async () => {
       const repos = createMockRepos()
       repos.milestoneRepo.getByProjectId.mockReturnValue([])
-      const { scheduler, stateRepo } = createScheduler(repos)
+      const { scheduler, projectRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'checking' })
-      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'sleeping' })
+      expect(projectRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'checking' })
+      expect(projectRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'sleeping' })
       scheduler.stop()
     })
 
     it('skips check when status is awake', async () => {
       const repos = createMockRepos()
-      repos.stateRepo._setState({
-        ...DEFAULT_STATE,
+      repos.projectRepo._setProject({
+        ...DEFAULT_PROJECT,
         status: 'awake',
         currentIteration: { milestoneId: 'm-1', round: 1 },
       })
-      const { scheduler, stateRepo } = createScheduler(repos)
+      const { scheduler, projectRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(stateRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
+      expect(projectRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
 
     it('skips check when status is paused', async () => {
       const repos = createMockRepos()
-      repos.stateRepo._setState({
-        ...DEFAULT_STATE,
+      repos.projectRepo._setProject({
+        ...DEFAULT_PROJECT,
         status: 'paused',
         currentIteration: { milestoneId: 'm-1', round: 1 },
       })
-      const { scheduler, stateRepo } = createScheduler(repos)
+      const { scheduler, projectRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(stateRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
+      expect(projectRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
 
     it('reschedules when rate_limited and reset time is in future', async () => {
       const repos = createMockRepos()
       const resetAt = new Date(Date.now() + 60000).toISOString()
-      repos.stateRepo._setState({
-        ...DEFAULT_STATE,
+      repos.projectRepo._setProject({
+        ...DEFAULT_PROJECT,
         status: 'rate_limited',
         rateLimitResetAt: resetAt,
       })
-      const { scheduler, stateRepo } = createScheduler(repos)
+      const { scheduler, projectRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(stateRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
+      expect(projectRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
   })
@@ -234,12 +241,12 @@ describe('ProjectScheduler', () => {
       repos.milestoneRepo.getByProjectId.mockReturnValue([milestone])
       mockExecutorExecute.mockRejectedValue(new Error('unexpected'))
 
-      const { scheduler, stateRepo } = createScheduler(repos)
+      const { scheduler, projectRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'paused' })
+      expect(projectRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'paused' })
       scheduler.stop()
     })
   })
@@ -248,16 +255,16 @@ describe('ProjectScheduler', () => {
     it('triggers immediate check', async () => {
       const repos = createMockRepos()
       repos.milestoneRepo.getByProjectId.mockReturnValue([])
-      const { scheduler, stateRepo } = createScheduler(repos)
+      const { scheduler, projectRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
-      stateRepo.patch.mockClear()
+      projectRepo.patch.mockClear()
 
       scheduler.wakeNow()
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'checking' })
+      expect(projectRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
   })
@@ -280,8 +287,8 @@ describe('ProjectScheduler', () => {
       const repos = createMockRepos()
       repos.milestoneRepo.getByProjectId.mockReturnValue([milestone])
       repos.milestoneRepo.getById.mockReturnValue(milestone)
-      repos.stateRepo._setState({
-        ...DEFAULT_STATE,
+      repos.projectRepo._setProject({
+        ...DEFAULT_PROJECT,
         status: 'awake',
         currentIteration: {
           milestoneId: 'm-1',

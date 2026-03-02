@@ -23,6 +23,7 @@ export function installBrowserStub() {
     writeSetupFile: async () => {},
 
     readAgentEvents: async () => [],
+    readSessionEvents: async () => [],
 
     onProjectsUpdated: () => () => {},
     onNavigate: () => () => {},
@@ -44,9 +45,9 @@ export function installBrowserStub() {
     onMilestonePlanningDone: () => () => {},
     onMilestoneReviewDone: () => () => {},
 
-    getProjectState: async () => ({ status: 'sleeping', currentIteration: null, rateLimitResetAt: null, nextWakeTime: null, totalTokens: 0, totalCost: 0, wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] } }),
     wakeProject: async () => {},
     updateWakeSchedule: async () => {},
+    cancelMilestone: async () => {},
 
     onProjectStatusChanged: () => () => {},
     onProjectAgentEvent: () => () => {},

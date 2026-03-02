@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { createLogger } from '../logger'
-import type { ProjectStateRepository } from '../repositories/ProjectStateRepository'
+import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from '../services/GitService'
 import type { Milestone, WakeSchedule } from '../../../src/types/index'
@@ -16,7 +16,7 @@ export interface SchedulerOptions {
   projectId: string
   projectPath: string
   getWindow: () => BrowserWindow | null
-  stateRepo: ProjectStateRepository
+  projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
   gitService: GitService
 }
@@ -27,7 +27,7 @@ export class ProjectScheduler {
   private projectId: string
   private projectPath: string
   private notifier: Notifier
-  private stateRepo: ProjectStateRepository
+  private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
   private gitService: GitService
   private wakeTimer: ReturnType<typeof setTimeout> | null = null
@@ -37,7 +37,7 @@ export class ProjectScheduler {
   constructor(options: SchedulerOptions) {
     this.projectId = options.projectId
     this.projectPath = options.projectPath
-    this.stateRepo = options.stateRepo
+    this.projectRepo = options.projectRepo
     this.milestoneRepo = options.milestoneRepo
     this.gitService = options.gitService
     this.notifier = new Notifier(options.projectId, options.getWindow)
@@ -85,7 +85,7 @@ export class ProjectScheduler {
     this.milestoneRepo.save(this.projectId, { ...milestone, status: 'cancelled' })
 
     // Reset project state
-    this.stateRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
+    this.projectRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
     this.broadcastStatus()
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'cancelled' })
     log.info('milestone cancelled', { milestone: milestoneId })
@@ -108,11 +108,12 @@ export class ProjectScheduler {
 
   private scheduleNextWake(schedule?: WakeSchedule): void {
     if (!this.running) return
-    const s = schedule ?? this.stateRepo.get(this.projectId).wakeSchedule
+    const project = this.projectRepo.getById(this.projectId)
+    const s = schedule ?? project?.wakeSchedule ?? { mode: 'manual', intervalMinutes: null, times: [] }
     const wake = calculateNextWake(s)
     if (!wake) return
 
-    this.stateRepo.patch(this.projectId, { nextWakeTime: wake.nextWakeTime })
+    this.projectRepo.patch(this.projectId, { nextWakeTime: wake.nextWakeTime })
     this.broadcastStatus()
     this.scheduleCheck(wake.delayMs)
   }
@@ -120,11 +121,12 @@ export class ProjectScheduler {
   // ── Recovery ──────────────────────────────────────────────────────────────
 
   private async recoverIfNeeded(): Promise<void> {
-    const state = this.stateRepo.get(this.projectId)
-    if ((state.status !== 'awake' && state.status !== 'paused') || !state.currentIteration) return
+    const project = this.projectRepo.getById(this.projectId)
+    if (!project) return
+    if ((project.status !== 'awake' && project.status !== 'paused') || !project.currentIteration) return
 
-    log.info('restart recovery: resuming iteration', { milestone: state.currentIteration.milestoneId })
-    const m = this.milestoneRepo.getById(state.currentIteration.milestoneId)
+    log.info('restart recovery: resuming iteration', { milestone: project.currentIteration.milestoneId })
+    const m = this.milestoneRepo.getById(project.currentIteration.milestoneId)
     if (!m) return
 
     try {
@@ -145,19 +147,20 @@ export class ProjectScheduler {
   private async check(): Promise<void> {
     if (!this.running) return
 
-    const state = this.stateRepo.get(this.projectId)
+    const project = this.projectRepo.getById(this.projectId)
+    if (!project) return
 
-    if (state.status === 'rate_limited' && state.rateLimitResetAt) {
-      const resetMs = new Date(state.rateLimitResetAt).getTime() - Date.now()
+    if (project.status === 'rate_limited' && project.rateLimitResetAt) {
+      const resetMs = new Date(project.rateLimitResetAt).getTime() - Date.now()
       if (resetMs > 0) {
         this.scheduleCheck(resetMs)
         return
       }
     }
 
-    if (state.status === 'awake' || state.status === 'paused') return
+    if (project.status === 'awake' || project.status === 'paused') return
 
-    this.stateRepo.patch(this.projectId, { status: 'checking' })
+    this.projectRepo.patch(this.projectId, { status: 'checking' })
     this.broadcastStatus()
     log.info('checking for ready milestones', { project: this.projectId })
 
@@ -165,7 +168,7 @@ export class ProjectScheduler {
     const ready = milestones.filter((m) => m.status === 'ready')
 
     if (ready.length === 0) {
-      this.stateRepo.patch(this.projectId, { status: 'sleeping' })
+      this.projectRepo.patch(this.projectId, { status: 'sleeping' })
       this.broadcastStatus()
       log.info('no ready milestones, going back to sleep', { project: this.projectId })
       this.scheduleNextWake()
@@ -187,7 +190,7 @@ export class ProjectScheduler {
       await this.executeWithExecutor(updated)
     } catch (err) {
       log.error('execution error', { error: String(err) })
-      this.stateRepo.patch(this.projectId, { status: 'paused' })
+      this.projectRepo.patch(this.projectId, { status: 'paused' })
       this.broadcastStatus()
     }
   }
@@ -199,7 +202,7 @@ export class ProjectScheduler {
       projectId: this.projectId,
       projectPath: this.projectPath,
       notifier: this.notifier,
-      stateRepo: this.stateRepo,
+      projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
       gitService: this.gitService,
       onRateLimit: (resetAt) => {
@@ -221,7 +224,7 @@ export class ProjectScheduler {
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   private broadcastStatus(): void {
-    const state = this.stateRepo.get(this.projectId)
-    this.notifier.broadcastStatus(state)
+    const project = this.projectRepo.getById(this.projectId)
+    if (project) this.notifier.broadcastStatus(project)
   }
 }

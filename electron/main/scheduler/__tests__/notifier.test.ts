@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Notifier } from '../notifier'
-import type { ProjectState } from '../../../../src/types/index'
+import type { Project } from '../../../../src/types/index'
 
 function createMockWindow() {
   const send = vi.fn()
@@ -10,6 +10,20 @@ function createMockWindow() {
     isDestroyed: vi.fn(() => false),
     webContents: { send },
   }
+}
+
+const DEFAULT_PROJECT: Project = {
+  id: 'proj-1',
+  path: '/test/project',
+  name: 'test',
+  addedAt: '2026-01-01',
+  status: 'sleeping',
+  currentIteration: null,
+  nextWakeTime: null,
+  wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
+  totalTokens: 0,
+  totalCost: 0,
+  rateLimitResetAt: null,
 }
 
 describe('Notifier', () => {
@@ -23,17 +37,13 @@ describe('Notifier', () => {
 
   describe('broadcastStatus', () => {
     it('sends project:statusChanged with correct payload', () => {
-      const state: ProjectState = {
+      const project: Project = {
+        ...DEFAULT_PROJECT,
         status: 'awake',
         currentIteration: { milestoneId: 'm-1', round: 2 },
-        nextWakeTime: null,
-        wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
-        totalTokens: 0,
-        totalCost: 0,
-        rateLimitResetAt: null,
       }
 
-      notifier.broadcastStatus(state)
+      notifier.broadcastStatus(project)
 
       expect(mockWindow.send).toHaveBeenCalledWith('project:statusChanged', {
         projectId: 'proj-1',
@@ -117,30 +127,14 @@ describe('Notifier', () => {
   describe('when window is null', () => {
     it('does not throw', () => {
       const notifierNoWin = new Notifier('proj-1', () => null)
-      expect(() => notifierNoWin.broadcastStatus({
-        status: 'sleeping',
-        currentIteration: null,
-        nextWakeTime: null,
-        wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
-        totalTokens: 0,
-        totalCost: 0,
-        rateLimitResetAt: null,
-      })).not.toThrow()
+      expect(() => notifierNoWin.broadcastStatus(DEFAULT_PROJECT)).not.toThrow()
     })
   })
 
   describe('when window is destroyed', () => {
     it('does not send', () => {
       mockWindow.isDestroyed.mockReturnValue(true)
-      notifier.broadcastStatus({
-        status: 'sleeping',
-        currentIteration: null,
-        nextWakeTime: null,
-        wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
-        totalTokens: 0,
-        totalCost: 0,
-        rateLimitResetAt: null,
-      })
+      notifier.broadcastStatus(DEFAULT_PROJECT)
 
       expect(mockWindow.send).not.toHaveBeenCalled()
     })

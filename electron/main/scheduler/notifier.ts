@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron'
-import type { Milestone, ProjectState } from '../../../src/types/index'
+import type { Milestone, Project } from '../../../src/types/index'
 import type { ProjectAgentEvent, ProjectIterationStatus } from '../../../src/types/electron.d'
 
 export class Notifier {
@@ -14,12 +14,12 @@ export class Notifier {
     win.webContents.send(channel, data)
   }
 
-  broadcastStatus(state: ProjectState): void {
+  broadcastStatus(project: Project): void {
     const status: ProjectIterationStatus = {
       projectId: this.projectId,
-      status: state.status,
-      currentIteration: state.currentIteration,
-      rateLimitResetAt: state.rateLimitResetAt,
+      status: project.status,
+      currentIteration: project.currentIteration,
+      rateLimitResetAt: project.rateLimitResetAt,
     }
     this.send('project:statusChanged', status)
   }

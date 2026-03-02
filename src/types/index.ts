@@ -12,12 +12,18 @@ export interface Iteration {
   completedAt?: string
 }
 
-/** Minimal registry entry stored in global config.json */
 export interface Project {
   id: string
   path: string
   name: string
   addedAt: string
+  status: ProjectStatus
+  currentIteration: Iteration | null
+  nextWakeTime: string | null
+  wakeSchedule: WakeSchedule
+  totalTokens: number
+  totalCost: number
+  rateLimitResetAt: string | null
 }
 
 export type InboxItemType = 'idea' | 'bug' | 'feature'
@@ -71,31 +77,10 @@ export interface Milestone {
   baseCommit?: string
 }
 
-/** Combined Project + ProjectState for UI consumption */
-export interface ProjectView extends Project {
-  status: ProjectStatus
-  currentIteration: Iteration | null
-  nextWakeTime: string | null
-  totalTokens: number
-  totalCost: number
-  rateLimitResetAt: string | null
-}
-
 export type WakeScheduleMode = 'manual' | 'interval' | 'times'
 
 export interface WakeSchedule {
   mode: WakeScheduleMode
   intervalMinutes: number | null
   times: string[]
-}
-
-/** Per-project runtime state stored in .anima/state.json */
-export interface ProjectState {
-  status: ProjectStatus
-  currentIteration: Iteration | null
-  nextWakeTime: string | null
-  wakeSchedule: WakeSchedule
-  totalTokens: number
-  totalCost: number
-  rateLimitResetAt: string | null
 }

@@ -1,13 +1,20 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import path from 'path'
-import type { Project } from '../../../src/types/index'
+import type { Project, ProjectStatus, Iteration, WakeSchedule } from '../../../src/types/index'
 
 interface ProjectRow {
   id: string
   path: string
   name: string
   added_at: string
+  status: string
+  current_iteration: string | null
+  next_wake_time: string | null
+  wake_schedule: string
+  total_tokens: number
+  total_cost: number
+  rate_limit_reset_at: string | null
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -16,6 +23,13 @@ function rowToProject(row: ProjectRow): Project {
     path: row.path,
     name: row.name,
     addedAt: row.added_at,
+    status: row.status as ProjectStatus,
+    currentIteration: row.current_iteration ? (JSON.parse(row.current_iteration) as Iteration) : null,
+    nextWakeTime: row.next_wake_time,
+    wakeSchedule: JSON.parse(row.wake_schedule) as WakeSchedule,
+    totalTokens: row.total_tokens,
+    totalCost: row.total_cost,
+    rateLimitResetAt: row.rate_limit_reset_at,
   }
 }
 
@@ -38,21 +52,16 @@ export class ProjectRepository {
   }
 
   add(projectPath: string): Project {
-    const project: Project = {
-      id: randomUUID(),
-      path: projectPath,
-      name: path.basename(projectPath),
-      addedAt: new Date().toISOString(),
-    }
-    this.db.prepare('INSERT INTO projects (id, path, name, added_at) VALUES (?, ?, ?, ?)').run(
-      project.id,
-      project.path,
-      project.name,
-      project.addedAt
-    )
-    // Also create default project_state
-    this.db.prepare('INSERT INTO project_state (project_id) VALUES (?)').run(project.id)
-    return project
+    const id = randomUUID()
+    const name = path.basename(projectPath)
+    const addedAt = new Date().toISOString()
+    const defaultSchedule = JSON.stringify({ mode: 'manual', intervalMinutes: null, times: [] })
+
+    this.db.prepare(
+      'INSERT INTO projects (id, path, name, added_at, wake_schedule) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, projectPath, name, addedAt, defaultSchedule)
+
+    return this.getById(id)!
   }
 
   remove(id: string): void {
@@ -64,5 +73,35 @@ export class ProjectRepository {
       | { id: string }
       | undefined
     return row?.id ?? null
+  }
+
+  /** Update specific fields on a project (state or metadata). */
+  patch(projectId: string, patch: Partial<Omit<Project, 'id' | 'path' | 'name' | 'addedAt'>>): Project {
+    const current = this.getById(projectId)
+    if (!current) throw new Error(`Project not found: ${projectId}`)
+
+    const merged = { ...current, ...patch }
+    this.db.prepare(
+      `UPDATE projects SET
+        status = ?,
+        current_iteration = ?,
+        next_wake_time = ?,
+        wake_schedule = ?,
+        total_tokens = ?,
+        total_cost = ?,
+        rate_limit_reset_at = ?
+      WHERE id = ?`
+    ).run(
+      merged.status,
+      merged.currentIteration ? JSON.stringify(merged.currentIteration) : null,
+      merged.nextWakeTime,
+      JSON.stringify(merged.wakeSchedule),
+      merged.totalTokens,
+      merged.totalCost,
+      merged.rateLimitResetAt,
+      projectId
+    )
+
+    return merged
   }
 }

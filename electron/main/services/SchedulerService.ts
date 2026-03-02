@@ -2,7 +2,6 @@ import type { BrowserWindow } from 'electron'
 import { ProjectScheduler } from '../scheduler/ProjectScheduler'
 import type { Project, WakeSchedule } from '../../../src/types/index'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
-import type { ProjectStateRepository } from '../repositories/ProjectStateRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from './GitService'
 import { createLogger } from '../logger'
@@ -14,7 +13,6 @@ export class SchedulerService {
 
   constructor(
     private projectRepo: ProjectRepository,
-    private stateRepo: ProjectStateRepository,
     private milestoneRepo: MilestoneRepository,
     private gitService: GitService,
     private getWindow: () => BrowserWindow | null
@@ -36,7 +34,7 @@ export class SchedulerService {
       projectId: project.id,
       projectPath: project.path,
       getWindow: this.getWindow,
-      stateRepo: this.stateRepo,
+      projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
       gitService: this.gitService,
     })
@@ -59,16 +57,12 @@ export class SchedulerService {
   }
 
   updateSchedule(projectId: string, schedule: WakeSchedule): void {
-    this.stateRepo.patch(projectId, { wakeSchedule: schedule })
+    this.projectRepo.patch(projectId, { wakeSchedule: schedule })
     this.schedulers.get(projectId)?.updateSchedule(schedule)
   }
 
   cancelMilestone(projectId: string, milestoneId: string): void {
     this.schedulers.get(projectId)?.cancelMilestone(milestoneId)
-  }
-
-  getState(projectPath: string) {
-    return this.stateRepo.getByPath(projectPath)
   }
 
   stopAll(): void {
