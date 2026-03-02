@@ -29,6 +29,7 @@ export class AgentManager extends EventEmitter {
       projectPath: options.projectPath,
       systemPrompt: options.systemPrompt,
       sessionId: options.sessionId,
+      onSpawn: options.onSpawn,
       onEvent: (event) => {
         for (const listener of [...listeners]) listener(event)
       },

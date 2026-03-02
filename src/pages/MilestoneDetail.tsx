@@ -76,6 +76,7 @@ export function MilestoneDetail() {
     const updated: Milestone = { ...milestone, status: 'ready' }
     await window.electronAPI.saveMilestone(project.path, updated)
     setMilestone(updated)
+    await window.electronAPI.wakeProject(project.id)
   }
 
   const handleMarkCompleted = async () => {

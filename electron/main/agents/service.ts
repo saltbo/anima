@@ -1,6 +1,9 @@
 import { AgentManager } from './manager'
 import { ClaudeCodeAgent } from './claude-code/index'
 import type { AgentEvent } from './index'
+import { createLogger } from '../logger'
+
+const log = createLogger('conversation-agent')
 
 const claudeCodeAgent = new ClaudeCodeAgent()
 
@@ -57,8 +60,11 @@ class ConversationAgent {
         projectPath: options.projectPath,
         systemPrompt: options.systemPrompt,
         sessionId: options.sessionId,
+        onSpawn: () => {
+          log.debug('process spawned, sending firstMessage', { agentKey, length: options.firstMessage.length })
+          agentManager.send(agentKey, options.firstMessage)
+        },
         onEvent: (event) => {
-          if (event.event === 'system') agentManager.send(agentKey, options.firstMessage)
           options.onEvent?.(event)
           if (event.event === 'done') settle(() => resolve(event.result ?? ''))
           if (event.event === 'error') settle(() => reject(new Error(event.message)))
@@ -129,8 +135,8 @@ class TaskAgent {
     agentManager.start(agentKey, claudeCodeAgent, {
       projectPath,
       systemPrompt,
+      onSpawn: () => agentManager.send(agentKey, message),
       onEvent: (event) => {
-        if (event.event === 'system') agentManager.send(agentKey, message)
         onEvent?.(event)
         if (event.event === 'done') onComplete?.()
       },

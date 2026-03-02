@@ -150,14 +150,23 @@ export class ClaudeCodeAgent implements Agent {
     let stderrErrorEmitted = false
 
     const trackingOnEvent = (event: AgentEvent): void => {
-      if (event.event === 'system') session.initHistory(event.sessionId)
-      if (event.event === 'done') resultSeen = true
+      if (event.event === 'system') {
+        log.debug('event:system', { session: id, sessionId: event.sessionId, model: event.model })
+        session.initHistory(event.sessionId)
+      }
+      if (event.event === 'done') {
+        log.debug('event:done', { session: id })
+        resultSeen = true
+      }
+      if (event.event === 'error') {
+        log.error('event:error', { session: id, message: event.message })
+      }
       onEvent(event)
     }
 
     child.stdout?.on('data', (data: Buffer) => {
       const raw = data.toString()
-      log.debug('stdout', { session: id, raw: raw.replace(/\n/g, '\\n') })
+      log.debug('stdout:raw', { session: id, raw: raw.slice(0, 200).replace(/\n/g, '\\n') })
       stdoutBuffer += raw
       const lines = stdoutBuffer.split('\n')
       stdoutBuffer = lines.pop() || ''
@@ -170,7 +179,10 @@ export class ClaudeCodeAgent implements Agent {
       if (trimmed) { stderrErrorEmitted = true; onEvent({ event: 'error', message: trimmed }) }
     })
 
-    child.on('spawn', () => log.info('spawned', { session: id }))
+    child.on('spawn', () => {
+      log.info('spawned', { session: id })
+      options.onSpawn?.()
+    })
 
     child.on('close', (code) => {
       log.info('close', { session: id, code })

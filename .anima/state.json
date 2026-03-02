@@ -9,12 +9,5 @@
   },
   "totalTokens": 0,
   "totalCost": 0,
-  "rateLimitResetAt": null,
-  "currentMilestone": null,
-  "iterationCount": 0,
-  "current_milestone": null,
-  "total_tokens": 0,
-  "total_cost_usd": 0,
-  "first_activated_at": null,
-  "last_active_at": null
+  "rateLimitResetAt": null
 }

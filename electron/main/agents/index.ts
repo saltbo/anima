@@ -10,6 +10,8 @@ export interface AgentStartOptions {
   onEvent: (event: AgentEvent) => void
   /** Called once when the underlying process terminates (naturally or on error) */
   onDone?: () => void
+  /** Called once when the process is spawned and ready to receive messages */
+  onSpawn?: () => void
 }
 
 export interface AgentSession {
