@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { createLogger } from '../logger'
-import type { Agent, AgentEvent, AgentHandle, AgentStartOptions } from './index'
+import type { Agent, AgentEvent, AgentSession, AgentStartOptions } from './index'
 
 const log = createLogger('claude-code-agent')
 
@@ -106,7 +106,7 @@ function parseLine(line: string, onEvent: (event: AgentEvent) => void): void {
   }
 }
 
-class ClaudeCodeSession implements AgentHandle {
+class ClaudeCodeSession implements AgentSession {
   private child: ChildProcess
   private id: string
 
@@ -142,9 +142,9 @@ class ClaudeCodeSession implements AgentHandle {
 }
 
 export class ClaudeCodeAgent implements Agent {
-  start(options: AgentStartOptions): AgentHandle {
+  start(options: AgentStartOptions): AgentSession {
     const { projectPath, systemPrompt, onEvent, onDone } = options
-    const id = options.id ?? `session-${Date.now()}`
+    const id = options.sessionId ?? `anon-${Date.now()}`
 
     const cliPath = resolveCliPath('claude')
     log.debug('resolveCliPath', { session: id, result: cliPath ?? 'NOT FOUND' })
@@ -154,7 +154,7 @@ export class ClaudeCodeAgent implements Agent {
         message: 'claude CLI not found. Please install it via: npm install -g @anthropic-ai/claude-code',
       })
       onDone?.()
-      const noop: AgentHandle = { sendMessage: () => {}, stop: () => {} }
+      const noop: AgentSession = { sendMessage: () => {}, stop: () => {} }
       return noop
     }
 
@@ -176,6 +176,7 @@ export class ClaudeCodeAgent implements Agent {
       '--output-format', 'stream-json',
       '--dangerously-skip-permissions',
       '--system-prompt', systemPrompt,
+      ...(options.sessionId ? ['--resume', options.sessionId] : []),
     ]
 
     log.info('spawn', { session: id, cli: cliPath, args: args.slice(0, -2).join(' '), cwd: projectPath })

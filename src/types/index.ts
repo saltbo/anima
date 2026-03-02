@@ -3,6 +3,8 @@ export type ProjectStatus = 'sleeping' | 'checking' | 'awake' | 'paused' | 'rate
 export interface Iteration {
   milestoneId: string
   count: number
+  developerSessionId?: string
+  acceptorSessionId?: string
 }
 
 /** Minimal registry entry stored in global config.json */

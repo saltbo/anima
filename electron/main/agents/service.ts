@@ -1,4 +1,4 @@
-import { AgentSessionManager } from './manager'
+import { AgentManager } from './manager'
 import { ClaudeCodeAgent } from './claude-code'
 import type { AgentEvent } from './index'
 
@@ -10,19 +10,20 @@ const claudeCodeAgent = new ClaudeCodeAgent()
 // Supports multiple event listeners per session via addListener().
 
 class ConversationAgent {
-  private manager = new AgentSessionManager()
+  private manager = new AgentManager()
   private listeners = new Map<string, Set<(event: AgentEvent) => void>>()
 
-  start(sessionId: string, options: { projectPath: string; systemPrompt: string; onEvent: (event: AgentEvent) => void }): void {
+  start(agentKey: string, options: { projectPath: string; systemPrompt: string; sessionId?: string; onEvent: (event: AgentEvent) => void }): void {
     const listenerSet = new Set<(event: AgentEvent) => void>()
     listenerSet.add(options.onEvent)
-    this.listeners.set(sessionId, listenerSet)
+    this.listeners.set(agentKey, listenerSet)
 
-    this.manager.start(sessionId, claudeCodeAgent, {
+    this.manager.start(agentKey, claudeCodeAgent, {
       projectPath: options.projectPath,
       systemPrompt: options.systemPrompt,
+      sessionId: options.sessionId,
       onEvent: (event) => {
-        const set = this.listeners.get(sessionId)
+        const set = this.listeners.get(agentKey)
         if (set) {
           // snapshot to avoid mutation during iteration
           for (const listener of [...set]) {
@@ -34,22 +35,22 @@ class ConversationAgent {
   }
 
   /** Add an additional event listener for an existing session. Returns a cleanup function. */
-  addListener(sessionId: string, listener: (event: AgentEvent) => void): () => void {
-    const set = this.listeners.get(sessionId)
+  addListener(agentKey: string, listener: (event: AgentEvent) => void): () => void {
+    const set = this.listeners.get(agentKey)
     if (set) set.add(listener)
     return () => {
-      const s = this.listeners.get(sessionId)
+      const s = this.listeners.get(agentKey)
       if (s) s.delete(listener)
     }
   }
 
-  send(sessionId: string, message: string): void {
-    this.manager.send(sessionId, message)
+  send(agentKey: string, message: string): void {
+    this.manager.send(agentKey, message)
   }
 
-  stop(sessionId: string): void {
-    this.manager.stop(sessionId)
-    this.listeners.delete(sessionId)
+  stop(agentKey: string): void {
+    this.manager.stop(agentKey)
+    this.listeners.delete(agentKey)
   }
 
   stopAll(): void {
@@ -71,28 +72,28 @@ interface TaskOptions {
 }
 
 class TaskAgent {
-  private manager = new AgentSessionManager()
+  private manager = new AgentManager()
 
-  run(sessionId: string, options: TaskOptions): void {
+  run(agentKey: string, options: TaskOptions): void {
     const { projectPath, systemPrompt, message, onEvent, onComplete } = options
 
-    this.manager.start(sessionId, claudeCodeAgent, {
+    this.manager.start(agentKey, claudeCodeAgent, {
       projectPath,
       systemPrompt,
       onEvent: (event) => {
         onEvent(event)
         if (event.event === 'done') {
           onComplete?.()
-          this.manager.stop(sessionId)
+          this.manager.stop(agentKey)
         }
       },
     })
 
-    setTimeout(() => this.manager.send(sessionId, message), 500)
+    setTimeout(() => this.manager.send(agentKey, message), 500)
   }
 
-  stop(sessionId: string): void {
-    this.manager.stop(sessionId)
+  stop(agentKey: string): void {
+    this.manager.stop(agentKey)
   }
 
   stopAll(): void {

@@ -7,7 +7,7 @@ import { createMilestoneBranch, getCurrentBranch, checkoutBranch, getCommitLog, 
 import { conversationAgent } from './agents/service'
 import type { AgentEvent } from './agents/index'
 import type { Milestone, WakeSchedule, Iteration } from '../../src/types/index'
-import type { ProjectIterationStatus } from '../../src/types/electron.d'
+import type { ProjectAgentEvent, ProjectIterationStatus } from '../../src/types/electron.d'
 
 const log = createLogger('scheduler')
 
@@ -255,7 +255,10 @@ export class ProjectScheduler {
         } catch (err) {
           log.warn('branch switch failed on recovery', { error: String(err) })
         }
-        this.runIterationLoop(m, '').catch((err) =>
+        this.runIterationLoop(m, '', {
+          developerSessionId: state.currentIteration.developerSessionId,
+          acceptorSessionId: state.currentIteration.acceptorSessionId,
+        }).catch((err) =>
           log.error('iteration loop error', { error: String(err) })
         )
       }
@@ -314,7 +317,7 @@ export class ProjectScheduler {
       })
       this.broadcastStatus()
 
-      await this.runIterationLoop(updated, '')
+      await this.runIterationLoop(updated, {})
     } catch (err) {
       log.error('iteration error', { error: String(err) })
       patchProjectState(this.projectPath, { status: 'sleeping', currentIteration: null })
@@ -323,8 +326,13 @@ export class ProjectScheduler {
     }
   }
 
-  private async runIterationLoop(milestone: Milestone, initialFeedback: string): Promise<void> {
+  private async runIterationLoop(
+    milestone: Milestone,
+    resumeSessions: { developerSessionId?: string; acceptorSessionId?: string },
+    initialFeedback = ''
+  ): Promise<void> {
     let remainingFeedback = initialFeedback
+    let isFirstRun = true
 
     while (this.running) {
       const state = getProjectState(this.projectPath)
@@ -349,8 +357,16 @@ export class ProjectScheduler {
       this.broadcastStatus()
       log.info('starting iteration', { milestone: milestone.id, iteration: iterationCount })
 
-      const devSessionId = `${milestone.id}-dev-${iterationCount}`
-      const accSessionId = `${milestone.id}-acc-${iterationCount}`
+      const devAgentKey = `${milestone.id}-dev-${iterationCount}`
+      const accAgentKey = `${milestone.id}-acc-${iterationCount}`
+
+      // On recovery (first run), pass stored session IDs for Claude --resume
+      const devResumeSessionId = isFirstRun ? resumeSessions.developerSessionId : undefined
+      const accResumeSessionId = isFirstRun ? resumeSessions.acceptorSessionId : undefined
+      isFirstRun = false
+
+      let devClaudeSessionId: string | undefined
+      let accClaudeSessionId: string | undefined
 
       // ── Developer phase ─────────────────────────────────────────────────
 
@@ -365,11 +381,17 @@ export class ProjectScheduler {
       const devTodos: TodoItem[] = []
 
       try {
-        developerReport = await this.runAgentSession(devSessionId, {
+        developerReport = await this.runAgentSession(devAgentKey, {
+          sessionId: devResumeSessionId,
           systemPrompt: buildDeveloperSystemPrompt(),
           firstMessage: devFirstMsg,
           onEvent: (event) => {
-            this.broadcastAgentEvent('developer', devSessionId, event)
+            if (event.event === 'system') {
+              devClaudeSessionId = event.sessionId
+              const cur = getProjectState(this.projectPath).currentIteration
+              if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
+            }
+            this.broadcastAgentEvent('developer', devAgentKey, devClaudeSessionId, event)
             if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
               const todos = parseTodoWrite(event.toolInput)
               this.captureTodosAsTasks(milestone, iterationCount, todos, devTodos)
@@ -401,11 +423,17 @@ export class ProjectScheduler {
 
         let acceptorReport = ''
         try {
-          acceptorReport = await this.runAgentSession(accSessionId, {
+          acceptorReport = await this.runAgentSession(accAgentKey, {
+            sessionId: accResumeSessionId,
             systemPrompt: buildAcceptorSystemPrompt(),
             firstMessage: accMsg,
             onEvent: (event) => {
-              this.broadcastAgentEvent('acceptor', accSessionId, event)
+              if (event.event === 'system') {
+                accClaudeSessionId = event.sessionId
+                const cur = getProjectState(this.projectPath).currentIteration
+                if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
+              }
+              this.broadcastAgentEvent('acceptor', accAgentKey, accClaudeSessionId, event)
               if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
                 const todos = parseTodoWrite(event.toolInput)
                 this.captureTodosAsAC(milestone, iterationCount, todos, accTodos)
@@ -443,9 +471,9 @@ export class ProjectScheduler {
 
         // Send feedback to developer in same session and get new report
         try {
-          developerReport = await this.continueAgentSession(devSessionId, buildDeveloperFixMessage(feedback), {
+          developerReport = await this.continueAgentSession(devAgentKey, buildDeveloperFixMessage(feedback), {
             onEvent: (event) => {
-              this.broadcastAgentEvent('developer', devSessionId, event)
+              this.broadcastAgentEvent('developer', devAgentKey, devClaudeSessionId, event)
             },
           })
         } catch (err) {
@@ -456,8 +484,8 @@ export class ProjectScheduler {
       }
 
       // Close sessions
-      conversationAgent.stop(devSessionId)
-      conversationAgent.stop(accSessionId)
+      conversationAgent.stop(devAgentKey)
+      conversationAgent.stop(accAgentKey)
 
       if (milestoneComplete) {
         log.info('milestone completed!', { milestone: milestone.id })
@@ -484,8 +512,9 @@ export class ProjectScheduler {
   // ── Agent session helpers ──────────────────────────────────────────────────
 
   private runAgentSession(
-    sessionId: string,
+    agentKey: string,
     options: {
+      sessionId?: string
       systemPrompt: string
       firstMessage: string
       onEvent: (event: AgentEvent) => void
@@ -498,14 +527,15 @@ export class ProjectScheduler {
       const timer = setTimeout(() => {
         if (!settled) {
           settled = true
-          conversationAgent.stop(sessionId)
-          reject(new Error(`Agent session ${sessionId} timed out`))
+          conversationAgent.stop(agentKey)
+          reject(new Error(`Agent session ${agentKey} timed out`))
         }
       }, AGENT_TIMEOUT_MS)
 
-      conversationAgent.start(sessionId, {
+      conversationAgent.start(agentKey, {
         projectPath: this.projectPath,
         systemPrompt: options.systemPrompt,
+        sessionId: options.sessionId,
         onEvent: (event) => {
           options.onEvent(event)
           if (event.event === 'done') {
@@ -517,7 +547,6 @@ export class ProjectScheduler {
             }
           }
           if (event.event === 'error') {
-            // Check for rate limit in error message
             if (this.handleRateLimitError(event.message)) {
               if (!settled) {
                 settled = true
@@ -529,12 +558,12 @@ export class ProjectScheduler {
         },
       })
 
-      setTimeout(() => conversationAgent.send(sessionId, options.firstMessage), 500)
+      setTimeout(() => conversationAgent.send(agentKey, options.firstMessage), 500)
     })
   }
 
   private continueAgentSession(
-    sessionId: string,
+    agentKey: string,
     message: string,
     options: { onEvent: (event: AgentEvent) => void }
   ): Promise<string> {
@@ -546,11 +575,11 @@ export class ProjectScheduler {
         if (!settled) {
           settled = true
           removeListener()
-          reject(new Error(`Agent session ${sessionId} timed out on continue`))
+          reject(new Error(`Agent session ${agentKey} timed out on continue`))
         }
       }, AGENT_TIMEOUT_MS)
 
-      const removeListener = conversationAgent.addListener(sessionId, (event) => {
+      const removeListener = conversationAgent.addListener(agentKey, (event) => {
         options.onEvent(event)
         if (event.event === 'done') {
           result = event.result ?? ''
@@ -571,7 +600,7 @@ export class ProjectScheduler {
         }
       })
 
-      conversationAgent.send(sessionId, message)
+      conversationAgent.send(agentKey, message)
     })
   }
 
@@ -687,13 +716,14 @@ export class ProjectScheduler {
     win.webContents.send('project-status-changed', status)
   }
 
-  private broadcastAgentEvent(role: 'developer' | 'acceptor', sessionId: string, event: AgentEvent): void {
+  private broadcastAgentEvent(role: 'developer' | 'acceptor', agentKey: string, sessionId: string | undefined, event: AgentEvent): void {
     const win = this.getWindow()
     if (!win) return
     // Send via setup-chat-data so AgentChat component can consume it directly
-    win.webContents.send('setup-chat-data', sessionId, event)
+    win.webContents.send('setup-chat-data', agentKey, event)
     // Also send role/project metadata for the monitor header
-    win.webContents.send('iteration-agent-event', { projectId: this.projectId, role, sessionId, event })
+    const payload: ProjectAgentEvent = { projectId: this.projectId, role, sessionId, event }
+    win.webContents.send('iteration-agent-event', payload)
   }
 
   private broadcastMilestoneUpdate(milestone: Milestone): void {

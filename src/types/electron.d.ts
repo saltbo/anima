@@ -3,10 +3,10 @@ import type { AgentEvent } from './agent'
 
 export type AgentRole = 'developer' | 'acceptor'
 
-export interface IterationAgentEvent {
+export interface ProjectAgentEvent {
   projectId: string
   role: AgentRole
-  sessionId: string
+  sessionId?: string
   event: AgentEvent
 }
 
@@ -49,7 +49,7 @@ declare global {
       readMilestoneMarkdown: (projectPath: string, id: string) => Promise<string | null>
       startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => Promise<void>
 
-      onMilestonePlanningDone: (callback: (sessionId: string, milestoneId: string) => void) => () => void
+      onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => () => void
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
 
       // M4
@@ -58,7 +58,7 @@ declare global {
       updateWakeSchedule: (projectId: string, projectPath: string, schedule: WakeSchedule) => Promise<void>
 
       onProjectStatusChanged: (callback: (status: ProjectIterationStatus) => void) => () => void
-      onIterationAgentEvent: (callback: (data: IterationAgentEvent) => void) => () => void
+      onIterationAgentEvent: (callback: (data: ProjectAgentEvent) => void) => () => void
       onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void
       onMilestoneCompleted: (callback: (data: { projectId: string; milestoneId: string }) => void) => () => void
       onIterationPaused: (callback: (data: { projectId: string; milestoneId: string; reason: string }) => void) => () => void

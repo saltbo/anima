@@ -3,8 +3,8 @@ import type { AgentEvent } from '../../../src/types/agent'
 export type { AgentEvent }
 
 export interface AgentStartOptions {
-  /** Logical session id forwarded from the manager; used for log correlation */
-  id?: string
+  /** Claude API session ID for resuming an interrupted session via --resume */
+  sessionId?: string
   projectPath: string
   systemPrompt: string
   onEvent: (event: AgentEvent) => void
@@ -12,11 +12,11 @@ export interface AgentStartOptions {
   onDone?: () => void
 }
 
-export interface AgentHandle {
+export interface AgentSession {
   sendMessage(text: string): void
   stop(): void
 }
 
 export interface Agent {
-  start(options: AgentStartOptions): AgentHandle
+  start(options: AgentStartOptions): AgentSession
 }

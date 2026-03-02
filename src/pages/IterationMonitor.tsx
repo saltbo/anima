@@ -111,9 +111,9 @@ export function IterationMonitor() {
     return () => cleanups.forEach((c) => c())
   }, [id])
 
-  // Derive session IDs from milestone ID + iteration count
-  const devSessionId = status.currentIteration ? `${mid}-dev-${status.currentIteration.count}` : null
-  const accSessionId = status.currentIteration ? `${mid}-acc-${status.currentIteration.count}` : null
+  // Derive agent keys from milestone ID + iteration count (internal routing keys for AgentChat)
+  const devAgentKey = status.currentIteration ? `${mid}-dev-${status.currentIteration.count}` : null
+  const accAgentKey = status.currentIteration ? `${mid}-acc-${status.currentIteration.count}` : null
 
   const handleWake = () => {
     if (id) window.electronAPI.wakeProject(id)
@@ -138,12 +138,12 @@ export function IterationMonitor() {
       <div className="flex-1 grid grid-cols-2 gap-3 p-4 overflow-hidden min-h-0">
         <AgentPanel
           label="Developer Agent"
-          sessionId={devSessionId}
+          sessionId={devAgentKey}
           active={status.status === 'awake' && activeAgent === 'developer'}
         />
         <AgentPanel
           label="Acceptor Agent"
-          sessionId={accSessionId}
+          sessionId={accAgentKey}
           active={status.status === 'awake' && activeAgent === 'acceptor'}
         />
       </div>

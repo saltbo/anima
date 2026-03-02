@@ -281,15 +281,15 @@ export function startMilestoneReview(
   projectPath: string,
   win: BrowserWindow
 ): void {
-  const sessionId = `${milestoneId}-review`
+  const agentKey = `${milestoneId}-review`
   let reviewResult = ''
 
-  taskAgent.run(sessionId, {
+  taskAgent.run(agentKey, {
     projectPath,
     systemPrompt: MILESTONE_REVIEW_ROLE,
     message: buildReviewMessage(milestoneId),
     onEvent: (event) => {
-      win.webContents.send('setup-chat-data', sessionId, event)
+      win.webContents.send('setup-chat-data', agentKey, event)
       if (event.event === 'done') reviewResult = event.result ?? ''
     },
     onComplete: () => {
