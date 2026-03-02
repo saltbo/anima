@@ -85,6 +85,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  schedulerManager.stopAll()
 })
 
 // Keep app running in tray — don't quit when all windows are closed
