@@ -184,7 +184,7 @@ export class MilestoneExecutor {
         }
         if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
           const parsed = parseTodoWrite(event.toolInput)
-          todos.push(...parsed)
+          todos.splice(0, todos.length, ...parsed)
           const updated = captureAcceptorTodos(milestone, parsed, iteration)
           if (updated) {
             saveMilestone(this.projectPath, updated)
@@ -246,7 +246,8 @@ export class MilestoneExecutor {
       return { complete: false, rateLimited: true, resetAt }
     }
     log.warn('battle error, moving to next iteration', { error: msg })
-    return { complete: false, feedback: fallbackFeedback }
+    const errorFeedback = `[Previous iteration ended with an error: ${msg}]${fallbackFeedback ? `\n\n${fallbackFeedback}` : ''}`
+    return { complete: false, feedback: errorFeedback }
   }
 
   // ── State transitions ─────────────────────────────────────────────────────

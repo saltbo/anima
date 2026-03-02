@@ -7,8 +7,6 @@ const log = createLogger('conversation-agent')
 
 const claudeCodeAgent = new ClaudeCodeAgent()
 
-const AGENT_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
-
 export const agentManager = new AgentManager()
 
 // ── ConversationAgent ─────────────────────────────────────────────────────────
@@ -45,16 +43,8 @@ class ConversationAgent {
       const settle = (fn: () => void): void => {
         if (settled) return
         settled = true
-        clearTimeout(timer)
         fn()
       }
-
-      const timer = setTimeout(() => {
-        settle(() => {
-          agentManager.stop(agentKey)
-          reject(new Error(`Agent session ${agentKey} timed out`))
-        })
-      }, AGENT_TIMEOUT_MS)
 
       agentManager.start(agentKey, claudeCodeAgent, {
         projectPath: options.projectPath,
@@ -86,14 +76,9 @@ class ConversationAgent {
       const settle = (fn: () => void): void => {
         if (settled) return
         settled = true
-        clearTimeout(timer)
         removeListener()
         fn()
       }
-
-      const timer = setTimeout(() => {
-        settle(() => reject(new Error(`Agent session ${agentKey} timed out on continue`)))
-      }, AGENT_TIMEOUT_MS)
 
       const removeListener = agentManager.addProcessListener(agentKey, (event) => {
         onEvent?.(event)
