@@ -37,11 +37,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('trigger-add-project', handler)
   },
 
-  onSetupChatData: (callback: (id: string, data: { event: string; text?: string; message?: string }) => void) => {
-    const handler = (_: unknown, id: string, data: { event: string; text?: string; message?: string }) =>
-      callback(id, data)
-    ipcRenderer.on('setup-chat-data', handler)
-    return () => ipcRenderer.removeListener('setup-chat-data', handler)
+  readSession: (agentKey: string) => ipcRenderer.invoke('read-session', agentKey),
+
+  onSessionUpdated: (callback: (agentKey: string, events: unknown[]) => void) => {
+    const handler = (_: unknown, agentKey: string, events: unknown[]) => callback(agentKey, events)
+    ipcRenderer.on('session-updated', handler)
+    return () => ipcRenderer.removeListener('session-updated', handler)
   },
 
   getInboxItems: (projectPath: string) => ipcRenderer.invoke('get-inbox-items', projectPath),

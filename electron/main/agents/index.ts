@@ -15,6 +15,10 @@ export interface AgentStartOptions {
 export interface AgentSession {
   sendMessage(text: string): void
   stop(): void
+  /** Read full event history for this session (for initial page load). */
+  readEvents(): AgentEvent[]
+  /** Subscribe to incremental events as they arrive (for live UI updates). Returns unsubscribe fn. */
+  onEvents(listener: (events: AgentEvent[]) => void): () => void
 }
 
 export interface Agent {

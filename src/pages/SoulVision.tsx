@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { useProjects } from '@/store/projects'
 import { useTheme } from '@/store/theme'
 import { AgentChat } from '@/components/AgentChat'
-import type { SetupChatData } from '@/types/electron.d'
 
 type PageStatus = 'loading' | 'idle' | 'generating' | 'ready'
 type Tab = 'vision' | 'soul'
@@ -92,16 +91,12 @@ export function SoulVision() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id])
 
-  const handleAgentEvent = useCallback(async (event: SetupChatData) => {
-    if (event.event === 'done') {
-      if (!project) return
-      const { vision: v, soul: s } = await window.electronAPI.readSetupFiles(project.path)
-      setVision(v ?? '')
-      setSoul(s ?? '')
-      setStatus('ready')
-    } else if (event.event === 'error') {
-      setStatus('idle')
-    }
+  const handleDone = useCallback(async () => {
+    if (!project) return
+    const { vision: v, soul: s } = await window.electronAPI.readSetupFiles(project.path)
+    setVision(v ?? '')
+    setSoul(s ?? '')
+    setStatus('ready')
   }, [project])
 
   const handleInit = useCallback(async () => {
@@ -153,7 +148,7 @@ export function SoulVision() {
           <span className="text-sm font-medium text-foreground">Analyzing project…</span>
         </div>
         <div className="flex-1 min-h-0">
-          <AgentChat sessionId={sessionId} className="h-full" onEvent={handleAgentEvent} />
+          <AgentChat agentKey={sessionId} className="h-full" onDone={handleDone} />
         </div>
       </div>
     )

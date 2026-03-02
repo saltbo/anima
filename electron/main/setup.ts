@@ -1,7 +1,5 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import type { BrowserWindow } from 'electron'
-import type { SetupChatData } from '../../src/types/electron.d'
 import { conversationAgent } from './agents/service'
 
 export type SetupType = 'vision' | 'soul' | 'init'
@@ -155,19 +153,16 @@ export function checkProjectSetup(projectPath: string): { hasVision: boolean; ha
   return { hasVision, hasSoul }
 }
 
-export function startSetupSession(
-  id: string,
-  projectPath: string,
-  type: SetupType,
-  win: BrowserWindow
-): void {
-  conversationAgent.start(id, {
-    projectPath,
-    systemPrompt: SYSTEM_PROMPTS[type],
-    onEvent: (event) => win.webContents.send('setup-chat-data', id, event satisfies SetupChatData),
-  })
-  // Detailed instructions go via stdin — keeps --system-prompt arg minimal.
-  setTimeout(() => conversationAgent.send(id, FIRST_MESSAGES[type]), 500)
+export function startSetupSession(id: string, projectPath: string, type: SetupType): void {
+  conversationAgent
+    .run(id, {
+      projectPath,
+      systemPrompt: SYSTEM_PROMPTS[type],
+      firstMessage: FIRST_MESSAGES[type],
+    })
+    .catch(() => {
+      // session ended (user closed or error) — no action needed
+    })
 }
 
 export function readSetupFiles(projectPath: string): { vision: string | null; soul: string | null } {

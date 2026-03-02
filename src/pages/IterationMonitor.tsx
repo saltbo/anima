@@ -39,7 +39,11 @@ function statusLabel(s: ProjectIterationStatus): string {
 
 // ── Panel wrapper ─────────────────────────────────────────────────────────────
 
-function AgentPanel({ label, sessionId, active }: { label: string; sessionId: string | null; active: boolean }) {
+function AgentPanel({ label, agentKey, active }: {
+  label: string
+  agentKey: string | null
+  active: boolean
+}) {
   return (
     <div className={`flex flex-col border rounded-xl overflow-hidden transition-all ${active ? 'border-green-500/40 shadow-[0_0_12px_rgba(74,222,128,0.08)]' : 'border-border'}`}>
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/20 shrink-0">
@@ -51,8 +55,8 @@ function AgentPanel({ label, sessionId, active }: { label: string; sessionId: st
           </span>
         )}
       </div>
-      {sessionId ? (
-        <AgentChat key={sessionId} sessionId={sessionId} className="flex-1 min-h-0" />
+      {agentKey ? (
+        <AgentChat key={agentKey} agentKey={agentKey} className="flex-1 min-h-0" />
       ) : (
         <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground/40 p-4">
           Waiting for iteration to start…
@@ -138,12 +142,12 @@ export function IterationMonitor() {
       <div className="flex-1 grid grid-cols-2 gap-3 p-4 overflow-hidden min-h-0">
         <AgentPanel
           label="Developer Agent"
-          sessionId={devAgentKey}
+          agentKey={devAgentKey}
           active={status.status === 'awake' && activeAgent === 'developer'}
         />
         <AgentPanel
           label="Acceptor Agent"
-          sessionId={accAgentKey}
+          agentKey={accAgentKey}
           active={status.status === 'awake' && activeAgent === 'acceptor'}
         />
       </div>

@@ -3,7 +3,6 @@ import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
 import type { InboxItem, InboxItemPriority, InboxItemStatus, Milestone, MilestoneTask } from '../../src/types/index'
-import type { AgentEvent } from '../../src/types/agent'
 import { conversationAgent, taskAgent } from './agents/service'
 
 // Capability boundary: agent reads anything, writes only to its designated milestone file.
@@ -235,37 +234,37 @@ export function startMilestonePlanningSession(
     tasks: [],
     inboxItemIds,
     createdAt: new Date().toISOString(),
+    iterationCount: 0,
   })
 
   for (const iid of inboxItemIds) {
     updateInboxItem(projectPath, iid, { milestoneId, status: 'included' })
   }
 
-  const emit = (data: AgentEvent) => win.webContents.send('setup-chat-data', id, data)
-
-  conversationAgent.start(id, {
-    projectPath,
-    systemPrompt: MILESTONE_PLANNING_ROLE,
-    onEvent: (event) => {
-      emit(event)
-      // When agent finishes a turn and has written the draft file, promote it.
-      if (event.event === 'done' && fs.existsSync(draftPath)) {
-        const mdPath = milestoneMdPath(projectPath, milestoneId)
-        fs.renameSync(draftPath, mdPath)
-        const milestones = getMilestones(projectPath)
-        const m = milestones.find((ms) => ms.id === milestoneId)
-        if (m) {
-          m.status = 'reviewing'
-          writeMilestonesJson(projectPath, milestones)
+  conversationAgent
+    .run(id, {
+      projectPath,
+      systemPrompt: MILESTONE_PLANNING_ROLE,
+      firstMessage: buildFirstMessage(inboxItemIds, milestoneId),
+      onEvent: (event) => {
+        // Promote draft → final when agent finishes writing it
+        if (event.event === 'done' && fs.existsSync(draftPath)) {
+          const mdPath = milestoneMdPath(projectPath, milestoneId)
+          fs.renameSync(draftPath, mdPath)
+          const milestones = getMilestones(projectPath)
+          const m = milestones.find((ms) => ms.id === milestoneId)
+          if (m) {
+            m.status = 'reviewing'
+            writeMilestonesJson(projectPath, milestones)
+          }
+          win.webContents.send('milestone-planning-done', id, milestoneId)
+          startMilestoneReview(milestoneId, projectPath, win)
         }
-        win.webContents.send('milestone-planning-done', id, milestoneId)
-        startMilestoneReview(milestoneId, projectPath, win)
-      }
-    },
-  })
-
-  // Task instructions via stdin — keeps --system-prompt to one sentence.
-  setTimeout(() => conversationAgent.send(id, buildFirstMessage(inboxItemIds, milestoneId)), 500)
+      },
+    })
+    .catch(() => {
+      // session ended (user closed or error) — no action needed
+    })
 }
 
 export function readMilestoneMarkdown(projectPath: string, id: string): string | null {
@@ -289,7 +288,6 @@ export function startMilestoneReview(
     systemPrompt: MILESTONE_REVIEW_ROLE,
     message: buildReviewMessage(milestoneId),
     onEvent: (event) => {
-      win.webContents.send('setup-chat-data', agentKey, event)
       if (event.event === 'done') reviewResult = event.result ?? ''
     },
     onComplete: () => {

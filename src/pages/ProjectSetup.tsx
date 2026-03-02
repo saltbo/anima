@@ -78,25 +78,27 @@ function SetupForm({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      window.electronAPI.stopSetupSession(sessionId)
+      window.electronAPI.stopAgentSession(sessionId)
     }
   }, [sessionId])
 
   // Listen to IPC events while generating
   useEffect(() => {
     if (phase !== 'generating') return
-    const unsub = window.electronAPI.onSetupChatData((id, data) => {
-      if (id !== sessionId) return
-      if (data.event === 'text') {
-        accTextRef.current += data.text
-        setStreamText(accTextRef.current)
-      } else if (data.event === 'done') {
-        const extracted = extractCodeBlock(accTextRef.current)
-        setPreviewContent(extracted ?? accTextRef.current)
-        setPhase('preview')
-      } else if (data.event === 'error') {
-        setError(data.message)
-        setPhase('form')
+    const unsub = window.electronAPI.onSessionUpdated((key, incoming) => {
+      if (key !== sessionId) return
+      for (const ev of incoming as Array<{ event: string; role?: string; text?: string; message?: string }>) {
+        if (ev.event === 'text' && ev.role === 'assistant' && ev.text) {
+          accTextRef.current += ev.text
+          setStreamText(accTextRef.current)
+        } else if (ev.event === 'done') {
+          const extracted = extractCodeBlock(accTextRef.current)
+          setPreviewContent(extracted ?? accTextRef.current)
+          setPhase('preview')
+        } else if (ev.event === 'error') {
+          setError(ev.message ?? 'Unknown error')
+          setPhase('form')
+        }
       }
     })
     return unsub
@@ -108,7 +110,7 @@ function SetupForm({
     setStreamText('')
     setPhase('generating')
     await window.electronAPI.startSetupSession(sessionId, projectPath, type)
-    window.electronAPI.sendSetupMessage(sessionId, buildMessage(type, fields))
+    window.electronAPI.sendAgentMessage(sessionId, buildMessage(type, fields))
   }, [sessionId, projectPath, type, fields])
 
   const handleConfirm = useCallback(async () => {
@@ -117,7 +119,7 @@ function SetupForm({
   }, [projectPath, type, previewContent, onDone])
 
   const handleRegenerate = useCallback(() => {
-    window.electronAPI.stopSetupSession(sessionId)
+    window.electronAPI.stopAgentSession(sessionId)
     setPhase('form')
   }, [sessionId])
 

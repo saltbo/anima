@@ -16,7 +16,7 @@ import {
   ChainOfThoughtStep,
 } from '@/components/ai-elements/chain-of-thought'
 import { cn } from '@/lib/utils'
-import type { SetupChatData } from '@/types/electron.d'
+import type { AgentEvent } from '@/types/agent'
 import { Terminal, CheckCircle, XCircle, AlertTriangle, Cpu, ChevronRight } from 'lucide-react'
 
 // ── Event types rendered in the timeline ──────────────────────────────────────
@@ -123,6 +123,41 @@ function ErrorBlock({ message }: { message: string }) {
   )
 }
 
+// ── AgentEvent → TimelineEvent ────────────────────────────────────────────────
+
+function applyAgentEvent(
+  event: AgentEvent,
+  push: (ev: TimelineEvent) => void,
+  nextId: () => number
+): void {
+  const base = { id: nextId() }
+  switch (event.event) {
+    case 'text':
+      push({ kind: 'text', ...base, text: event.text, role: event.role })
+      break
+    case 'thinking':
+      push({ kind: 'thinking', ...base, thinking: event.thinking })
+      break
+    case 'tool_use':
+      push({ kind: 'tool_use', ...base, toolName: event.toolName, toolInput: event.toolInput, toolCallId: event.toolCallId })
+      break
+    case 'tool_result':
+      push({ kind: 'tool_result', ...base, toolCallId: event.toolCallId, content: event.content, isError: event.isError })
+      break
+    case 'system':
+      push({ kind: 'system', ...base, model: event.model, sessionId: event.sessionId })
+      break
+    case 'rate_limit':
+      push({ kind: 'rate_limit', ...base, utilization: event.utilization })
+      break
+    case 'error':
+      push({ kind: 'error', ...base, message: event.message })
+      break
+    case 'done':
+      break
+  }
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export interface AgentChatHandle {
@@ -130,20 +165,23 @@ export interface AgentChatHandle {
 }
 
 export interface AgentChatProps {
-  sessionId: string
+  agentKey: string
   /** Render the input bar. Caller controls send logic. */
   input?: React.ReactNode
   /** Extra content rendered below the conversation (e.g. action buttons) */
   footer?: React.ReactNode
   className?: string
-  onEvent?: (event: SetupChatData) => void
+  /** Called when a 'done' event is received (agent finished). */
+  onDone?: () => void
 }
 
 export const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
-function AgentChat({ sessionId, input, footer, className, onEvent }, ref) {
+function AgentChat({ agentKey, input, footer, className, onDone }, ref) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const idRef = useRef(0)
   const nextId = useCallback(() => idRef.current++, [])
+  const onDoneRef = useRef(onDone)
+  useEffect(() => { onDoneRef.current = onDone }, [onDone])
 
   const push = useCallback((ev: TimelineEvent) => {
     setEvents((prev) => {
@@ -158,47 +196,34 @@ function AgentChat({ sessionId, input, footer, className, onEvent }, ref) {
     })
   }, [])
 
+  const applyEvents = useCallback((incoming: AgentEvent[]) => {
+    for (const ev of incoming) {
+      applyAgentEvent(ev, push, nextId)
+      if (ev.event === 'done') onDoneRef.current?.()
+    }
+  }, [push, nextId])
+
   useImperativeHandle(ref, () => ({
     appendUserMessage: (text: string) => {
       push({ kind: 'text', id: nextId(), text, role: 'user' })
     },
   }), [push, nextId])
 
+  // Load full history on mount, then stream incremental updates
   useEffect(() => {
-    const unsub = window.electronAPI.onSetupChatData((id, data) => {
-      if (id !== sessionId) return
-      onEvent?.(data)
-
-      const base = { id: nextId() }
-
-      switch (data.event) {
-        case 'text':
-          push({ kind: 'text', ...base, text: data.text, role: 'assistant' })
-          break
-        case 'thinking':
-          push({ kind: 'thinking', ...base, thinking: data.thinking })
-          break
-        case 'tool_use':
-          push({ kind: 'tool_use', ...base, toolName: data.toolName, toolInput: data.toolInput, toolCallId: data.toolCallId })
-          break
-        case 'tool_result':
-          push({ kind: 'tool_result', ...base, toolCallId: data.toolCallId, content: data.content, isError: data.isError })
-          break
-        case 'system':
-          push({ kind: 'system', ...base, model: data.model, sessionId: data.sessionId })
-          break
-        case 'rate_limit':
-          push({ kind: 'rate_limit', ...base, utilization: data.utilization })
-          break
-        case 'error':
-          push({ kind: 'error', ...base, message: data.message })
-          break
-        case 'done':
-          break
-      }
+    let cancelled = false
+    window.electronAPI.readSession(agentKey).then((history) => {
+      if (!cancelled) applyEvents(history as AgentEvent[])
     })
-    return unsub
-  }, [sessionId, push, onEvent, nextId])
+    const unsub = window.electronAPI.onSessionUpdated((key, incoming) => {
+      if (key !== agentKey) return
+      applyEvents(incoming as AgentEvent[])
+    })
+    return () => {
+      cancelled = true
+      unsub()
+    }
+  }, [agentKey, applyEvents])
 
   return (
     <div className={cn('flex flex-col h-full', className)}>

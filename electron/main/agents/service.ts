@@ -1,103 +1,148 @@
 import { AgentManager } from './manager'
-import { ClaudeCodeAgent } from './claude-code'
+import { ClaudeCodeAgent } from './claude-code/index'
 import type { AgentEvent } from './index'
 
 const claudeCodeAgent = new ClaudeCodeAgent()
 
+const AGENT_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+
+export const agentManager = new AgentManager()
+
 // ── ConversationAgent ─────────────────────────────────────────────────────────
-// Manages persistent, multi-turn interactive sessions.
-// Sessions stay alive between messages so the user can keep chatting.
-// Supports multiple event listeners per session via addListener().
 
 class ConversationAgent {
-  private manager = new AgentManager()
-  private listeners = new Map<string, Set<(event: AgentEvent) => void>>()
+  start(
+    agentKey: string,
+    options: {
+      projectPath: string
+      systemPrompt: string
+      sessionId?: string
+      onEvent: (event: AgentEvent) => void
+    }
+  ): void {
+    agentManager.start(agentKey, claudeCodeAgent, options)
+  }
 
-  start(agentKey: string, options: { projectPath: string; systemPrompt: string; sessionId?: string; onEvent: (event: AgentEvent) => void }): void {
-    const listenerSet = new Set<(event: AgentEvent) => void>()
-    listenerSet.add(options.onEvent)
-    this.listeners.set(agentKey, listenerSet)
+  /**
+   * Start a session, send `firstMessage` when Claude Code is ready,
+   * resolve with the result when done. `onEvent` is for business logic only.
+   */
+  run(
+    agentKey: string,
+    options: {
+      projectPath: string
+      systemPrompt: string
+      sessionId?: string
+      firstMessage: string
+      onEvent?: (event: AgentEvent) => void
+    }
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const settle = (fn: () => void): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        fn()
+      }
 
-    this.manager.start(agentKey, claudeCodeAgent, {
-      projectPath: options.projectPath,
-      systemPrompt: options.systemPrompt,
-      sessionId: options.sessionId,
-      onEvent: (event) => {
-        const set = this.listeners.get(agentKey)
-        if (set) {
-          // snapshot to avoid mutation during iteration
-          for (const listener of [...set]) {
-            listener(event)
-          }
-        }
-      },
+      const timer = setTimeout(() => {
+        settle(() => {
+          agentManager.stop(agentKey)
+          reject(new Error(`Agent session ${agentKey} timed out`))
+        })
+      }, AGENT_TIMEOUT_MS)
+
+      agentManager.start(agentKey, claudeCodeAgent, {
+        projectPath: options.projectPath,
+        systemPrompt: options.systemPrompt,
+        sessionId: options.sessionId,
+        onEvent: (event) => {
+          if (event.event === 'system') agentManager.send(agentKey, options.firstMessage)
+          options.onEvent?.(event)
+          if (event.event === 'done') settle(() => resolve(event.result ?? ''))
+          if (event.event === 'error') settle(() => reject(new Error(event.message)))
+        },
+      })
     })
   }
 
-  /** Add an additional event listener for an existing session. Returns a cleanup function. */
-  addListener(agentKey: string, listener: (event: AgentEvent) => void): () => void {
-    const set = this.listeners.get(agentKey)
-    if (set) set.add(listener)
-    return () => {
-      const s = this.listeners.get(agentKey)
-      if (s) s.delete(listener)
-    }
+  /**
+   * Send a follow-up message to a running session and resolve when done.
+   */
+  continue(
+    agentKey: string,
+    message: string,
+    onEvent?: (event: AgentEvent) => void
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const settle = (fn: () => void): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        removeListener()
+        fn()
+      }
+
+      const timer = setTimeout(() => {
+        settle(() => reject(new Error(`Agent session ${agentKey} timed out on continue`)))
+      }, AGENT_TIMEOUT_MS)
+
+      const removeListener = agentManager.addProcessListener(agentKey, (event) => {
+        onEvent?.(event)
+        if (event.event === 'done') settle(() => resolve(event.result ?? ''))
+        if (event.event === 'error') settle(() => reject(new Error(event.message)))
+      })
+
+      agentManager.send(agentKey, message)
+    })
   }
 
   send(agentKey: string, message: string): void {
-    this.manager.send(agentKey, message)
+    agentManager.send(agentKey, message)
   }
 
   stop(agentKey: string): void {
-    this.manager.stop(agentKey)
-    this.listeners.delete(agentKey)
+    agentManager.stop(agentKey)
   }
 
   stopAll(): void {
-    this.manager.stopAll()
-    this.listeners.clear()
+    agentManager.stopAll()
   }
 }
 
 // ── TaskAgent ─────────────────────────────────────────────────────────────────
-// Executes a single-turn task: send one message, stream events, auto-terminate
-// when the agent returns `result`. Process lifecycle is fully managed internally.
 
 interface TaskOptions {
   projectPath: string
   systemPrompt: string
   message: string
-  onEvent: (event: AgentEvent) => void
+  onEvent?: (event: AgentEvent) => void
   onComplete?: () => void
 }
 
 class TaskAgent {
-  private manager = new AgentManager()
-
   run(agentKey: string, options: TaskOptions): void {
     const { projectPath, systemPrompt, message, onEvent, onComplete } = options
 
-    this.manager.start(agentKey, claudeCodeAgent, {
+    agentManager.start(agentKey, claudeCodeAgent, {
       projectPath,
       systemPrompt,
       onEvent: (event) => {
-        onEvent(event)
-        if (event.event === 'done') {
-          onComplete?.()
-          this.manager.stop(agentKey)
-        }
+        if (event.event === 'system') agentManager.send(agentKey, message)
+        onEvent?.(event)
+        if (event.event === 'done') onComplete?.()
       },
     })
-
-    setTimeout(() => this.manager.send(agentKey, message), 500)
   }
 
   stop(agentKey: string): void {
-    this.manager.stop(agentKey)
+    agentManager.stop(agentKey)
   }
 
   stopAll(): void {
-    this.manager.stopAll()
+    agentManager.stopAll()
   }
 }
 

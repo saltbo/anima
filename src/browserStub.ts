@@ -15,13 +15,41 @@ export function installBrowserStub() {
     checkProjectSetup: async () => ({ hasVision: false, hasSoul: false }),
     readSetupFiles: async () => ({ vision: null, soul: null }),
     startSetupSession: async () => {},
-    sendSetupMessage: async () => {},
-    stopSetupSession: async () => {},
+    sendAgentMessage: async () => {},
+    stopAgentSession: async () => {},
     writeSetupFile: async () => {},
+
+    readSession: async () => [],
 
     onProjectsUpdated: () => () => {},
     onNavigate: () => () => {},
     onTriggerAddProject: () => () => {},
-    onSetupChatData: () => () => {},
+    onSessionUpdated: () => () => {},
+
+    getInboxItems: async () => [],
+    addInboxItem: async () => ({ id: '', title: '', type: 'idea', priority: 'medium', status: 'pending', createdAt: '' }),
+    updateInboxItem: async () => null,
+    deleteInboxItem: async () => {},
+    getMilestones: async () => [],
+    saveMilestone: async () => {},
+    deleteMilestone: async () => {},
+    updateMilestoneTask: async () => {},
+    writeMilestoneMarkdown: async () => {},
+    readMilestoneMarkdown: async () => null,
+    startMilestonePlanningSession: async () => {},
+
+    onMilestonePlanningDone: () => () => {},
+    onMilestoneReviewDone: () => () => {},
+
+    getProjectState: async () => ({ status: 'sleeping', currentIteration: null, rateLimitResetAt: null, nextWakeTime: null, totalTokens: 0, totalCost: 0, wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] } }),
+    wakeProject: async () => {},
+    updateWakeSchedule: async () => {},
+
+    onProjectStatusChanged: () => () => {},
+    onIterationAgentEvent: () => () => {},
+    onMilestoneUpdated: () => () => {},
+    onMilestoneCompleted: () => () => {},
+    onIterationPaused: () => () => {},
+    onRateLimited: () => () => {},
   }
 }

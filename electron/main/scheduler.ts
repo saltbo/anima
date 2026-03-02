@@ -5,7 +5,6 @@ import { getMilestones, saveMilestone } from './milestones'
 import { getProjectState, patchProjectState } from './state'
 import { createMilestoneBranch, getCurrentBranch, checkoutBranch, getCommitLog, hasUncommittedChanges } from './git'
 import { conversationAgent } from './agents/service'
-import type { AgentEvent } from './agents/index'
 import type { Milestone, WakeSchedule, Iteration } from '../../src/types/index'
 import type { ProjectAgentEvent, ProjectIterationStatus } from '../../src/types/electron.d'
 
@@ -13,7 +12,6 @@ const log = createLogger('scheduler')
 
 const MAX_ITERATIONS = 20
 const MAX_ROUNDS_PER_ITERATION = 5
-const AGENT_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 const RATE_LIMIT_FALLBACK_MS = 60 * 60 * 1000 // 60 minutes
 
 // ── Prompt builders ──────────────────────────────────────────────────────────
@@ -255,7 +253,7 @@ export class ProjectScheduler {
         } catch (err) {
           log.warn('branch switch failed on recovery', { error: String(err) })
         }
-        this.runIterationLoop(m, '', {
+        this.runIterationLoop(m, {
           developerSessionId: state.currentIteration.developerSessionId,
           acceptorSessionId: state.currentIteration.acceptorSessionId,
         }).catch((err) =>
@@ -365,9 +363,6 @@ export class ProjectScheduler {
       const accResumeSessionId = isFirstRun ? resumeSessions.acceptorSessionId : undefined
       isFirstRun = false
 
-      let devClaudeSessionId: string | undefined
-      let accClaudeSessionId: string | undefined
-
       // ── Developer phase ─────────────────────────────────────────────────
 
       const devFirstMsg = await buildDeveloperFirstMessage(
@@ -381,17 +376,17 @@ export class ProjectScheduler {
       const devTodos: TodoItem[] = []
 
       try {
-        developerReport = await this.runAgentSession(devAgentKey, {
-          sessionId: devResumeSessionId,
+        developerReport = await conversationAgent.run(devAgentKey, {
+          projectPath: this.projectPath,
           systemPrompt: buildDeveloperSystemPrompt(),
+          sessionId: devResumeSessionId,
           firstMessage: devFirstMsg,
           onEvent: (event) => {
             if (event.event === 'system') {
-              devClaudeSessionId = event.sessionId
+              this.broadcastAgentEvent('developer', devAgentKey)
               const cur = getProjectState(this.projectPath).currentIteration
               if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
             }
-            this.broadcastAgentEvent('developer', devAgentKey, devClaudeSessionId, event)
             if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
               const todos = parseTodoWrite(event.toolInput)
               this.captureTodosAsTasks(milestone, iterationCount, todos, devTodos)
@@ -399,8 +394,9 @@ export class ProjectScheduler {
           },
         })
       } catch (err) {
-        log.warn('developer session error/timeout', { error: String(err) })
-        // Continue to next iteration
+        const msg = err instanceof Error ? err.message : String(err)
+        if (this.handleRateLimitError(msg)) return
+        log.warn('developer session error/timeout', { error: msg })
         continue
       }
 
@@ -423,17 +419,17 @@ export class ProjectScheduler {
 
         let acceptorReport = ''
         try {
-          acceptorReport = await this.runAgentSession(accAgentKey, {
-            sessionId: accResumeSessionId,
+          acceptorReport = await conversationAgent.run(accAgentKey, {
+            projectPath: this.projectPath,
             systemPrompt: buildAcceptorSystemPrompt(),
+            sessionId: accResumeSessionId,
             firstMessage: accMsg,
             onEvent: (event) => {
               if (event.event === 'system') {
-                accClaudeSessionId = event.sessionId
+                this.broadcastAgentEvent('acceptor', accAgentKey)
                 const cur = getProjectState(this.projectPath).currentIteration
                 if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
               }
-              this.broadcastAgentEvent('acceptor', accAgentKey, accClaudeSessionId, event)
               if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
                 const todos = parseTodoWrite(event.toolInput)
                 this.captureTodosAsAC(milestone, iterationCount, todos, accTodos)
@@ -441,28 +437,22 @@ export class ProjectScheduler {
             },
           })
         } catch (err) {
-          log.warn('acceptor session error/timeout', { error: String(err) })
+          const msg = err instanceof Error ? err.message : String(err)
+          if (this.handleRateLimitError(msg)) return
+          log.warn('acceptor session error/timeout', { error: msg })
           break
         }
 
         milestone = getMilestones(this.projectPath).find((m) => m.id === milestone.id) ?? milestone
 
-        if (acceptorReport.includes('MILESTONE_COMPLETE')) {
-          milestoneComplete = true
-          break
-        }
-
-        // Extract feedback from acceptor report
-        const feedbackMatch = acceptorReport.match(/MILESTONE_INCOMPLETE:\s*([\s\S]+)/)
-        const feedback = feedbackMatch ? feedbackMatch[1].trim() : acceptorReport
-
-        // Check if all AC todos are completed
+        // Milestone complete when all acceptor todos are marked done.
         const allAccPassed = accTodos.length > 0 && accTodos.every((t) => t.status === 'completed')
-
-        if (allAccPassed && acceptorReport.includes('MILESTONE_COMPLETE')) {
+        if (allAccPassed) {
           milestoneComplete = true
           break
         }
+
+        const feedback = acceptorReport
 
         if (round >= MAX_ROUNDS_PER_ITERATION) {
           remainingFeedback = feedback
@@ -471,13 +461,11 @@ export class ProjectScheduler {
 
         // Send feedback to developer in same session and get new report
         try {
-          developerReport = await this.continueAgentSession(devAgentKey, buildDeveloperFixMessage(feedback), {
-            onEvent: (event) => {
-              this.broadcastAgentEvent('developer', devAgentKey, devClaudeSessionId, event)
-            },
-          })
+          developerReport = await conversationAgent.continue(devAgentKey, buildDeveloperFixMessage(feedback))
         } catch (err) {
-          log.warn('developer fix session error', { error: String(err) })
+          const msg = err instanceof Error ? err.message : String(err)
+          if (this.handleRateLimitError(msg)) return
+          log.warn('developer fix session error', { error: msg })
           remainingFeedback = feedback
           break
         }
@@ -507,101 +495,6 @@ export class ProjectScheduler {
         return
       }
     }
-  }
-
-  // ── Agent session helpers ──────────────────────────────────────────────────
-
-  private runAgentSession(
-    agentKey: string,
-    options: {
-      sessionId?: string
-      systemPrompt: string
-      firstMessage: string
-      onEvent: (event: AgentEvent) => void
-    }
-  ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      let result = ''
-      let settled = false
-
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true
-          conversationAgent.stop(agentKey)
-          reject(new Error(`Agent session ${agentKey} timed out`))
-        }
-      }, AGENT_TIMEOUT_MS)
-
-      conversationAgent.start(agentKey, {
-        projectPath: this.projectPath,
-        systemPrompt: options.systemPrompt,
-        sessionId: options.sessionId,
-        onEvent: (event) => {
-          options.onEvent(event)
-          if (event.event === 'done') {
-            result = event.result ?? ''
-            if (!settled) {
-              settled = true
-              clearTimeout(timer)
-              resolve(result)
-            }
-          }
-          if (event.event === 'error') {
-            if (this.handleRateLimitError(event.message)) {
-              if (!settled) {
-                settled = true
-                clearTimeout(timer)
-                reject(new Error('rate_limited'))
-              }
-            }
-          }
-        },
-      })
-
-      setTimeout(() => conversationAgent.send(agentKey, options.firstMessage), 500)
-    })
-  }
-
-  private continueAgentSession(
-    agentKey: string,
-    message: string,
-    options: { onEvent: (event: AgentEvent) => void }
-  ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      let result = ''
-      let settled = false
-
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true
-          removeListener()
-          reject(new Error(`Agent session ${agentKey} timed out on continue`))
-        }
-      }, AGENT_TIMEOUT_MS)
-
-      const removeListener = conversationAgent.addListener(agentKey, (event) => {
-        options.onEvent(event)
-        if (event.event === 'done') {
-          result = event.result ?? ''
-          if (!settled) {
-            settled = true
-            clearTimeout(timer)
-            removeListener()
-            resolve(result)
-          }
-        }
-        if (event.event === 'error' && this.handleRateLimitError(event.message)) {
-          if (!settled) {
-            settled = true
-            clearTimeout(timer)
-            removeListener()
-            reject(new Error('rate_limited'))
-          }
-        }
-      })
-
-      conversationAgent.send(agentKey, message)
-    })
   }
 
   private handleRateLimitError(message: string): boolean {
@@ -716,13 +609,10 @@ export class ProjectScheduler {
     win.webContents.send('project-status-changed', status)
   }
 
-  private broadcastAgentEvent(role: 'developer' | 'acceptor', agentKey: string, sessionId: string | undefined, event: AgentEvent): void {
+  private broadcastAgentEvent(role: 'developer' | 'acceptor', agentKey: string): void {
     const win = this.getWindow()
     if (!win) return
-    // Send via setup-chat-data so AgentChat component can consume it directly
-    win.webContents.send('setup-chat-data', agentKey, event)
-    // Also send role/project metadata for the monitor header
-    const payload: ProjectAgentEvent = { projectId: this.projectId, role, sessionId, event }
+    const payload: ProjectAgentEvent = { projectId: this.projectId, role, agentKey }
     win.webContents.send('iteration-agent-event', payload)
   }
 

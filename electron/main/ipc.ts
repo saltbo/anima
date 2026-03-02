@@ -22,12 +22,22 @@ import {
   readMilestoneMarkdown,
   startMilestonePlanningSession,
 } from './milestones'
-import { conversationAgent } from './agents/service'
+import { conversationAgent, agentManager } from './agents/service'
 import { getProjectState, patchProjectState } from './state'
 import { schedulerManager } from './schedulerManager'
 import type { InboxItem, InboxItemPriority, MilestoneTask, WakeSchedule } from '../../src/types/index'
 
 export function setupIPC(getWindow: () => BrowserWindow | null): void {
+  // Route session file events to renderer
+  agentManager.on('events', (agentKey: string, events: unknown[]) => {
+    getWindow()?.webContents.send('session-updated', agentKey, events)
+  })
+
+  ipcMain.handle('read-session', (_, agentKey: string) => {
+    return agentManager.readEvents(agentKey)
+  })
+
+
   ipcMain.handle('get-projects', () => {
     return getProjects()
   })
@@ -88,8 +98,7 @@ export function setupIPC(getWindow: () => BrowserWindow | null): void {
   })
 
   ipcMain.handle('start-setup-session', (_, id: string, projectPath: string, type: SetupType) => {
-    const win = getWindow()
-    if (win) startSetupSession(id, projectPath, type, win)
+    startSetupSession(id, projectPath, type)
   })
 
   ipcMain.handle('send-agent-message', (_, id: string, message: string) => {

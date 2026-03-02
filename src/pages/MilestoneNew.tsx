@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgentChat } from '@/components/AgentChat'
-import type { AgentChatHandle } from '@/components/AgentChat'
 import { useProjects } from '@/store/projects'
 import type { InboxItem } from '@/types/index'
 
@@ -30,7 +29,6 @@ export function MilestoneNew() {
   const [description, setDescription] = useState('')
   const [starting, setStarting] = useState(false)
   const [input, setInput] = useState('')
-  const chatRef = useRef<AgentChatHandle>(null)
 
   useEffect(() => {
     if (!project) return
@@ -65,7 +63,6 @@ export function MilestoneNew() {
   const handleSend = () => {
     const text = input.trim()
     if (!text) return
-    chatRef.current?.appendUserMessage(text)
     window.electronAPI.sendAgentMessage(sessionId, text)
     setInput('')
   }
@@ -211,8 +208,7 @@ export function MilestoneNew() {
       </div>
 
       <AgentChat
-        ref={chatRef}
-        sessionId={sessionId}
+        agentKey={sessionId}
         className="flex-1 min-h-0"
         input={inputBar}
       />

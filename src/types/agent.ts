@@ -1,5 +1,5 @@
 export type AgentEvent =
-  | { event: 'text'; text: string }
+  | { event: 'text'; text: string; role: 'user' | 'assistant' }
   | { event: 'thinking'; thinking: string }
   | { event: 'tool_use'; toolName: string; toolInput: string; toolCallId: string }
   | { event: 'tool_result'; toolCallId: string; content: string; isError: boolean }

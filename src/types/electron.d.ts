@@ -3,11 +3,11 @@ import type { AgentEvent } from './agent'
 
 export type AgentRole = 'developer' | 'acceptor'
 
+/** Signals which agent is now active — UI reads content from session file. */
 export interface ProjectAgentEvent {
   projectId: string
   role: AgentRole
-  sessionId?: string
-  event: AgentEvent
+  agentKey: string
 }
 
 export interface ProjectIterationStatus {
@@ -32,10 +32,12 @@ declare global {
       stopAgentSession: (id: string) => Promise<void>
       writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
 
+      readSession: (agentKey: string) => Promise<AgentEvent[]>
+
       onProjectsUpdated: (callback: (projects: Project[]) => void) => () => void
       onNavigate: (callback: (path: string) => void) => () => void
       onTriggerAddProject: (callback: () => void) => () => void
-      onSetupChatData: (callback: (id: string, data: AgentEvent) => void) => () => void
+      onSessionUpdated: (callback: (agentKey: string, events: AgentEvent[]) => void) => () => void
 
       getInboxItems: (projectPath: string) => Promise<InboxItem[]>
       addInboxItem: (projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>) => Promise<InboxItem>
