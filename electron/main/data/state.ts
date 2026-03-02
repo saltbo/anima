@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import type { ProjectState } from '../../src/types/index'
+import type { ProjectState } from '../../../src/types/index'
 
 const DEFAULT_STATE: ProjectState = {
   status: 'sleeping',

@@ -2,7 +2,7 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { randomUUID } from 'crypto'
-import type { Project } from '../../src/types/index'
+import type { Project } from '../../../src/types/index'
 
 export interface AppConfig {
   projects: Project[]

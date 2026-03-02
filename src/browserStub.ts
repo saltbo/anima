@@ -14,17 +14,17 @@ export function installBrowserStub() {
 
     checkProjectSetup: async () => ({ hasVision: false, hasSoul: false }),
     readSetupFiles: async () => ({ vision: null, soul: null }),
-    startSetupSession: async () => {},
+    startSetupAgent: async () => {},
     sendAgentMessage: async () => {},
-    stopAgentSession: async () => {},
+    stopAgent: async () => {},
     writeSetupFile: async () => {},
 
-    readSession: async () => [],
+    readAgentEvents: async () => [],
 
     onProjectsUpdated: () => () => {},
     onNavigate: () => () => {},
     onTriggerAddProject: () => () => {},
-    onSessionUpdated: () => () => {},
+    onAgentEvents: () => () => {},
 
     getInboxItems: async () => [],
     addInboxItem: async () => ({ id: '', title: '', type: 'idea', priority: 'medium', status: 'pending', createdAt: '' }),
@@ -36,7 +36,7 @@ export function installBrowserStub() {
     updateMilestoneTask: async () => {},
     writeMilestoneMarkdown: async () => {},
     readMilestoneMarkdown: async () => null,
-    startMilestonePlanningSession: async () => {},
+    startMilestonePlanning: async () => {},
 
     onMilestonePlanningDone: () => () => {},
     onMilestoneReviewDone: () => () => {},
@@ -46,7 +46,7 @@ export function installBrowserStub() {
     updateWakeSchedule: async () => {},
 
     onProjectStatusChanged: () => () => {},
-    onIterationAgentEvent: () => () => {},
+    onProjectAgentEvent: () => () => {},
     onMilestoneUpdated: () => () => {},
     onMilestoneCompleted: () => () => {},
     onIterationPaused: () => () => {},

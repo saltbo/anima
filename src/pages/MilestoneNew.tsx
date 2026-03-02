@@ -37,7 +37,7 @@ export function MilestoneNew() {
   }, [project?.id])
 
   useEffect(() => {
-    return () => { window.electronAPI.stopAgentSession(sessionId) }
+    return () => { window.electronAPI.stopAgent(sessionId) }
   }, [sessionId])
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export function MilestoneNew() {
   const handleStartPlanning = async () => {
     if (!project || starting || !title.trim()) return
     setStarting(true)
-    await window.electronAPI.startMilestonePlanningSession(
+    await window.electronAPI.startMilestonePlanning(
       sessionId,
       project.path,
       Array.from(selectedIds),

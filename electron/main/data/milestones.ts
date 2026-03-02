@@ -2,8 +2,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
-import type { InboxItem, InboxItemPriority, InboxItemStatus, Milestone, MilestoneTask } from '../../src/types/index'
-import { conversationAgent, taskAgent } from './agents/service'
+import type { InboxItem, InboxItemPriority, InboxItemStatus, Milestone, MilestoneTask } from '../../../src/types/index'
+import { conversationAgent, taskAgent } from '../agents/service'
 
 // Capability boundary: agent reads anything, writes only to its designated milestone file.
 // The specific file path is injected per-session via the first stdin message.
@@ -257,7 +257,7 @@ export function startMilestonePlanningSession(
             m.status = 'reviewing'
             writeMilestonesJson(projectPath, milestones)
           }
-          win.webContents.send('milestone-planning-done', id, milestoneId)
+          win.webContents.send('milestones:planningDone', id, milestoneId)
           startMilestoneReview(milestoneId, projectPath, win)
         }
       },
@@ -298,7 +298,7 @@ export function startMilestoneReview(
         m.review = reviewResult
         writeMilestonesJson(projectPath, milestones)
       }
-      win.webContents.send('milestone-review-done', milestoneId)
+      win.webContents.send('milestones:reviewDone', milestoneId)
     },
   })
 }

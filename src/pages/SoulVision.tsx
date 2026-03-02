@@ -74,7 +74,7 @@ export function SoulVision() {
   const sessionId = project ? `${project.id}-init` : ''
 
   useEffect(() => {
-    return () => { window.electronAPI.stopAgentSession(sessionId) }
+    return () => { window.electronAPI.stopAgent(sessionId) }
   }, [sessionId])
 
   useEffect(() => {
@@ -102,11 +102,11 @@ export function SoulVision() {
   const handleInit = useCallback(async () => {
     if (!project) return
     setStatus('generating')
-    await window.electronAPI.startSetupSession(sessionId, project.path, 'init')
+    await window.electronAPI.startSetupAgent(sessionId, project.path, 'init')
   }, [project, sessionId])
 
   const handleReinit = useCallback(() => {
-    window.electronAPI.stopAgentSession(sessionId)
+    window.electronAPI.stopAgent(sessionId)
     setStatus('idle')
   }, [sessionId])
 

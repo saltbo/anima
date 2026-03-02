@@ -1,8 +1,8 @@
 import { Tray, Menu, app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { createTrayIcons, type TrayIconStatus } from './icons'
-import { getProjectState } from './state'
-import type { Project, ProjectStatus } from '../../src/types/index'
+import { getProjectState } from '../data/state'
+import type { Project, ProjectStatus } from '../../../src/types/index'
 
 let tray: Tray | null = null
 let trayIcons: ReturnType<typeof createTrayIcons> | null = null
@@ -87,7 +87,7 @@ export function updateTray(
         if (win) {
           win.show()
           win.focus()
-          win.webContents.send('navigate', `/projects/${project.id}`)
+          win.webContents.send('window:navigate', `/projects/${project.id}`)
         }
       },
     }
@@ -107,7 +107,7 @@ export function updateTray(
         if (win) {
           win.show()
           win.focus()
-          win.webContents.send('trigger-add-project')
+          win.webContents.send('window:addProject')
         }
       },
     },

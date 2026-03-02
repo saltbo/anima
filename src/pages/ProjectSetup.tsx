@@ -78,14 +78,14 @@ function SetupForm({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      window.electronAPI.stopAgentSession(sessionId)
+      window.electronAPI.stopAgent(sessionId)
     }
   }, [sessionId])
 
   // Listen to IPC events while generating
   useEffect(() => {
     if (phase !== 'generating') return
-    const unsub = window.electronAPI.onSessionUpdated((key, incoming) => {
+    const unsub = window.electronAPI.onAgentEvents((key, incoming) => {
       if (key !== sessionId) return
       for (const ev of incoming as Array<{ event: string; role?: string; text?: string; message?: string }>) {
         if (ev.event === 'text' && ev.role === 'assistant' && ev.text) {
@@ -109,7 +109,7 @@ function SetupForm({
     accTextRef.current = ''
     setStreamText('')
     setPhase('generating')
-    await window.electronAPI.startSetupSession(sessionId, projectPath, type)
+    await window.electronAPI.startSetupAgent(sessionId, projectPath, type)
     window.electronAPI.sendAgentMessage(sessionId, buildMessage(type, fields))
   }, [sessionId, projectPath, type, fields])
 
@@ -119,7 +119,7 @@ function SetupForm({
   }, [projectPath, type, previewContent, onDone])
 
   const handleRegenerate = useCallback(() => {
-    window.electronAPI.stopAgentSession(sessionId)
+    window.electronAPI.stopAgent(sessionId)
     setPhase('form')
   }, [sessionId])
 

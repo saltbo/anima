@@ -106,7 +106,7 @@ export function IterationMonitor() {
     )
 
     cleanups.push(
-      window.electronAPI.onIterationAgentEvent((data) => {
+      window.electronAPI.onProjectAgentEvent((data) => {
         if (data.projectId !== id) return
         setActiveAgent(data.role)
       })

@@ -1,7 +1,7 @@
 import type { BrowserWindow } from 'electron'
-import { ProjectScheduler } from './scheduler'
-import type { Project, WakeSchedule } from '../../src/types/index'
-import { createLogger } from './logger'
+import { ProjectScheduler } from './ProjectScheduler'
+import type { Project, WakeSchedule } from '../../../src/types/index'
+import { createLogger } from '../logger'
 
 const log = createLogger('scheduler-manager')
 

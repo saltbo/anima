@@ -2,10 +2,10 @@ import './logger' // must be first — initializes electron-log & IPC transport
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { createTray } from './tray'
-import { setupIPC } from './ipc'
-import { getProjects } from './store'
-import { schedulerManager } from './schedulerManager'
+import { createTray } from './app/tray'
+import { setupIPC } from './ipc/index'
+import { getProjects } from './data/store'
+import { schedulerManager } from './scheduler'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false

@@ -20,49 +20,54 @@ export interface ProjectIterationStatus {
 declare global {
   interface Window {
     electronAPI: {
+      // ── Projects ─────────────────────────────────────────────────────────
       getProjects: () => Promise<Project[]>
       addProject: () => Promise<Project | null>
       removeProject: (id: string) => Promise<boolean>
-      navigateTo: (path: string) => Promise<void>
-
-      checkProjectSetup: (projectPath: string) => Promise<{ hasVision: boolean; hasSoul: boolean }>
-      readSetupFiles: (projectPath: string) => Promise<{ vision: string | null; soul: string | null }>
-      startSetupSession: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') => Promise<void>
-      sendAgentMessage: (id: string, message: string) => Promise<void>
-      stopAgentSession: (id: string) => Promise<void>
-      writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
-
-      readSession: (agentKey: string) => Promise<AgentEvent[]>
-
       onProjectsUpdated: (callback: (projects: Project[]) => void) => () => void
+
+      // ── Window ───────────────────────────────────────────────────────────
+      navigateTo: (path: string) => Promise<void>
       onNavigate: (callback: (path: string) => void) => () => void
       onTriggerAddProject: (callback: () => void) => () => void
-      onSessionUpdated: (callback: (agentKey: string, events: AgentEvent[]) => void) => () => void
 
+      // ── Setup ────────────────────────────────────────────────────────────
+      checkProjectSetup: (projectPath: string) => Promise<{ hasVision: boolean; hasSoul: boolean }>
+      readSetupFiles: (projectPath: string) => Promise<{ vision: string | null; soul: string | null }>
+      writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
+      startSetupAgent: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') => Promise<void>
+
+      // ── Agent ────────────────────────────────────────────────────────────
+      readAgentEvents: (agentKey: string) => Promise<AgentEvent[]>
+      sendAgentMessage: (id: string, message: string) => Promise<void>
+      stopAgent: (id: string) => Promise<void>
+      onAgentEvents: (callback: (agentKey: string, events: AgentEvent[]) => void) => () => void
+
+      // ── Inbox ────────────────────────────────────────────────────────────
       getInboxItems: (projectPath: string) => Promise<InboxItem[]>
       addInboxItem: (projectPath: string, item: Omit<InboxItem, 'id' | 'createdAt' | 'status'>) => Promise<InboxItem>
       updateInboxItem: (projectPath: string, id: string, patch: Partial<InboxItem>) => Promise<InboxItem | null>
       deleteInboxItem: (projectPath: string, id: string) => Promise<void>
+
+      // ── Milestones ───────────────────────────────────────────────────────
       getMilestones: (projectPath: string) => Promise<Milestone[]>
       saveMilestone: (projectPath: string, milestone: Milestone) => Promise<void>
       deleteMilestone: (projectPath: string, id: string) => Promise<void>
       updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
-      writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => Promise<void>
       readMilestoneMarkdown: (projectPath: string, id: string) => Promise<string | null>
-      startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => Promise<void>
-
+      writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => Promise<void>
+      startMilestonePlanning: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => Promise<void>
       onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => () => void
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
+      onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void
+      onMilestoneCompleted: (callback: (data: { projectId: string; milestoneId: string }) => void) => () => void
 
-      // M4
+      // ── Project / Scheduler ──────────────────────────────────────────────
       getProjectState: (projectPath: string) => Promise<ProjectState>
       wakeProject: (projectId: string) => Promise<void>
       updateWakeSchedule: (projectId: string, projectPath: string, schedule: WakeSchedule) => Promise<void>
-
       onProjectStatusChanged: (callback: (status: ProjectIterationStatus) => void) => () => void
-      onIterationAgentEvent: (callback: (data: ProjectAgentEvent) => void) => () => void
-      onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void
-      onMilestoneCompleted: (callback: (data: { projectId: string; milestoneId: string }) => void) => () => void
+      onProjectAgentEvent: (callback: (data: ProjectAgentEvent) => void) => () => void
       onIterationPaused: (callback: (data: { projectId: string; milestoneId: string; reason: string }) => void) => () => void
       onRateLimited: (callback: (data: { projectId: string; resetAt: string }) => void) => () => void
     }

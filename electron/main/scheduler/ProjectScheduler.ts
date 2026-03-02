@@ -1,12 +1,12 @@
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
-import { createLogger } from './logger'
-import { getMilestones, saveMilestone } from './milestones'
-import { getProjectState, patchProjectState } from './state'
-import { createMilestoneBranch, getCurrentBranch, checkoutBranch, getCommitLog, hasUncommittedChanges } from './git'
-import { conversationAgent } from './agents/service'
-import type { Milestone, WakeSchedule, Iteration } from '../../src/types/index'
-import type { ProjectAgentEvent, ProjectIterationStatus } from '../../src/types/electron.d'
+import { createLogger } from '../logger'
+import { getMilestones, saveMilestone } from '../data/milestones'
+import { getProjectState, patchProjectState } from '../data/state'
+import { createMilestoneBranch, getCurrentBranch, checkoutBranch, getCommitLog, hasUncommittedChanges } from '../data/git'
+import { conversationAgent } from '../agents/service'
+import type { Milestone, WakeSchedule, Iteration } from '../../../src/types/index'
+import type { ProjectAgentEvent, ProjectIterationStatus } from '../../../src/types/electron.d'
 
 const log = createLogger('scheduler')
 
@@ -346,7 +346,7 @@ export class ProjectScheduler {
         }
         patchProjectState(this.projectPath, { status: 'paused', currentIteration: { milestoneId: milestone.id, count: iterationCount } })
         this.broadcastStatus()
-        this.notifyUI('iteration-paused', { projectId: this.projectId, milestoneId: milestone.id, reason: 'max_iterations' })
+        this.notifyUI('project:iterationPaused', { projectId: this.projectId, milestoneId: milestone.id, reason: 'max_iterations' })
         return
       }
 
@@ -490,7 +490,7 @@ export class ProjectScheduler {
           currentIteration: null,
         })
         this.broadcastStatus()
-        this.notifyUI('milestone-completed', { projectId: this.projectId, milestoneId: milestone.id })
+        this.notifyUI('milestones:completed', { projectId: this.projectId, milestoneId: milestone.id })
         this.scheduleNextWake()
         return
       }
@@ -518,7 +518,7 @@ export class ProjectScheduler {
     log.warn('rate limit detected', { resetAt })
     patchProjectState(this.projectPath, { status: 'rate_limited', rateLimitResetAt: resetAt })
     this.broadcastStatus()
-    this.notifyUI('rate-limited', { projectId: this.projectId, resetAt })
+    this.notifyUI('agent:rateLimited', { projectId: this.projectId, resetAt })
 
     // Schedule recovery
     const msUntilReset = Math.max(0, new Date(resetAt).getTime() - Date.now())
@@ -606,20 +606,20 @@ export class ProjectScheduler {
       currentIteration: state.currentIteration,
       rateLimitResetAt: state.rateLimitResetAt,
     }
-    win.webContents.send('project-status-changed', status)
+    win.webContents.send('project:statusChanged', status)
   }
 
   private broadcastAgentEvent(role: 'developer' | 'acceptor', agentKey: string): void {
     const win = this.getWindow()
     if (!win) return
     const payload: ProjectAgentEvent = { projectId: this.projectId, role, agentKey }
-    win.webContents.send('iteration-agent-event', payload)
+    win.webContents.send('project:agentEvent', payload)
   }
 
   private broadcastMilestoneUpdate(milestone: Milestone): void {
     const win = this.getWindow()
     if (!win) return
-    win.webContents.send('milestone-updated', { projectId: this.projectId, milestone })
+    win.webContents.send('milestones:updated', { projectId: this.projectId, milestone })
   }
 
   private notifyUI(channel: string, data: unknown): void {

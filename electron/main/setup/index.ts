@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import { conversationAgent } from './agents/service'
+import { conversationAgent } from '../agents/service'
 
 export type SetupType = 'vision' | 'soul' | 'init'
 

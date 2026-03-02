@@ -2,113 +2,122 @@ import { contextBridge, ipcRenderer } from 'electron'
 import 'electron-log/preload'
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  getProjects: () => ipcRenderer.invoke('get-projects'),
-  addProject: () => ipcRenderer.invoke('add-project'),
-  removeProject: (id: string) => ipcRenderer.invoke('remove-project', id),
-  navigateTo: (path: string) => ipcRenderer.invoke('navigate-to', path),
-
-  checkProjectSetup: (projectPath: string) =>
-    ipcRenderer.invoke('check-project-setup', projectPath),
-  readSetupFiles: (projectPath: string) =>
-    ipcRenderer.invoke('read-setup-files', projectPath),
-  startSetupSession: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') =>
-    ipcRenderer.invoke('start-setup-session', id, projectPath, type),
-  sendAgentMessage: (id: string, message: string) =>
-    ipcRenderer.invoke('send-agent-message', id, message),
-  stopAgentSession: (id: string) => ipcRenderer.invoke('stop-agent-session', id),
-  writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) =>
-    ipcRenderer.invoke('write-setup-file', projectPath, type, content),
+  // ── Projects ───────────────────────────────────────────────────────────────
+  getProjects: () => ipcRenderer.invoke('projects:list'),
+  addProject: () => ipcRenderer.invoke('projects:add'),
+  removeProject: (id: string) => ipcRenderer.invoke('projects:remove', id),
 
   onProjectsUpdated: (callback: (projects: unknown[]) => void) => {
     const handler = (_: unknown, projects: unknown[]) => callback(projects)
-    ipcRenderer.on('projects-updated', handler)
-    return () => ipcRenderer.removeListener('projects-updated', handler)
+    ipcRenderer.on('projects:changed', handler)
+    return () => ipcRenderer.removeListener('projects:changed', handler)
   },
+
+  // ── Window ─────────────────────────────────────────────────────────────────
+  navigateTo: (path: string) => ipcRenderer.invoke('window:navigate', path),
 
   onNavigate: (callback: (path: string) => void) => {
     const handler = (_: unknown, path: string) => callback(path)
-    ipcRenderer.on('navigate', handler)
-    return () => ipcRenderer.removeListener('navigate', handler)
+    ipcRenderer.on('window:navigate', handler)
+    return () => ipcRenderer.removeListener('window:navigate', handler)
   },
 
   onTriggerAddProject: (callback: () => void) => {
     const handler = () => callback()
-    ipcRenderer.on('trigger-add-project', handler)
-    return () => ipcRenderer.removeListener('trigger-add-project', handler)
+    ipcRenderer.on('window:addProject', handler)
+    return () => ipcRenderer.removeListener('window:addProject', handler)
   },
 
-  readSession: (agentKey: string) => ipcRenderer.invoke('read-session', agentKey),
+  // ── Setup ──────────────────────────────────────────────────────────────────
+  checkProjectSetup: (projectPath: string) =>
+    ipcRenderer.invoke('setup:check', projectPath),
+  readSetupFiles: (projectPath: string) =>
+    ipcRenderer.invoke('setup:readFiles', projectPath),
+  writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) =>
+    ipcRenderer.invoke('setup:writeFile', projectPath, type, content),
+  startSetupAgent: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') =>
+    ipcRenderer.invoke('setup:startAgent', id, projectPath, type),
 
-  onSessionUpdated: (callback: (agentKey: string, events: unknown[]) => void) => {
+  // ── Agent ──────────────────────────────────────────────────────────────────
+  readAgentEvents: (agentKey: string) => ipcRenderer.invoke('agent:readEvents', agentKey),
+  sendAgentMessage: (id: string, message: string) =>
+    ipcRenderer.invoke('agent:sendMessage', id, message),
+  stopAgent: (id: string) => ipcRenderer.invoke('agent:stop', id),
+
+  onAgentEvents: (callback: (agentKey: string, events: unknown[]) => void) => {
     const handler = (_: unknown, agentKey: string, events: unknown[]) => callback(agentKey, events)
-    ipcRenderer.on('session-updated', handler)
-    return () => ipcRenderer.removeListener('session-updated', handler)
+    ipcRenderer.on('agent:events', handler)
+    return () => ipcRenderer.removeListener('agent:events', handler)
   },
 
-  getInboxItems: (projectPath: string) => ipcRenderer.invoke('get-inbox-items', projectPath),
-  addInboxItem: (projectPath: string, item: unknown) => ipcRenderer.invoke('add-inbox-item', projectPath, item),
-  updateInboxItem: (projectPath: string, id: string, patch: unknown) => ipcRenderer.invoke('update-inbox-item', projectPath, id, patch),
-  deleteInboxItem: (projectPath: string, id: string) => ipcRenderer.invoke('delete-inbox-item', projectPath, id),
-  getMilestones: (projectPath: string) => ipcRenderer.invoke('get-milestones', projectPath),
-  saveMilestone: (projectPath: string, milestone: unknown) => ipcRenderer.invoke('save-milestone', projectPath, milestone),
-  deleteMilestone: (projectPath: string, id: string) => ipcRenderer.invoke('delete-milestone', projectPath, id),
-  updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: unknown) => ipcRenderer.invoke('update-milestone-task', projectPath, milestoneId, taskId, patch),
-  writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => ipcRenderer.invoke('write-milestone-markdown', projectPath, id, content),
-  readMilestoneMarkdown: (projectPath: string, id: string) => ipcRenderer.invoke('read-milestone-markdown', projectPath, id),
-  startMilestonePlanningSession: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) => ipcRenderer.invoke('start-milestone-planning-session', id, projectPath, inboxItemIds, title, description),
+  // ── Inbox ──────────────────────────────────────────────────────────────────
+  getInboxItems: (projectPath: string) => ipcRenderer.invoke('inbox:list', projectPath),
+  addInboxItem: (projectPath: string, item: unknown) => ipcRenderer.invoke('inbox:add', projectPath, item),
+  updateInboxItem: (projectPath: string, id: string, patch: unknown) => ipcRenderer.invoke('inbox:update', projectPath, id, patch),
+  deleteInboxItem: (projectPath: string, id: string) => ipcRenderer.invoke('inbox:delete', projectPath, id),
 
-  onMilestonePlanningDone: (callback: (sessionId: string, milestoneId: string) => void) => {
-    const handler = (_: unknown, sessionId: string, milestoneId: string) => callback(sessionId, milestoneId)
-    ipcRenderer.on('milestone-planning-done', handler)
-    return () => ipcRenderer.removeListener('milestone-planning-done', handler)
+  // ── Milestones ─────────────────────────────────────────────────────────────
+  getMilestones: (projectPath: string) => ipcRenderer.invoke('milestones:list', projectPath),
+  saveMilestone: (projectPath: string, milestone: unknown) => ipcRenderer.invoke('milestones:save', projectPath, milestone),
+  deleteMilestone: (projectPath: string, id: string) => ipcRenderer.invoke('milestones:delete', projectPath, id),
+  updateMilestoneTask: (projectPath: string, milestoneId: string, taskId: string, patch: unknown) =>
+    ipcRenderer.invoke('milestones:updateTask', projectPath, milestoneId, taskId, patch),
+  readMilestoneMarkdown: (projectPath: string, id: string) => ipcRenderer.invoke('milestones:readDoc', projectPath, id),
+  writeMilestoneMarkdown: (projectPath: string, id: string, content: string) => ipcRenderer.invoke('milestones:writeDoc', projectPath, id, content),
+  startMilestonePlanning: (id: string, projectPath: string, inboxItemIds: string[], title: string, description: string) =>
+    ipcRenderer.invoke('milestones:startPlanning', id, projectPath, inboxItemIds, title, description),
+
+  onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => {
+    const handler = (_: unknown, planningId: string, milestoneId: string) => callback(planningId, milestoneId)
+    ipcRenderer.on('milestones:planningDone', handler)
+    return () => ipcRenderer.removeListener('milestones:planningDone', handler)
   },
 
   onMilestoneReviewDone: (callback: (milestoneId: string) => void) => {
     const handler = (_: unknown, milestoneId: string) => callback(milestoneId)
-    ipcRenderer.on('milestone-review-done', handler)
-    return () => ipcRenderer.removeListener('milestone-review-done', handler)
-  },
-
-  // ── M4: Iteration / Scheduler ──────────────────────────────────────────────
-
-  getProjectState: (projectPath: string) => ipcRenderer.invoke('get-project-state', projectPath),
-  wakeProject: (projectId: string) => ipcRenderer.invoke('wake-project', projectId),
-  updateWakeSchedule: (projectId: string, projectPath: string, schedule: unknown) =>
-    ipcRenderer.invoke('update-wake-schedule', projectId, projectPath, schedule),
-
-  onProjectStatusChanged: (callback: (status: unknown) => void) => {
-    const handler = (_: unknown, status: unknown) => callback(status)
-    ipcRenderer.on('project-status-changed', handler)
-    return () => ipcRenderer.removeListener('project-status-changed', handler)
-  },
-
-  onIterationAgentEvent: (callback: (data: unknown) => void) => {
-    const handler = (_: unknown, data: unknown) => callback(data)
-    ipcRenderer.on('iteration-agent-event', handler)
-    return () => ipcRenderer.removeListener('iteration-agent-event', handler)
+    ipcRenderer.on('milestones:reviewDone', handler)
+    return () => ipcRenderer.removeListener('milestones:reviewDone', handler)
   },
 
   onMilestoneUpdated: (callback: (data: unknown) => void) => {
     const handler = (_: unknown, data: unknown) => callback(data)
-    ipcRenderer.on('milestone-updated', handler)
-    return () => ipcRenderer.removeListener('milestone-updated', handler)
+    ipcRenderer.on('milestones:updated', handler)
+    return () => ipcRenderer.removeListener('milestones:updated', handler)
   },
 
   onMilestoneCompleted: (callback: (data: unknown) => void) => {
     const handler = (_: unknown, data: unknown) => callback(data)
-    ipcRenderer.on('milestone-completed', handler)
-    return () => ipcRenderer.removeListener('milestone-completed', handler)
+    ipcRenderer.on('milestones:completed', handler)
+    return () => ipcRenderer.removeListener('milestones:completed', handler)
+  },
+
+  // ── Project / Scheduler ────────────────────────────────────────────────────
+  getProjectState: (projectPath: string) => ipcRenderer.invoke('project:getState', projectPath),
+  wakeProject: (projectId: string) => ipcRenderer.invoke('project:wake', projectId),
+  updateWakeSchedule: (projectId: string, projectPath: string, schedule: unknown) =>
+    ipcRenderer.invoke('project:updateSchedule', projectId, projectPath, schedule),
+
+  onProjectStatusChanged: (callback: (status: unknown) => void) => {
+    const handler = (_: unknown, status: unknown) => callback(status)
+    ipcRenderer.on('project:statusChanged', handler)
+    return () => ipcRenderer.removeListener('project:statusChanged', handler)
+  },
+
+  onProjectAgentEvent: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('project:agentEvent', handler)
+    return () => ipcRenderer.removeListener('project:agentEvent', handler)
   },
 
   onIterationPaused: (callback: (data: unknown) => void) => {
     const handler = (_: unknown, data: unknown) => callback(data)
-    ipcRenderer.on('iteration-paused', handler)
-    return () => ipcRenderer.removeListener('iteration-paused', handler)
+    ipcRenderer.on('project:iterationPaused', handler)
+    return () => ipcRenderer.removeListener('project:iterationPaused', handler)
   },
 
   onRateLimited: (callback: (data: unknown) => void) => {
     const handler = (_: unknown, data: unknown) => callback(data)
-    ipcRenderer.on('rate-limited', handler)
-    return () => ipcRenderer.removeListener('rate-limited', handler)
+    ipcRenderer.on('agent:rateLimited', handler)
+    return () => ipcRenderer.removeListener('agent:rateLimited', handler)
   },
 })

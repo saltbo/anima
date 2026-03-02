@@ -212,10 +212,10 @@ function AgentChat({ agentKey, input, footer, className, onDone }, ref) {
   // Load full history on mount, then stream incremental updates
   useEffect(() => {
     let cancelled = false
-    window.electronAPI.readSession(agentKey).then((history) => {
+    window.electronAPI.readAgentEvents(agentKey).then((history) => {
       if (!cancelled) applyEvents(history as AgentEvent[])
     })
-    const unsub = window.electronAPI.onSessionUpdated((key, incoming) => {
+    const unsub = window.electronAPI.onAgentEvents((key, incoming) => {
       if (key !== agentKey) return
       applyEvents(incoming as AgentEvent[])
     })
