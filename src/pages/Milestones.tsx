@@ -107,7 +107,7 @@ export function Milestones() {
                           <div className="flex items-center gap-2 shrink-0">
                             {m.status === 'in-progress' && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); navigate(`/projects/${id}/milestones/${m.id}/monitor`) }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/projects/${id}/milestones/${m.id}?tab=iterations`) }}
                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-green-400 hover:bg-green-500/10 transition-colors"
                               >
                                 <Activity size={10} />
