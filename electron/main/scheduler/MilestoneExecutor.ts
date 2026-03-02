@@ -140,6 +140,7 @@ export class MilestoneExecutor {
         projectPath: this.projectPath,
         systemPrompt: buildDeveloperSystemPrompt(),
         firstMessage: buildDeveloperFirstMessage({
+          projectPath: this.projectPath,
           branch,
           milestoneId: milestone.id,
           milestoneTitle: milestone.title,
@@ -195,7 +196,7 @@ export class MilestoneExecutor {
       let accReport = await conversationAgent.run(accKey, {
         projectPath: this.projectPath,
         systemPrompt: buildAcceptorSystemPrompt(),
-        firstMessage: buildAcceptorMessage(milestone, devReport, iteration),
+        firstMessage: buildAcceptorMessage(milestone, devReport, iteration, this.projectPath),
         onEvent: (e) => onAccEvent(e, roundTodos),
       })
 

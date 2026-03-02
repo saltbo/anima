@@ -22,55 +22,52 @@ const MILESTONE_REVIEW_ROLE =
 const MILESTONE_MD_FORMAT = `\
 # {title}
 
-## Description
-{2-3 sentence description}
+## Requirements
+{describe each feature or bug from a product perspective — what the user experiences, not how it is implemented}
+{one paragraph or bullet per item}
 
 ## Acceptance Criteria
-- {criterion 1}
+- {criterion 1 — observable, binary, product-level}
 - {criterion 2}
-
-## Tasks
-1. **{task title}** — {task description}
-2. **{task title}** — {task description}
 
 ## Linked Inbox Items
 - {inbox-item-id}
 (omit this section entirely if no inbox items are linked)`
 
-function buildFirstMessage(inboxItemIds: string[], milestoneId: string): string {
-  const mdFile = `.anima/milestones/${milestoneId}.draft.md`
-  return `Your task: plan a Milestone with the user, then write it to \`${mdFile}\`.
+function buildFirstMessage(projectPath: string, inboxItemIds: string[], milestoneId: string): string {
+  const mdFile = `${projectPath}/.anima/milestones/${milestoneId}.draft.md`
+  return `Your role: help the user define a Milestone, then write it to \`${mdFile}\`.
 
 First, read these files for project context:
-- ./VISION.md
-- ./.anima/soul.md
-- ./.anima/inbox.json${inboxItemIds.length > 0 ? `\n\nThe user has selected these inbox item IDs: ${inboxItemIds.join(', ')} — find them in inbox.json and reference them in the conversation.` : ''}
+- ${projectPath}/.anima/soul.md
+- ${projectPath}/.anima/inbox.json${inboxItemIds.length > 0 ? `\n\nThe user has pre-selected these inbox item IDs: ${inboxItemIds.join(', ')} — find them in inbox.json to understand the background.` : ''}
 
-Gather these four required elements through conversation:
-1. Title — action-oriented, e.g. "Ship user authentication"
-2. Description — 2-3 sentences on what this milestone achieves
-3. Acceptance Criteria — 3-6 specific, testable, binary criteria starting with a verb
-4. Tasks — 3-10 implementation tasks in execution order; each ≈ 30-90 min of AI agent work
+A Milestone is a product-level requirement document — not a technical plan.
+- Requirements describe features or bugs from the user's perspective: what they see, what they can do, what breaks. Never say how to implement it.
+- Acceptance Criteria are product-level: observable, binary conditions that confirm the requirement is met. Generate these yourself based on what the user describes.
 
 Conversation rules:
-- Start by asking the user to describe the goal in one sentence
-- One clarifying question at a time
-- Reject vague criteria — each must be objectively verifiable
+- Let the user describe their requirements and/or bugs freely
+- Ask at most one clarifying question if something is genuinely unclear
+- Do NOT ask about implementation, tasks, or technical approach
+- Once you have enough to write clear AC, propose the milestone for confirmation
+- Adjust if the user gives feedback, then write the file
 
-When the user confirms the plan, write \`${mdFile}\` in this exact format:
+When the user confirms, write \`${mdFile}\` in this exact format:
 
 ${MILESTONE_MD_FORMAT}`
 }
 
-function buildReviewMessage(milestoneId: string): string {
-  const mdFile = `.anima/milestones/${milestoneId}.md`
+function buildReviewMessage(projectPath: string, milestoneId: string): string {
+  const mdFile = `${projectPath}/.anima/milestones/${milestoneId}.md`
   return `Review the milestone at \`${mdFile}\`.
 
-Evaluate against four criteria:
-1. **Feasibility** — Can each task realistically be completed by an AI agent in 30–90 min?
-2. **Verifiability** — Is each acceptance criterion objectively testable (binary pass/fail)?
-3. **Scope** — Is the milestone appropriately sized? (not a multi-month epic, not trivial)
-4. **Consistency** — Do the tasks actually deliver all the acceptance criteria?
+Evaluate against five criteria:
+1. **Clarity** — Are the requirements clearly stated, from a product/user perspective?
+2. **Unambiguity** — Is there any room for misinterpretation? Flag anything vague or open-ended.
+3. **Implementability** — Can these requirements actually be built? Flag anything technically infeasible or contradictory.
+4. **Verifiability** — Is each acceptance criterion binary and objectively testable?
+5. **Coverage** — Do the acceptance criteria fully cover what the requirements describe?
 
 Walk through your analysis step by step, then give a clear verdict with specific recommendations.`
 }
@@ -251,7 +248,7 @@ export function startMilestonePlanningSession(
     .run(id, {
       projectPath,
       systemPrompt: MILESTONE_PLANNING_ROLE,
-      firstMessage: buildFirstMessage(inboxItemIds, milestoneId),
+      firstMessage: buildFirstMessage(projectPath, inboxItemIds, milestoneId),
       onEvent: (event) => {
         // Promote draft → final when agent finishes writing it
         if (event.event === 'done' && fs.existsSync(draftPath)) {
@@ -292,7 +289,7 @@ export function startMilestoneReview(
   taskAgent.run(agentKey, {
     projectPath,
     systemPrompt: MILESTONE_REVIEW_ROLE,
-    message: buildReviewMessage(milestoneId),
+    message: buildReviewMessage(projectPath, milestoneId),
     onEvent: (event) => {
       if (event.event === 'done') reviewResult = event.result ?? ''
     },

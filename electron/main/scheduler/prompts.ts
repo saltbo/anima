@@ -23,6 +23,7 @@ export function buildAcceptorSystemPrompt(): string {
 }
 
 export interface DeveloperContextInput {
+  projectPath: string
   branch: string
   milestoneId: string
   milestoneTitle: string
@@ -40,10 +41,8 @@ export function buildDeveloperFirstMessage(input: DeveloperContextInput): string
     `- Iteration: ${input.iterationCount}`,
     ``,
     `## Project Files to Read First`,
-    `- ./VISION.md`,
-    `- ./.anima/soul.md`,
-    `- ./.anima/milestones/${input.milestoneId}.md`,
-    `- ./.anima/memory/project.md (if exists)`,
+    `- ${input.projectPath}/.anima/soul.md`,
+    `- ${input.projectPath}/.anima/milestones/${input.milestoneId}.md`,
     ``,
     `## Milestone: ${input.milestoneTitle}`,
     input.milestoneDescription,
@@ -76,7 +75,8 @@ export function buildDeveloperFirstMessage(input: DeveloperContextInput): string
 export function buildAcceptorMessage(
   milestone: Milestone,
   developerReport: string,
-  iterationCount: number
+  iterationCount: number,
+  projectPath: string
 ): string {
   const sections: string[] = [
     `## Your Context`,
@@ -84,8 +84,8 @@ export function buildAcceptorMessage(
     `- Iteration: ${iterationCount}`,
     ``,
     `## Files to Review`,
-    `- ./.anima/soul.md (coding standards)`,
-    `- ./.anima/milestones/${milestone.id}.md (acceptance criteria)`,
+    `- ${projectPath}/.anima/soul.md (coding standards)`,
+    `- ${projectPath}/.anima/milestones/${milestone.id}.md (acceptance criteria)`,
     ``,
     `## Developer's Implementation Report`,
     developerReport,

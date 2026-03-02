@@ -92,7 +92,7 @@ export function MilestoneNew() {
               <MessageSquare size={15} className="text-primary" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Describe your milestone, then plan the details with AI.
+              Describe your feature or bug. AI will generate acceptance criteria.
             </p>
           </div>
 
