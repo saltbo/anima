@@ -39,6 +39,7 @@ declare global {
 
       // ── Agent ────────────────────────────────────────────────────────────
       readAgentEvents: (agentKey: string) => Promise<AgentEvent[]>
+      readSessionEvents: (sessionId: string) => Promise<AgentEvent[]>
       sendAgentMessage: (id: string, message: string) => Promise<void>
       stopAgent: (id: string) => Promise<void>
       onAgentEvents: (callback: (agentKey: string, events: AgentEvent[]) => void) => () => void

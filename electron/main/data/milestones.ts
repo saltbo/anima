@@ -163,7 +163,12 @@ export function getMilestones(projectPath: string): Milestone[] {
   try {
     const p = milestonesPath(projectPath)
     if (!fs.existsSync(p)) return []
-    return JSON.parse(fs.readFileSync(p, 'utf8')) as Milestone[]
+    const milestones = JSON.parse(fs.readFileSync(p, 'utf8')) as Milestone[]
+    // Normalize: ensure iterations array exists (backward compat)
+    for (const m of milestones) {
+      if (!m.iterations) m.iterations = []
+    }
+    return milestones
   } catch {
     return []
   }
@@ -235,6 +240,7 @@ export function startMilestonePlanningSession(
     inboxItemIds,
     createdAt: new Date().toISOString(),
     iterationCount: 0,
+    iterations: [],
   })
 
   for (const iid of inboxItemIds) {

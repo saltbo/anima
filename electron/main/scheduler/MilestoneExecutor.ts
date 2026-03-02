@@ -3,7 +3,7 @@ import { getMilestones, saveMilestone } from '../data/milestones'
 import { getProjectState, patchProjectState } from '../data/state'
 import { getCommitLog, hasUncommittedChanges } from '../data/git'
 import { conversationAgent } from '../agents/service'
-import type { Milestone, Iteration } from '../../../src/types/index'
+import type { Milestone, Iteration, IterationOutcome } from '../../../src/types/index'
 import type { AgentEvent } from '../../../src/types/agent'
 import { Notifier } from './notifier'
 import { isRateLimitError, parseResetTime } from './rateLimit'
@@ -53,6 +53,9 @@ export class MilestoneExecutor {
   private onRateLimit: (resetAt: string) => void
   private onComplete: () => void
   private aborted = false
+  private activeAgentKeys: string[] = []
+  /** Snapshot of session IDs captured from agent system events — survives state wipes */
+  private capturedSessionIds: { developerSessionId?: string; acceptorSessionId?: string } = {}
 
   constructor(options: ExecutorOptions) {
     this.projectId = options.projectId
@@ -67,40 +70,52 @@ export class MilestoneExecutor {
   async execute(milestone: Milestone): Promise<ExecutorResult> {
     let feedback = ''
 
-    for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
+    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       if (this.aborted) return { outcome: 'aborted' }
 
-      const state = getProjectState(this.projectPath)
-      const iterationCount = Math.max(iter, (state.currentIteration?.count ?? 0) + 1)
+      const round = milestone.iterations.length + 1
 
-      if (iterationCount > MAX_ITERATIONS) {
-        this.handleMaxIterations(milestone, iterationCount)
+      if (round > MAX_ITERATIONS) {
+        this.handleMaxIterations(milestone, round)
         return { outcome: 'max_iterations' }
       }
 
-      this.updateIterationState(milestone.id, iterationCount)
-      log.info('starting iteration', { milestone: milestone.id, iteration: iterationCount })
+      const startedAt = new Date().toISOString()
+      this.updateIterationState(milestone.id, round, startedAt)
+      log.info('starting iteration', { milestone: milestone.id, round })
 
-      const result = await this.runBattle(milestone, iterationCount, feedback)
+      const result = await this.runBattle(milestone, round, feedback)
 
       if (result.complete) {
-        this.completeMilestone(milestone, iterationCount)
+        this.recordIteration(milestone.id, round, 'passed', startedAt)
+        this.completeMilestone(milestone, round)
         return { outcome: 'completed' }
       }
       if ('rateLimited' in result) {
+        this.recordIteration(milestone.id, round, 'rate_limited', startedAt)
         return { outcome: 'rate_limited', resetAt: result.resetAt }
       }
+
+      // Iteration rejected — developer didn't pass acceptance
+      const outcome: IterationOutcome = this.aborted ? 'cancelled' : 'rejected'
+      this.recordIteration(milestone.id, round, outcome, startedAt)
 
       feedback = result.feedback
       milestone = getMilestones(this.projectPath).find((m) => m.id === milestone.id) ?? milestone
     }
 
-    this.handleMaxIterations(milestone, MAX_ITERATIONS)
+    const finalRound = milestone.iterations.length
+    this.handleMaxIterations(milestone, finalRound)
     return { outcome: 'max_iterations' }
   }
 
   abort(): void {
     this.aborted = true
+    // Immediately stop any running agent sessions
+    for (const key of this.activeAgentKeys) {
+      conversationAgent.stop(key)
+    }
+    this.activeAgentKeys = []
   }
 
   // ── Battle: bridge two agents ───────────────────────────────────────────
@@ -112,6 +127,8 @@ export class MilestoneExecutor {
   ): Promise<BattleResult> {
     const devKey = `${this.projectId}:${milestone.id}-dev-${iteration}`
     const accKey = `${this.projectId}:${milestone.id}-acc-${iteration}`
+    this.activeAgentKeys = [devKey, accKey]
+    this.capturedSessionIds = {}
 
     try {
       // 1. Developer works
@@ -134,7 +151,9 @@ export class MilestoneExecutor {
         }),
         onEvent: (event) => {
           if (event.event === 'system') {
+            log.info('developer system event', { sessionId: event.sessionId, devKey })
             this.notifier.broadcastAgentEvent('developer', devKey)
+            this.capturedSessionIds.developerSessionId = event.sessionId
             const cur = getProjectState(this.projectPath).currentIteration
             if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
           }
@@ -156,7 +175,9 @@ export class MilestoneExecutor {
       const roundTodos: TodoItem[] = []
       const onAccEvent = (event: AgentEvent, todos: TodoItem[]): void => {
         if (event.event === 'system') {
+          log.info('acceptor system event', { sessionId: event.sessionId, accKey })
           this.notifier.broadcastAgentEvent('acceptor', accKey)
+          this.capturedSessionIds.acceptorSessionId = event.sessionId
           const cur = getProjectState(this.projectPath).currentIteration
           if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
         }
@@ -200,6 +221,7 @@ export class MilestoneExecutor {
     } catch (err) {
       return this.handleBattleError(err, feedback)
     } finally {
+      this.activeAgentKeys = []
       conversationAgent.stop(devKey)
       conversationAgent.stop(accKey)
     }
@@ -228,28 +250,29 @@ export class MilestoneExecutor {
 
   // ── State transitions ─────────────────────────────────────────────────────
 
-  private handleMaxIterations(milestone: Milestone, iterationCount: number): void {
+  private handleMaxIterations(milestone: Milestone, round: number): void {
     log.warn('max iterations reached', { milestone: milestone.id })
     const m = getMilestones(this.projectPath).find((ms) => ms.id === milestone.id)
     if (m) {
-      m.iterationCount = iterationCount
+      m.iterationCount = round
       saveMilestone(this.projectPath, m)
     }
+    const cur = getProjectState(this.projectPath).currentIteration
     patchProjectState(this.projectPath, {
       status: 'paused',
-      currentIteration: { milestoneId: milestone.id, count: iterationCount },
+      currentIteration: cur ?? { milestoneId: milestone.id, round },
     })
     this.broadcastStatus()
     this.notifier.notifyIterationPaused(milestone.id, 'max_iterations')
   }
 
-  private completeMilestone(milestone: Milestone, iterationCount: number): void {
+  private completeMilestone(milestone: Milestone, round: number): void {
     log.info('milestone completed!', { milestone: milestone.id })
     const m = getMilestones(this.projectPath).find((ms) => ms.id === milestone.id)
     if (m) {
       m.status = 'completed'
       m.completedAt = new Date().toISOString()
-      m.iterationCount = iterationCount
+      m.iterationCount = round
       saveMilestone(this.projectPath, m)
     }
     patchProjectState(this.projectPath, { status: 'sleeping', currentIteration: null })
@@ -258,10 +281,37 @@ export class MilestoneExecutor {
     this.onComplete()
   }
 
-  private updateIterationState(milestoneId: string, count: number): void {
-    const iter: Iteration = { milestoneId, count }
+  private updateIterationState(milestoneId: string, round: number, startedAt: string): void {
+    const iter: Iteration = { milestoneId, round, startedAt }
     patchProjectState(this.projectPath, { status: 'awake', currentIteration: iter })
     this.broadcastStatus()
+  }
+
+  private recordIteration(milestoneId: string, round: number, outcome: IterationOutcome, startedAt: string): void {
+    log.info('recordIteration', {
+      milestoneId,
+      round,
+      outcome,
+      devSessionId: this.capturedSessionIds.developerSessionId ?? 'NONE',
+      accSessionId: this.capturedSessionIds.acceptorSessionId ?? 'NONE',
+    })
+    const record: Iteration = {
+      milestoneId,
+      round,
+      developerSessionId: this.capturedSessionIds.developerSessionId,
+      acceptorSessionId: this.capturedSessionIds.acceptorSessionId,
+      outcome,
+      startedAt,
+      completedAt: new Date().toISOString(),
+    }
+    const m = getMilestones(this.projectPath).find((ms) => ms.id === milestoneId)
+    if (!m) {
+      log.warn('recordIteration: milestone not found, skipping', { milestoneId })
+      return
+    }
+    m.iterations.push(record)
+    saveMilestone(this.projectPath, m)
+    this.notifier.broadcastMilestoneUpdate(m)
   }
 
   private broadcastStatus(): void {

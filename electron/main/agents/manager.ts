@@ -32,6 +32,8 @@ export class AgentManager extends EventEmitter {
       onSpawn: options.onSpawn,
       onEvent: (event) => {
         for (const listener of [...listeners]) listener(event)
+        // Forward stdout events to UI in real-time (skip 'done' which is internal)
+        if (event.event !== 'done') this.emit('events', agentKey, [event])
       },
       onDone: () => {
         const entry = this.entries.get(agentKey)
@@ -44,9 +46,8 @@ export class AgentManager extends EventEmitter {
       },
     })
 
-    const unsubEvents = session.onEvents((events) => {
-      this.emit('events', agentKey, events)
-    })
+    // File watcher is kept only for readEvents() history; real-time streaming uses stdout above
+    const unsubEvents = session.onEvents(() => {})
 
     this.entries.set(agentKey, { session, listeners, unsubEvents })
   }
@@ -65,6 +66,8 @@ export class AgentManager extends EventEmitter {
 
   send(agentKey: string, message: string): void {
     this.entries.get(agentKey)?.session.sendMessage(message)
+    // Emit user message immediately so the UI shows it without waiting for file watcher
+    this.emit('events', agentKey, [{ event: 'text', role: 'user', text: message } as AgentEvent])
   }
 
   stop(agentKey: string): void {

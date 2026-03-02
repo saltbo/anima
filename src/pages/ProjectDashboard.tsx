@@ -81,7 +81,7 @@ export function ProjectDashboard() {
 
         <div className="text-sm text-muted-foreground">
           {project.status === 'awake' && project.currentIteration && (
-            <span>Iteration <span className="text-foreground font-medium">{project.currentIteration.count}</span> in progress</span>
+            <span>Round <span className="text-foreground font-medium">{project.currentIteration.round}</span> in progress</span>
           )}
           {project.status === 'sleeping' && project.nextWakeTime && (
             <span>Next check at <span className="text-foreground font-medium">
@@ -114,7 +114,7 @@ export function ProjectDashboard() {
         <StatCard
           icon={RefreshCw}
           label="Iteration"
-          value={project.currentIteration ? String(project.currentIteration.count) : '—'}
+          value={project.currentIteration ? String(project.currentIteration.round) : '—'}
         />
       </div>
 

@@ -150,6 +150,7 @@ describe('captureDeveloperTodos', () => {
     inboxItemIds: [],
     createdAt: '2026-01-01',
     iterationCount: 0,
+    iterations: [],
   }
 
   it('returns null for empty todos', () => {
@@ -186,6 +187,7 @@ describe('captureAcceptorTodos', () => {
     inboxItemIds: [],
     createdAt: '2026-01-01',
     iterationCount: 0,
+    iterations: [],
   }
 
   it('returns null for empty todos', () => {

@@ -178,12 +178,9 @@ export class ProjectScheduler {
         iterationCount: milestone.iterationCount ?? 0,
       }
       saveMilestone(this.projectPath, updated)
-      patchProjectState(this.projectPath, {
-        status: 'awake',
-        currentIteration: { milestoneId: milestone.id, count: 0 },
-      })
-      this.broadcastStatus()
-
+      // Don't broadcast status here — the executor's updateIterationState sets
+      // the real round number and broadcasts. Broadcasting round:0 first would
+      // cause the UI to mount AgentChat with the wrong agentKey, then remount.
       await this.executeWithExecutor(updated)
     } catch (err) {
       log.error('execution error', { error: String(err) })

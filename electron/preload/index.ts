@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Agent ──────────────────────────────────────────────────────────────────
   readAgentEvents: (agentKey: string) => ipcRenderer.invoke('agent:readEvents', agentKey),
+  readSessionEvents: (sessionId: string) => ipcRenderer.invoke('agent:readSessionEvents', sessionId),
   sendAgentMessage: (id: string, message: string) =>
     ipcRenderer.invoke('agent:sendMessage', id, message),
   stopAgent: (id: string) => ipcRenderer.invoke('agent:stop', id),

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Notifier } from '../notifier'
 import type { ProjectState } from '../../../../src/types/index'
@@ -24,7 +25,7 @@ describe('Notifier', () => {
     it('sends project:statusChanged with correct payload', () => {
       const state: ProjectState = {
         status: 'awake',
-        currentIteration: { milestoneId: 'm-1', count: 2 },
+        currentIteration: { milestoneId: 'm-1', round: 2 },
         nextWakeTime: null,
         wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
         totalTokens: 0,
@@ -37,7 +38,7 @@ describe('Notifier', () => {
       expect(mockWindow.send).toHaveBeenCalledWith('project:statusChanged', {
         projectId: 'proj-1',
         status: 'awake',
-        currentIteration: { milestoneId: 'm-1', count: 2 },
+        currentIteration: { milestoneId: 'm-1', round: 2 },
         rateLimitResetAt: null,
       })
     })
@@ -67,6 +68,7 @@ describe('Notifier', () => {
         inboxItemIds: [],
         createdAt: '2026-01-01',
         iterationCount: 0,
+        iterations: [],
       }
 
       notifier.broadcastMilestoneUpdate(milestone)

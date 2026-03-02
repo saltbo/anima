@@ -37,7 +37,7 @@ function statusText(project: Project): string {
     case 'checking': return 'Checking…'
     case 'awake':
       return state.currentIteration
-        ? `Working · Iteration ${state.currentIteration.count}`
+        ? `Working · Round ${state.currentIteration.round}`
         : 'Working'
     case 'paused': return 'Paused'
     case 'rate_limited': return 'Rate Limited'

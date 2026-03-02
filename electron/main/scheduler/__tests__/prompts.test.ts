@@ -118,6 +118,7 @@ describe('buildAcceptorMessage', () => {
     inboxItemIds: [],
     createdAt: '2026-01-01',
     iterationCount: 1,
+    iterations: [],
   }
 
   it('includes milestone title and developer report', () => {

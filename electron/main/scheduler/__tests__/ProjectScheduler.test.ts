@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ProjectState, Milestone, WakeSchedule } from '../../../../src/types/index'
 
@@ -74,6 +75,7 @@ function createMilestone(overrides: Partial<Milestone> = {}): Milestone {
     inboxItemIds: [],
     createdAt: '2026-01-01T00:00:00Z',
     iterationCount: 0,
+    iterations: [],
     ...overrides,
   }
 }
@@ -143,7 +145,7 @@ describe('ProjectScheduler', () => {
       mockGetProjectState.mockReturnValue({
         ...DEFAULT_STATE,
         status: 'awake',
-        currentIteration: { milestoneId: 'm-1', count: 1 },
+        currentIteration: { milestoneId: 'm-1', round: 1 },
       })
       const scheduler = createScheduler()
       scheduler.start()
@@ -158,7 +160,7 @@ describe('ProjectScheduler', () => {
       mockGetProjectState.mockReturnValue({
         ...DEFAULT_STATE,
         status: 'paused',
-        currentIteration: { milestoneId: 'm-1', count: 1 },
+        currentIteration: { milestoneId: 'm-1', round: 1 },
       })
       const scheduler = createScheduler()
       scheduler.start()
@@ -269,7 +271,7 @@ describe('ProjectScheduler', () => {
         status: 'awake',
         currentIteration: {
           milestoneId: 'm-1',
-          count: 2,
+          round: 2,
           developerSessionId: 'dev-sess',
           acceptorSessionId: 'acc-sess',
         },

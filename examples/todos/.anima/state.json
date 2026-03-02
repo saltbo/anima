@@ -1,0 +1,13 @@
+{
+  "status": "sleeping",
+  "currentIteration": null,
+  "nextWakeTime": null,
+  "wakeSchedule": {
+    "mode": "manual",
+    "intervalMinutes": null,
+    "times": []
+  },
+  "totalTokens": 0,
+  "totalCost": 0,
+  "rateLimitResetAt": null
+}

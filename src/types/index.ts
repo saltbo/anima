@@ -1,10 +1,15 @@
 export type ProjectStatus = 'sleeping' | 'checking' | 'awake' | 'paused' | 'rate_limited'
 
+export type IterationOutcome = 'passed' | 'rejected' | 'cancelled' | 'rate_limited' | 'error'
+
 export interface Iteration {
   milestoneId: string
-  count: number
+  round: number
   developerSessionId?: string
   acceptorSessionId?: string
+  outcome?: IterationOutcome
+  startedAt?: string
+  completedAt?: string
 }
 
 /** Minimal registry entry stored in global config.json */
@@ -62,6 +67,7 @@ export interface Milestone {
   createdAt: string
   completedAt?: string
   iterationCount: number
+  iterations: Iteration[]
   baseCommit?: string
 }
 

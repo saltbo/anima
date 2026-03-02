@@ -41,7 +41,7 @@ function validateAndMigrate(raw: Record<string, unknown>, projectPath: string): 
   const state: ProjectState = { ...DEFAULT_STATE }
   for (const key of REQUIRED_KEYS) {
     if (key in raw) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line no-extra-semi, @typescript-eslint/no-explicit-any
       ;(state as any)[key] = raw[key]
     } else {
       log.error(`state.json is missing required key "${key}" — using default value.`, {

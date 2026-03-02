@@ -165,7 +165,10 @@ export interface AgentChatHandle {
 }
 
 export interface AgentChatProps {
-  agentKey: string
+  /** Live mode: stream events from a running agent by its agentKey */
+  agentKey?: string
+  /** History mode: load events from a completed session by its Claude sessionId */
+  sessionId?: string
   /** Render the input bar. Caller controls send logic. */
   input?: React.ReactNode
   /** Extra content rendered below the conversation (e.g. action buttons) */
@@ -176,7 +179,7 @@ export interface AgentChatProps {
 }
 
 export const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
-function AgentChat({ agentKey, input, footer, className, onDone }, ref) {
+function AgentChat({ agentKey, sessionId, input, footer, className, onDone }, ref) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const idRef = useRef(0)
   const nextId = useCallback(() => idRef.current++, [])
@@ -209,21 +212,61 @@ function AgentChat({ agentKey, input, footer, className, onDone }, ref) {
     },
   }), [push, nextId])
 
-  // Load full history on mount, then stream incremental updates
+  // History mode: load events from completed session file (one-shot, no streaming)
   useEffect(() => {
+    if (!sessionId) return
     let cancelled = false
-    window.electronAPI.readAgentEvents(agentKey).then((history) => {
+    setEvents([])
+    idRef.current = 0
+    window.electronAPI.readSessionEvents(sessionId).then((history) => {
       if (!cancelled) applyEvents(history as AgentEvent[])
     })
+    return () => { cancelled = true }
+  }, [sessionId, applyEvents])
+
+  // Live mode: stream incremental updates + poll for catch-up
+  //
+  // The agent process may emit events before this component subscribes (IPC
+  // timing gap). We subscribe first for real-time events, then poll
+  // readAgentEvents until the session file becomes available and we can
+  // backfill any events that arrived before the subscription.
+  useEffect(() => {
+    if (!agentKey || sessionId) return
+    let cancelled = false
+    let backfilled = false
+
+    // 1. Subscribe to real-time events immediately
     const unsub = window.electronAPI.onAgentEvents((key, incoming) => {
       if (key !== agentKey) return
       applyEvents(incoming as AgentEvent[])
     })
+
+    // 2. Poll readAgentEvents to backfill events that arrived before subscription.
+    //    The session file may not exist yet, so retry a few times.
+    const tryBackfill = (): void => {
+      if (cancelled || backfilled) return
+      window.electronAPI.readAgentEvents(agentKey).then((history) => {
+        if (cancelled || backfilled) return
+        if (history.length > 0) {
+          backfilled = true
+          // Reset and replay full history to get a clean timeline
+          setEvents([])
+          idRef.current = 0
+          applyEvents(history as AgentEvent[])
+        }
+      })
+    }
+
+    // Initial attempt + retries at 1s, 2s, 3s
+    tryBackfill()
+    const timers = [1000, 2000, 3000].map((ms) => setTimeout(tryBackfill, ms))
+
     return () => {
       cancelled = true
       unsub()
+      timers.forEach(clearTimeout)
     }
-  }, [agentKey, applyEvents])
+  }, [agentKey, sessionId, applyEvents])
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
