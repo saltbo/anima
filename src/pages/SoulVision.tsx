@@ -8,10 +8,30 @@ import { useProjects } from '@/store/projects'
 import { useTheme } from '@/store/theme'
 import { AgentChat } from '@/components/AgentChat'
 
-type PageStatus = 'loading' | 'idle' | 'generating' | 'ready'
+type PageStatus = 'loading' | 'idle' | 'confirm' | 'generating' | 'ready'
 type Tab = 'vision' | 'soul'
 
-// ── Loading skeleton ──────────────────────────────────────────────────────────
+// ── Form field definitions ───────────────────────────────────────────────────
+
+const HINT_FIELDS = [
+  { key: 'identity', label: 'Identity',       placeholder: 'What is this project? (one sentence)', group: 'Vision' },
+  { key: 'problem',  label: 'Problem',        placeholder: 'What specific pain point does it solve?', group: 'Vision' },
+  { key: 'audience', label: 'Audience',        placeholder: 'Who is the target user?', group: 'Vision' },
+  { key: 'goal',     label: 'Long-term Goal',  placeholder: 'What does the end state look like?', group: 'Vision' },
+  { key: 'redlines', label: 'Red Lines',       placeholder: 'Absolute constraints the agent can\'t detect from code', group: 'Soul' },
+  { key: 'notes',    label: 'Additional Notes', placeholder: 'Anything else you want the agent to know', group: 'Soul' },
+] as const
+
+function buildUserContext(fields: Record<string, string>): string | undefined {
+  const lines: string[] = []
+  for (const f of HINT_FIELDS) {
+    const val = fields[f.key]?.trim()
+    if (val) lines.push(`${f.label}: ${val}`)
+  }
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
+// ── Loading skeleton ─────────────────────────────────────────────────────────
 
 function LoadingSkeleton() {
   return (
@@ -30,7 +50,7 @@ function LoadingSkeleton() {
   )
 }
 
-// ── Init state ────────────────────────────────────────────────────────────────
+// ── Init state ───────────────────────────────────────────────────────────────
 
 function InitState({ onInit }: { onInit: () => void }) {
   return (
@@ -55,7 +75,93 @@ function InitState({ onInit }: { onInit: () => void }) {
   )
 }
 
-// ── SoulVision page ───────────────────────────────────────────────────────────
+// ── Confirm dialog ───────────────────────────────────────────────────────────
+
+function ConfirmDialog({
+  onStart,
+  onCancel,
+}: {
+  onStart: (userContext?: string) => void
+  onCancel: () => void
+}) {
+  const [fields, setFields] = useState<Record<string, string>>({})
+
+  const setField = (key: string, value: string) => {
+    setFields((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleStart = () => {
+    onStart(buildUserContext(fields))
+  }
+
+  const handleSkip = () => {
+    onStart(undefined)
+  }
+
+  let currentGroup = ''
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Provide Context (Optional)</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Help the agent generate more accurate documents, or skip to auto-analyze.
+            </p>
+          </div>
+          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {HINT_FIELDS.map((f) => {
+            const showGroup = f.group !== currentGroup
+            currentGroup = f.group
+            return (
+              <div key={f.key}>
+                {showGroup && (
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    {f.group}
+                  </p>
+                )}
+                <label className="block text-xs font-medium text-foreground mb-1">{f.label}</label>
+                <textarea
+                  rows={2}
+                  value={fields[f.key] ?? ''}
+                  onChange={(e) => setField(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 border-t border-border shrink-0">
+          <button
+            onClick={handleSkip}
+            className="px-4 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            Skip & Auto-Analyze
+          </button>
+          <button
+            onClick={handleStart}
+            className="px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            Start with Context
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── SoulVision page ──────────────────────────────────────────────────────────
 
 export function SoulVision() {
   const { id } = useParams<{ id: string }>()
@@ -99,10 +205,18 @@ export function SoulVision() {
     setStatus('ready')
   }, [project])
 
-  const handleInit = useCallback(async () => {
+  const handleOpenConfirm = useCallback(() => {
+    setStatus('confirm')
+  }, [])
+
+  const handleCancelConfirm = useCallback(() => {
+    setStatus('idle')
+  }, [])
+
+  const handleStartGeneration = useCallback(async (userContext?: string) => {
     if (!project) return
     setStatus('generating')
-    await window.electronAPI.startSetupAgent(sessionId, project.path, 'init')
+    await window.electronAPI.startSetupAgent(sessionId, project.path, 'init', userContext)
   }, [project, sessionId])
 
   const handleReinit = useCallback(() => {
@@ -139,7 +253,17 @@ export function SoulVision() {
   }
 
   if (status === 'loading') return <LoadingSkeleton />
-  if (status === 'idle') return <InitState onInit={handleInit} />
+  if (status === 'idle') return <InitState onInit={handleOpenConfirm} />
+
+  if (status === 'confirm') {
+    return (
+      <>
+        <InitState onInit={handleOpenConfirm} />
+        <ConfirmDialog onStart={handleStartGeneration} onCancel={handleCancelConfirm} />
+      </>
+    )
+  }
+
   if (status === 'generating') {
     return (
       <div className="flex flex-col h-full overflow-hidden">

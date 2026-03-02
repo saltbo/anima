@@ -35,8 +35,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('setup:readFiles', projectPath),
   writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) =>
     ipcRenderer.invoke('setup:writeFile', projectPath, type, content),
-  startSetupAgent: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') =>
-    ipcRenderer.invoke('setup:startAgent', id, projectPath, type),
+  startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) =>
+    ipcRenderer.invoke('setup:startAgent', id, projectPath, type, userContext),
 
   // ── Agent ──────────────────────────────────────────────────────────────────
   readAgentEvents: (agentKey: string) => ipcRenderer.invoke('agent:readEvents', agentKey),

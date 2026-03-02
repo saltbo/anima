@@ -174,7 +174,7 @@ export function ProjectSettings() {
             </div>
           </div>
           <button
-            onClick={() => navigate(`/projects/${id}/setup?step=vision`)}
+            onClick={() => navigate(`/projects/${id}/soul-vision`)}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-accent transition-colors"
           >
             Recreate
@@ -189,7 +189,7 @@ export function ProjectSettings() {
             </div>
           </div>
           <button
-            onClick={() => navigate(`/projects/${id}/setup?step=soul`)}
+            onClick={() => navigate(`/projects/${id}/soul-vision`)}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-accent transition-colors"
           >
             Recreate

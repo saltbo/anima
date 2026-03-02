@@ -11,11 +11,11 @@ export function registerSetupIPC(): void {
     return readSetupFiles(projectPath)
   })
 
-  ipcMain.handle('setup:writeFile', (_, projectPath: string, type: SetupType, content: string) => {
+  ipcMain.handle('setup:writeFile', (_, projectPath: string, type: 'vision' | 'soul', content: string) => {
     writeSetupFile(projectPath, type, content)
   })
 
-  ipcMain.handle('setup:startAgent', (_, id: string, projectPath: string, type: SetupType) => {
-    startSetupSession(id, projectPath, type)
+  ipcMain.handle('setup:startAgent', (_, id: string, projectPath: string, type: SetupType, userContext?: string) => {
+    startSetupSession(id, projectPath, type, userContext)
   })
 }

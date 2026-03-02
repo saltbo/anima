@@ -32,8 +32,8 @@ export class AgentManager extends EventEmitter {
       onSpawn: options.onSpawn,
       onEvent: (event) => {
         for (const listener of [...listeners]) listener(event)
-        // Forward stdout events to UI in real-time (skip 'done' which is internal)
-        if (event.event !== 'done') this.emit('events', agentKey, [event])
+        // Forward events to UI in real-time
+        this.emit('events', agentKey, [event])
       },
       onDone: () => {
         const entry = this.entries.get(agentKey)

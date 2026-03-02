@@ -35,7 +35,7 @@ declare global {
       checkProjectSetup: (projectPath: string) => Promise<{ hasVision: boolean; hasSoul: boolean }>
       readSetupFiles: (projectPath: string) => Promise<{ vision: string | null; soul: string | null }>
       writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
-      startSetupAgent: (id: string, projectPath: string, type: 'vision' | 'soul' | 'init') => Promise<void>
+      startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) => Promise<void>
 
       // ── Agent ────────────────────────────────────────────────────────────
       readAgentEvents: (agentKey: string) => Promise<AgentEvent[]>
