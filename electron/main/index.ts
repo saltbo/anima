@@ -4,7 +4,6 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { getDb, closeDb } from './db/index'
 import { initSchema } from './db/schema'
-import { migrateFromJson } from './db/migrate'
 import { ProjectRepository } from './repositories/ProjectRepository'
 import { ProjectStateRepository } from './repositories/ProjectStateRepository'
 import { InboxRepository } from './repositories/InboxRepository'
@@ -82,7 +81,6 @@ app.whenReady().then(() => {
   // ── Database ──────────────────────────────────────────────────────────
   const db = getDb()
   initSchema(db)
-  migrateFromJson(db)
 
   // ── Repositories ──────────────────────────────────────────────────────
   const projectRepo = new ProjectRepository(db)
