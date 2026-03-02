@@ -1,4 +1,9 @@
 import type { BrowserWindow } from 'electron'
+import type { ProjectService } from '../services/ProjectService'
+import type { InboxService } from '../services/InboxService'
+import type { MilestoneService } from '../services/MilestoneService'
+import type { SchedulerService } from '../services/SchedulerService'
+import type { SetupService } from '../services/SetupService'
 import { registerProjectsIPC } from './projects'
 import { registerWindowIPC } from './window'
 import { registerSetupIPC } from './setup'
@@ -7,12 +12,20 @@ import { registerInboxIPC } from './inbox'
 import { registerMilestonesIPC } from './milestones'
 import { registerSchedulerIPC } from './scheduler'
 
-export function setupIPC(getWindow: () => BrowserWindow | null): void {
-  registerProjectsIPC(getWindow)
+export interface ServiceContext {
+  projectService: ProjectService
+  inboxService: InboxService
+  milestoneService: MilestoneService
+  schedulerService: SchedulerService
+  setupService: SetupService
+}
+
+export function setupIPC(getWindow: () => BrowserWindow | null, ctx: ServiceContext): void {
+  registerProjectsIPC(getWindow, ctx)
   registerWindowIPC(getWindow)
-  registerSetupIPC()
+  registerSetupIPC(ctx)
   registerAgentIPC(getWindow)
-  registerInboxIPC()
-  registerMilestonesIPC(getWindow)
-  registerSchedulerIPC()
+  registerInboxIPC(ctx)
+  registerMilestonesIPC(ctx)
+  registerSchedulerIPC(ctx)
 }

@@ -2,13 +2,26 @@ import './logger' // must be first — initializes electron-log & IPC transport
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { getDb, closeDb } from './db/index'
+import { initSchema } from './db/schema'
+import { migrateFromJson } from './db/migrate'
+import { ProjectRepository } from './repositories/ProjectRepository'
+import { ProjectStateRepository } from './repositories/ProjectStateRepository'
+import { InboxRepository } from './repositories/InboxRepository'
+import { MilestoneRepository } from './repositories/MilestoneRepository'
+import { ProjectService } from './services/ProjectService'
+import { InboxService } from './services/InboxService'
+import { MilestoneService } from './services/MilestoneService'
+import { SchedulerService } from './services/SchedulerService'
+import { SetupService } from './services/SetupService'
+import { GitService } from './services/GitService'
+import { conversationAgent, taskAgent } from './agents/service'
 import { createTray } from './app/tray'
 import { setupIPC } from './ipc/index'
-import { getProjects } from './data/store'
-import { schedulerManager } from './scheduler'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
+let schedulerService: SchedulerService | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -66,12 +79,40 @@ app.whenReady().then(() => {
 
   const getWindow = (): BrowserWindow | null => mainWindow
 
-  createTray(getWindow, getProjects)
-  setupIPC(getWindow)
+  // ── Database ──────────────────────────────────────────────────────────
+  const db = getDb()
+  initSchema(db)
+  migrateFromJson(db)
 
-  // Start per-project schedulers
-  schedulerManager.init(getWindow)
-  schedulerManager.startAll(getProjects())
+  // ── Repositories ──────────────────────────────────────────────────────
+  const projectRepo = new ProjectRepository(db)
+  const stateRepo = new ProjectStateRepository(db)
+  const inboxRepo = new InboxRepository(db)
+  const milestoneRepo = new MilestoneRepository(db)
+
+  // ── Services ──────────────────────────────────────────────────────────
+  const gitService = new GitService()
+  const projectService = new ProjectService(projectRepo, stateRepo)
+  const inboxService = new InboxService(inboxRepo, projectRepo)
+  const milestoneService = new MilestoneService(
+    milestoneRepo, inboxRepo, projectRepo,
+    conversationAgent, taskAgent, getWindow
+  )
+  const setupService = new SetupService(conversationAgent)
+  schedulerService = new SchedulerService(
+    projectRepo, stateRepo, milestoneRepo, gitService, getWindow
+  )
+
+  // ── Wire up ───────────────────────────────────────────────────────────
+  createTray(getWindow, projectService)
+  setupIPC(getWindow, {
+    projectService,
+    inboxService,
+    milestoneService,
+    schedulerService,
+    setupService,
+  })
+  schedulerService.startAll()
 
   app.on('activate', () => {
     if (mainWindow === null) {
@@ -85,7 +126,8 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true
-  schedulerManager.stopAll()
+  schedulerService?.stopAll()
+  closeDb()
 })
 
 // Keep app running in tray — don't quit when all windows are closed

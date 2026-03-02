@@ -1,12 +1,13 @@
 import { ipcMain, dialog } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { addProject, getProjects, removeProject } from '../data/store'
+import type { ServiceContext } from './index'
 import { updateTray } from '../app/tray'
-import { schedulerManager } from '../scheduler'
 
-export function registerProjectsIPC(getWindow: () => BrowserWindow | null): void {
+export function registerProjectsIPC(getWindow: () => BrowserWindow | null, ctx: ServiceContext): void {
+  const { projectService, schedulerService } = ctx
+
   ipcMain.handle('projects:list', () => {
-    return getProjects()
+    return projectService.list()
   })
 
   ipcMain.handle('projects:add', async () => {
@@ -20,21 +21,21 @@ export function registerProjectsIPC(getWindow: () => BrowserWindow | null): void
       return null
     }
 
-    const project = addProject(result.filePaths[0])
-    schedulerManager.add(project)
+    const project = projectService.add(result.filePaths[0])
+    schedulerService.add(project)
 
-    getWindow()?.webContents.send('projects:changed', getProjects())
-    updateTray(getProjects(), getWindow)
+    getWindow()?.webContents.send('projects:changed', projectService.list())
+    updateTray(projectService, getWindow)
 
     return project
   })
 
   ipcMain.handle('projects:remove', (_, id: string) => {
-    schedulerManager.remove(id)
-    removeProject(id)
+    schedulerService.remove(id)
+    projectService.remove(id)
 
-    getWindow()?.webContents.send('projects:changed', getProjects())
-    updateTray(getProjects(), getWindow)
+    getWindow()?.webContents.send('projects:changed', projectService.list())
+    updateTray(projectService, getWindow)
 
     return true
   })

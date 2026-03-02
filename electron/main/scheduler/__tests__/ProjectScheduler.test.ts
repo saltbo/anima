@@ -4,32 +4,8 @@ import type { ProjectState, Milestone, WakeSchedule } from '../../../../src/type
 
 // ── Mock dependencies ───────────────────────────────────────────────────────
 
-const mockGetProjectState = vi.fn<(path: string) => ProjectState>()
-const mockPatchProjectState = vi.fn<(path: string, patch: Partial<ProjectState>) => ProjectState>()
-const mockGetMilestones = vi.fn<(path: string) => Milestone[]>()
-const mockSaveMilestone = vi.fn()
-const mockCreateMilestoneBranch = vi.fn<(path: string, id: string) => Promise<string>>()
-const mockGetCurrentBranch = vi.fn<(path: string) => Promise<string>>()
-const mockCheckoutBranch = vi.fn()
-
 const mockExecutorExecute = vi.fn<(...args: any[]) => Promise<{ outcome: string }>>()
 const mockExecutorAbort = vi.fn()
-
-vi.mock('../../data/state', () => ({
-  getProjectState: (...args: any[]) => mockGetProjectState(...args),
-  patchProjectState: (...args: any[]) => mockPatchProjectState(...args),
-}))
-
-vi.mock('../../data/milestones', () => ({
-  getMilestones: (...args: any[]) => mockGetMilestones(...args),
-  saveMilestone: (...args: any[]) => mockSaveMilestone(...args),
-}))
-
-vi.mock('../../data/git', () => ({
-  createMilestoneBranch: (...args: any[]) => mockCreateMilestoneBranch(...args),
-  getCurrentBranch: (...args: any[]) => mockGetCurrentBranch(...args),
-  checkoutBranch: (...args: any[]) => mockCheckoutBranch(...args),
-}))
 
 vi.mock('../MilestoneExecutor', () => ({
   MilestoneExecutor: vi.fn().mockImplementation(function () {
@@ -80,16 +56,62 @@ function createMilestone(overrides: Partial<Milestone> = {}): Milestone {
   }
 }
 
-function createScheduler() {
+function createMockRepos() {
+  let currentState = { ...DEFAULT_STATE }
+
+  const stateRepo = {
+    get: vi.fn(() => currentState),
+    patch: vi.fn((_id: string, patch: Partial<ProjectState>) => {
+      currentState = { ...currentState, ...patch }
+      return currentState
+    }),
+    save: vi.fn((_id: string, state: ProjectState) => { currentState = state }),
+    getByPath: vi.fn(() => currentState),
+    // Expose for test assertions
+    _setState: (s: ProjectState) => { currentState = s },
+  }
+
+  const milestoneRepo = {
+    getById: vi.fn(() => null as Milestone | null),
+    getByProjectId: vi.fn(() => [] as Milestone[]),
+    save: vi.fn(),
+    delete: vi.fn(),
+    updateTask: vi.fn(),
+    addIteration: vi.fn(),
+    getProjectIdForMilestone: vi.fn(() => 'proj-1'),
+  }
+
+  const gitService = {
+    createMilestoneBranch: vi.fn().mockResolvedValue('abc1234'),
+    getCurrentBranch: vi.fn().mockResolvedValue('main'),
+    checkoutBranch: vi.fn(),
+    getCommitLog: vi.fn().mockResolvedValue(''),
+    hasUncommittedChanges: vi.fn().mockResolvedValue(false),
+    isGitRepo: vi.fn().mockResolvedValue(true),
+  }
+
+  return { stateRepo, milestoneRepo, gitService }
+}
+
+function createScheduler(repos?: ReturnType<typeof createMockRepos>) {
+  const { stateRepo, milestoneRepo, gitService } = repos ?? createMockRepos()
   const mockWin = {
     isDestroyed: () => false,
     webContents: { send: vi.fn() },
   }
-  return new ProjectScheduler({
-    projectId: 'proj-1',
-    projectPath: '/test/project',
-    getWindow: () => mockWin as any,
-  })
+  return {
+    scheduler: new ProjectScheduler({
+      projectId: 'proj-1',
+      projectPath: '/test/project',
+      getWindow: () => mockWin as any,
+      stateRepo: stateRepo as any,
+      milestoneRepo: milestoneRepo as any,
+      gitService: gitService as any,
+    }),
+    stateRepo,
+    milestoneRepo,
+    gitService,
+  }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -98,12 +120,6 @@ describe('ProjectScheduler', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
-
-    mockGetProjectState.mockReturnValue({ ...DEFAULT_STATE })
-    mockPatchProjectState.mockImplementation((_path, patch) => ({ ...DEFAULT_STATE, ...patch }))
-    mockGetMilestones.mockReturnValue([])
-    mockCreateMilestoneBranch.mockResolvedValue('abc1234')
-    mockGetCurrentBranch.mockResolvedValue('main')
     mockExecutorExecute.mockResolvedValue({ outcome: 'completed' })
   })
 
@@ -113,7 +129,7 @@ describe('ProjectScheduler', () => {
 
   describe('start/stop lifecycle', () => {
     it('schedules an immediate check on start', async () => {
-      const scheduler = createScheduler()
+      const { scheduler } = createScheduler()
       scheduler.start()
 
       expect(vi.getTimerCount()).toBeGreaterThanOrEqual(1)
@@ -121,70 +137,72 @@ describe('ProjectScheduler', () => {
     })
 
     it('clears timer and aborts executor on stop', () => {
-      const scheduler = createScheduler()
+      const { scheduler } = createScheduler()
       scheduler.start()
       scheduler.stop()
-      // Timer should be cleared (no-op verified by not throwing)
     })
   })
 
   describe('check (via timer)', () => {
     it('goes back to sleep when no ready milestones', async () => {
-      mockGetMilestones.mockReturnValue([])
-      const scheduler = createScheduler()
+      const repos = createMockRepos()
+      repos.milestoneRepo.getByProjectId.mockReturnValue([])
+      const { scheduler, stateRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(mockPatchProjectState).toHaveBeenCalledWith('/test/project', { status: 'checking' })
-      expect(mockPatchProjectState).toHaveBeenCalledWith('/test/project', { status: 'sleeping' })
+      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'checking' })
+      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'sleeping' })
       scheduler.stop()
     })
 
     it('skips check when status is awake', async () => {
-      mockGetProjectState.mockReturnValue({
+      const repos = createMockRepos()
+      repos.stateRepo._setState({
         ...DEFAULT_STATE,
         status: 'awake',
         currentIteration: { milestoneId: 'm-1', round: 1 },
       })
-      const scheduler = createScheduler()
+      const { scheduler, stateRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(mockPatchProjectState).not.toHaveBeenCalledWith('/test/project', { status: 'checking' })
+      expect(stateRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
 
     it('skips check when status is paused', async () => {
-      mockGetProjectState.mockReturnValue({
+      const repos = createMockRepos()
+      repos.stateRepo._setState({
         ...DEFAULT_STATE,
         status: 'paused',
         currentIteration: { milestoneId: 'm-1', round: 1 },
       })
-      const scheduler = createScheduler()
+      const { scheduler, stateRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(mockPatchProjectState).not.toHaveBeenCalledWith('/test/project', { status: 'checking' })
+      expect(stateRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
 
     it('reschedules when rate_limited and reset time is in future', async () => {
+      const repos = createMockRepos()
       const resetAt = new Date(Date.now() + 60000).toISOString()
-      mockGetProjectState.mockReturnValue({
+      repos.stateRepo._setState({
         ...DEFAULT_STATE,
         status: 'rate_limited',
         rateLimitResetAt: resetAt,
       })
-
-      const scheduler = createScheduler()
+      const { scheduler, stateRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(mockPatchProjectState).not.toHaveBeenCalledWith('/test/project', { status: 'checking' })
+      expect(stateRepo.patch).not.toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
   })
@@ -192,23 +210,18 @@ describe('ProjectScheduler', () => {
   describe('dispatch to executor', () => {
     it('creates MilestoneExecutor when ready milestone found', async () => {
       const milestone = createMilestone()
-      mockGetMilestones.mockReturnValue([milestone])
-
-      const scheduler = createScheduler()
+      const repos = createMockRepos()
+      repos.milestoneRepo.getByProjectId.mockReturnValue([milestone])
+      const { scheduler, gitService } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      // Should have created branch
-      expect(mockCreateMilestoneBranch).toHaveBeenCalledWith('/test/project', 'm-1')
-
-      // Should have saved milestone as in-progress
-      expect(mockSaveMilestone).toHaveBeenCalledWith('/test/project', expect.objectContaining({
+      expect(gitService.createMilestoneBranch).toHaveBeenCalledWith('/test/project', 'm-1')
+      expect(repos.milestoneRepo.save).toHaveBeenCalledWith('proj-1', expect.objectContaining({
         status: 'in-progress',
         baseCommit: 'abc1234',
       }))
-
-      // Should have created and executed an executor
       expect(MilestoneExecutor).toHaveBeenCalled()
       expect(mockExecutorExecute).toHaveBeenCalled()
 
@@ -217,47 +230,46 @@ describe('ProjectScheduler', () => {
 
     it('sets status to paused when execution throws', async () => {
       const milestone = createMilestone()
-      mockGetMilestones.mockReturnValue([milestone])
+      const repos = createMockRepos()
+      repos.milestoneRepo.getByProjectId.mockReturnValue([milestone])
       mockExecutorExecute.mockRejectedValue(new Error('unexpected'))
 
-      const scheduler = createScheduler()
+      const { scheduler, stateRepo } = createScheduler(repos)
       scheduler.start()
 
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(mockPatchProjectState).toHaveBeenCalledWith('/test/project', { status: 'paused' })
+      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'paused' })
       scheduler.stop()
     })
   })
 
   describe('wakeNow', () => {
     it('triggers immediate check', async () => {
-      mockGetMilestones.mockReturnValue([])
-      const scheduler = createScheduler()
+      const repos = createMockRepos()
+      repos.milestoneRepo.getByProjectId.mockReturnValue([])
+      const { scheduler, stateRepo } = createScheduler(repos)
       scheduler.start()
 
-      // First check
       await vi.advanceTimersByTimeAsync(0)
-      mockPatchProjectState.mockClear()
+      stateRepo.patch.mockClear()
 
-      // Force wake
       scheduler.wakeNow()
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(mockPatchProjectState).toHaveBeenCalledWith('/test/project', { status: 'checking' })
+      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', { status: 'checking' })
       scheduler.stop()
     })
   })
 
   describe('updateSchedule', () => {
-    it('persists new schedule and reschedules', () => {
-      const scheduler = createScheduler()
+    it('reschedules wake timer', () => {
+      const { scheduler } = createScheduler()
       scheduler.start()
 
       const newSchedule: WakeSchedule = { mode: 'interval', intervalMinutes: 15, times: [] }
       scheduler.updateSchedule(newSchedule)
 
-      expect(mockPatchProjectState).toHaveBeenCalledWith('/test/project', { wakeSchedule: newSchedule })
       scheduler.stop()
     })
   })
@@ -265,8 +277,10 @@ describe('ProjectScheduler', () => {
   describe('recovery', () => {
     it('recovers awake state on start and delegates to executor', async () => {
       const milestone = createMilestone({ status: 'in-progress' })
-      mockGetMilestones.mockReturnValue([milestone])
-      mockGetProjectState.mockReturnValue({
+      const repos = createMockRepos()
+      repos.milestoneRepo.getByProjectId.mockReturnValue([milestone])
+      repos.milestoneRepo.getById.mockReturnValue(milestone)
+      repos.stateRepo._setState({
         ...DEFAULT_STATE,
         status: 'awake',
         currentIteration: {
@@ -276,18 +290,14 @@ describe('ProjectScheduler', () => {
           acceptorSessionId: 'acc-sess',
         },
       })
-      mockGetCurrentBranch.mockResolvedValue('main')
+      repos.gitService.getCurrentBranch.mockResolvedValue('main')
 
-      const scheduler = createScheduler()
+      const { scheduler, gitService } = createScheduler(repos)
       scheduler.start()
 
-      // Let recovery run
       await vi.advanceTimersByTimeAsync(0)
 
-      // Should have tried to checkout the milestone branch
-      expect(mockCheckoutBranch).toHaveBeenCalledWith('/test/project', 'milestone/m-1')
-
-      // Should have created executor and called execute (no resume — each iteration starts fresh)
+      expect(gitService.checkoutBranch).toHaveBeenCalledWith('/test/project', 'milestone/m-1')
       expect(MilestoneExecutor).toHaveBeenCalled()
       expect(mockExecutorExecute).toHaveBeenCalledWith(milestone)
 

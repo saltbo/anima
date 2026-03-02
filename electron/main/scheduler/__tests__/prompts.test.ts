@@ -27,6 +27,7 @@ describe('buildAcceptorSystemPrompt', () => {
 describe('buildDeveloperFirstMessage', () => {
   it('includes branch, iteration count, and milestone info', () => {
     const msg = buildDeveloperFirstMessage({
+      projectPath: '/test/project',
       branch: 'milestone/m-1',
       milestoneId: 'm-1',
       milestoneTitle: 'Add auth',
@@ -47,6 +48,7 @@ describe('buildDeveloperFirstMessage', () => {
 
   it('shows no commits placeholder when commitLog is empty', () => {
     const msg = buildDeveloperFirstMessage({
+      projectPath: '/test/project',
       branch: 'milestone/m-2',
       milestoneId: 'm-2',
       milestoneTitle: 'Test',
@@ -62,6 +64,7 @@ describe('buildDeveloperFirstMessage', () => {
 
   it('includes uncommitted changes note when present', () => {
     const msg = buildDeveloperFirstMessage({
+      projectPath: '/test/project',
       branch: 'milestone/m-3',
       milestoneId: 'm-3',
       milestoneTitle: 'Test',
@@ -77,6 +80,7 @@ describe('buildDeveloperFirstMessage', () => {
 
   it('includes acceptor feedback when provided', () => {
     const msg = buildDeveloperFirstMessage({
+      projectPath: '/test/project',
       branch: 'milestone/m-4',
       milestoneId: 'm-4',
       milestoneTitle: 'Test',
@@ -93,6 +97,7 @@ describe('buildDeveloperFirstMessage', () => {
 
   it('does not include feedback section when empty', () => {
     const msg = buildDeveloperFirstMessage({
+      projectPath: '/test/project',
       branch: 'milestone/m-5',
       milestoneId: 'm-5',
       milestoneTitle: 'Test',
@@ -122,7 +127,7 @@ describe('buildAcceptorMessage', () => {
   }
 
   it('includes milestone title and developer report', () => {
-    const msg = buildAcceptorMessage(milestone, 'I added login form. Commit: abc1234', 2)
+    const msg = buildAcceptorMessage(milestone, 'I added login form. Commit: abc1234', 2, '/test/project')
 
     expect(msg).toContain('Add auth')
     expect(msg).toContain('Iteration: 2')

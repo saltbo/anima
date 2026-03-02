@@ -1,23 +1,24 @@
 import { ipcMain } from 'electron'
-import { getProjectState, patchProjectState } from '../data/state'
-import { schedulerManager } from '../scheduler'
+import type { ServiceContext } from './index'
 import type { WakeSchedule } from '../../../src/types/index'
 
-export function registerSchedulerIPC(): void {
+export function registerSchedulerIPC(ctx: ServiceContext): void {
+  const { schedulerService } = ctx
+
   ipcMain.handle('project:getState', (_, projectPath: string) => {
-    return getProjectState(projectPath)
+    return schedulerService.getState(projectPath)
   })
 
   ipcMain.handle('project:wake', (_, projectId: string) => {
-    schedulerManager.wakeNow(projectId)
+    schedulerService.wakeNow(projectId)
   })
 
-  ipcMain.handle('project:updateSchedule', (_, projectId: string, projectPath: string, schedule: WakeSchedule) => {
-    schedulerManager.updateSchedule(projectId, schedule)
-    patchProjectState(projectPath, { wakeSchedule: schedule })
+  // Fixed: no more state double-write bug — SchedulerService.updateSchedule handles both
+  ipcMain.handle('project:updateSchedule', (_, projectId: string, _projectPath: string, schedule: WakeSchedule) => {
+    schedulerService.updateSchedule(projectId, schedule)
   })
 
   ipcMain.handle('milestone:cancel', (_, projectId: string, _projectPath: string, milestoneId: string) => {
-    schedulerManager.cancelMilestone(projectId, milestoneId)
+    schedulerService.cancelMilestone(projectId, milestoneId)
   })
 }

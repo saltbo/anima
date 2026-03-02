@@ -1,8 +1,8 @@
 import { createLogger } from '../logger'
-import { getMilestones, saveMilestone } from '../data/milestones'
-import { getProjectState, patchProjectState } from '../data/state'
-import { getCommitLog, hasUncommittedChanges } from '../data/git'
 import { conversationAgent } from '../agents/service'
+import type { ProjectStateRepository } from '../repositories/ProjectStateRepository'
+import type { MilestoneRepository } from '../repositories/MilestoneRepository'
+import type { GitService } from '../services/GitService'
 import type { Milestone, Iteration, IterationOutcome } from '../../../src/types/index'
 import type { AgentEvent } from '../../../src/types/agent'
 import { Notifier } from './notifier'
@@ -28,6 +28,9 @@ export interface ExecutorOptions {
   projectId: string
   projectPath: string
   notifier: Notifier
+  stateRepo: ProjectStateRepository
+  milestoneRepo: MilestoneRepository
+  gitService: GitService
   onRateLimit: (resetAt: string) => void
   onComplete: () => void
 }
@@ -50,17 +53,22 @@ export class MilestoneExecutor {
   private projectId: string
   private projectPath: string
   private notifier: Notifier
+  private stateRepo: ProjectStateRepository
+  private milestoneRepo: MilestoneRepository
+  private gitService: GitService
   private onRateLimit: (resetAt: string) => void
   private onComplete: () => void
   private aborted = false
   private activeAgentKeys: string[] = []
-  /** Snapshot of session IDs captured from agent system events — survives state wipes */
   private capturedSessionIds: { developerSessionId?: string; acceptorSessionId?: string } = {}
 
   constructor(options: ExecutorOptions) {
     this.projectId = options.projectId
     this.projectPath = options.projectPath
     this.notifier = options.notifier
+    this.stateRepo = options.stateRepo
+    this.milestoneRepo = options.milestoneRepo
+    this.gitService = options.gitService
     this.onRateLimit = options.onRateLimit
     this.onComplete = options.onComplete
   }
@@ -96,12 +104,11 @@ export class MilestoneExecutor {
         return { outcome: 'rate_limited', resetAt: result.resetAt }
       }
 
-      // Iteration rejected — developer didn't pass acceptance
       const outcome: IterationOutcome = this.aborted ? 'cancelled' : 'rejected'
       this.recordIteration(milestone.id, round, outcome, startedAt)
 
       feedback = result.feedback
-      milestone = getMilestones(this.projectPath).find((m) => m.id === milestone.id) ?? milestone
+      milestone = this.milestoneRepo.getById(milestone.id) ?? milestone
     }
 
     const finalRound = milestone.iterations.length
@@ -111,7 +118,6 @@ export class MilestoneExecutor {
 
   abort(): void {
     this.aborted = true
-    // Immediately stop any running agent sessions
     for (const key of this.activeAgentKeys) {
       conversationAgent.stop(key)
     }
@@ -133,8 +139,8 @@ export class MilestoneExecutor {
     try {
       // 1. Developer works
       const branch = `milestone/${milestone.id}`
-      const commitLog = await getCommitLog(this.projectPath, branch)
-      const uncommitted = await hasUncommittedChanges(this.projectPath)
+      const commitLog = await this.gitService.getCommitLog(this.projectPath, branch)
+      const uncommitted = await this.gitService.hasUncommittedChanges(this.projectPath)
 
       const devReport = await conversationAgent.run(devKey, {
         projectPath: this.projectPath,
@@ -155,14 +161,14 @@ export class MilestoneExecutor {
             log.info('developer system event', { sessionId: event.sessionId, devKey })
             this.notifier.broadcastAgentEvent('developer', devKey)
             this.capturedSessionIds.developerSessionId = event.sessionId
-            const cur = getProjectState(this.projectPath).currentIteration
-            if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
+            const cur = this.stateRepo.get(this.projectId).currentIteration
+            if (cur) this.stateRepo.patch(this.projectId, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
           }
           if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
             const todos = parseTodoWrite(event.toolInput)
             const updated = captureDeveloperTodos(milestone, todos, iteration)
             if (updated) {
-              saveMilestone(this.projectPath, updated)
+              this.milestoneRepo.save(this.projectId, updated)
               this.notifier.broadcastMilestoneUpdate(updated)
             }
           }
@@ -170,7 +176,7 @@ export class MilestoneExecutor {
       })
 
       // Refresh milestone after developer phase
-      milestone = getMilestones(this.projectPath).find((m) => m.id === milestone.id) ?? milestone
+      milestone = this.milestoneRepo.getById(milestone.id) ?? milestone
 
       // 2. Acceptor reviews
       const roundTodos: TodoItem[] = []
@@ -179,15 +185,15 @@ export class MilestoneExecutor {
           log.info('acceptor system event', { sessionId: event.sessionId, accKey })
           this.notifier.broadcastAgentEvent('acceptor', accKey)
           this.capturedSessionIds.acceptorSessionId = event.sessionId
-          const cur = getProjectState(this.projectPath).currentIteration
-          if (cur) patchProjectState(this.projectPath, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
+          const cur = this.stateRepo.get(this.projectId).currentIteration
+          if (cur) this.stateRepo.patch(this.projectId, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
         }
         if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
           const parsed = parseTodoWrite(event.toolInput)
           todos.splice(0, todos.length, ...parsed)
           const updated = captureAcceptorTodos(milestone, parsed, iteration)
           if (updated) {
-            saveMilestone(this.projectPath, updated)
+            this.milestoneRepo.save(this.projectId, updated)
             this.notifier.broadcastMilestoneUpdate(updated)
           }
         }
@@ -202,7 +208,7 @@ export class MilestoneExecutor {
 
       if (this.allPassed(roundTodos)) return { complete: true }
 
-      // 3. Relay loop — two agents talk through the bridge
+      // 3. Relay loop
       for (let round = 2; round <= MAX_ROUNDS_PER_ITERATION; round++) {
         if (this.aborted) return { complete: false, feedback: accReport }
 
@@ -239,7 +245,7 @@ export class MilestoneExecutor {
     if (isRateLimitError(msg)) {
       const resetAt = parseResetTime(msg)
       log.warn('rate limit detected', { resetAt })
-      patchProjectState(this.projectPath, { status: 'rate_limited', rateLimitResetAt: resetAt })
+      this.stateRepo.patch(this.projectId, { status: 'rate_limited', rateLimitResetAt: resetAt })
       this.broadcastStatus()
       this.notifier.notifyRateLimited(resetAt)
       this.onRateLimit(resetAt)
@@ -254,13 +260,12 @@ export class MilestoneExecutor {
 
   private handleMaxIterations(milestone: Milestone, round: number): void {
     log.warn('max iterations reached', { milestone: milestone.id })
-    const m = getMilestones(this.projectPath).find((ms) => ms.id === milestone.id)
+    const m = this.milestoneRepo.getById(milestone.id)
     if (m) {
-      m.iterationCount = round
-      saveMilestone(this.projectPath, m)
+      this.milestoneRepo.save(this.projectId, { ...m, iterationCount: round })
     }
-    const cur = getProjectState(this.projectPath).currentIteration
-    patchProjectState(this.projectPath, {
+    const cur = this.stateRepo.get(this.projectId).currentIteration
+    this.stateRepo.patch(this.projectId, {
       status: 'paused',
       currentIteration: cur ?? { milestoneId: milestone.id, round },
     })
@@ -270,14 +275,16 @@ export class MilestoneExecutor {
 
   private completeMilestone(milestone: Milestone, round: number): void {
     log.info('milestone completed!', { milestone: milestone.id })
-    const m = getMilestones(this.projectPath).find((ms) => ms.id === milestone.id)
+    const m = this.milestoneRepo.getById(milestone.id)
     if (m) {
-      m.status = 'completed'
-      m.completedAt = new Date().toISOString()
-      m.iterationCount = round
-      saveMilestone(this.projectPath, m)
+      this.milestoneRepo.save(this.projectId, {
+        ...m,
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        iterationCount: round,
+      })
     }
-    patchProjectState(this.projectPath, { status: 'sleeping', currentIteration: null })
+    this.stateRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
     this.broadcastStatus()
     this.notifier.notifyMilestoneCompleted(milestone.id)
     this.onComplete()
@@ -285,7 +292,7 @@ export class MilestoneExecutor {
 
   private updateIterationState(milestoneId: string, round: number, startedAt: string): void {
     const iter: Iteration = { milestoneId, round, startedAt }
-    patchProjectState(this.projectPath, { status: 'awake', currentIteration: iter })
+    this.stateRepo.patch(this.projectId, { status: 'awake', currentIteration: iter })
     this.broadcastStatus()
   }
 
@@ -306,18 +313,15 @@ export class MilestoneExecutor {
       startedAt,
       completedAt: new Date().toISOString(),
     }
-    const m = getMilestones(this.projectPath).find((ms) => ms.id === milestoneId)
-    if (!m) {
-      log.warn('recordIteration: milestone not found, skipping', { milestoneId })
-      return
+    this.milestoneRepo.addIteration(record)
+    const m = this.milestoneRepo.getById(milestoneId)
+    if (m) {
+      this.notifier.broadcastMilestoneUpdate(m)
     }
-    m.iterations.push(record)
-    saveMilestone(this.projectPath, m)
-    this.notifier.broadcastMilestoneUpdate(m)
   }
 
   private broadcastStatus(): void {
-    const state = getProjectState(this.projectPath)
+    const state = this.stateRepo.get(this.projectId)
     this.notifier.broadcastStatus(state)
   }
 }

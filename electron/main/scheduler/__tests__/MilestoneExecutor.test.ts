@@ -4,30 +4,9 @@ import type { ProjectState, Milestone, Iteration } from '../../../../src/types/i
 
 // ── Mock dependencies ───────────────────────────────────────────────────────
 
-const mockGetProjectState = vi.fn<(path: string) => ProjectState>()
-const mockPatchProjectState = vi.fn<(path: string, patch: Partial<ProjectState>) => ProjectState>()
-const mockGetMilestones = vi.fn<(path: string) => Milestone[]>()
-const mockSaveMilestone = vi.fn()
-const mockGetCommitLog = vi.fn<(path: string, branch: string) => Promise<string>>()
-const mockHasUncommittedChanges = vi.fn<(path: string) => Promise<boolean>>()
 const mockAgentRun = vi.fn<(...args: any[]) => Promise<string>>()
 const mockAgentContinue = vi.fn<(...args: any[]) => Promise<string>>()
 const mockAgentStop = vi.fn()
-
-vi.mock('../../data/state', () => ({
-  getProjectState: (...args: any[]) => mockGetProjectState(...args),
-  patchProjectState: (...args: any[]) => mockPatchProjectState(...args),
-}))
-
-vi.mock('../../data/milestones', () => ({
-  getMilestones: (...args: any[]) => mockGetMilestones(...args),
-  saveMilestone: (...args: any[]) => mockSaveMilestone(...args),
-}))
-
-vi.mock('../../data/git', () => ({
-  getCommitLog: (...args: any[]) => mockGetCommitLog(...args),
-  hasUncommittedChanges: (...args: any[]) => mockHasUncommittedChanges(...args),
-}))
 
 vi.mock('../../agents/service', () => ({
   conversationAgent: {
@@ -96,25 +75,62 @@ const mockNotifier = {
   notifyMilestoneCompleted: vi.fn(),
 }
 
-function createExecutor(overrides: { onRateLimit?: (r: string) => void; onComplete?: () => void } = {}) {
-  return new MilestoneExecutor({
-    projectId: 'proj-1',
-    projectPath: '/test/project',
-    notifier: mockNotifier as any,
-    onRateLimit: overrides.onRateLimit ?? vi.fn(),
-    onComplete: overrides.onComplete ?? vi.fn(),
-  })
+/** Create mock repos that simulate in-memory state */
+function createMockRepos(milestone: Milestone) {
+  let currentState = { ...DEFAULT_STATE }
+  const milestoneStore = { current: milestone }
+
+  const stateRepo = {
+    get: vi.fn(() => currentState),
+    patch: vi.fn((_id: string, patch: Partial<ProjectState>) => {
+      currentState = { ...currentState, ...patch }
+      return currentState
+    }),
+    save: vi.fn((_id: string, state: ProjectState) => { currentState = state }),
+    getByPath: vi.fn(() => currentState),
+  }
+
+  const milestoneRepo = {
+    getById: vi.fn((id: string) => id === milestone.id ? milestoneStore.current : null),
+    getByProjectId: vi.fn(() => [milestoneStore.current]),
+    save: vi.fn((_pid: string, m: Milestone) => { milestoneStore.current = m }),
+    delete: vi.fn(),
+    updateTask: vi.fn(),
+    addIteration: vi.fn(),
+    getProjectIdForMilestone: vi.fn(() => 'proj-1'),
+  }
+
+  const gitService = {
+    getCommitLog: vi.fn().mockResolvedValue(''),
+    hasUncommittedChanges: vi.fn().mockResolvedValue(false),
+    createMilestoneBranch: vi.fn().mockResolvedValue('abc123'),
+    getCurrentBranch: vi.fn().mockResolvedValue('main'),
+    checkoutBranch: vi.fn(),
+    isGitRepo: vi.fn().mockResolvedValue(true),
+  }
+
+  return { stateRepo, milestoneRepo, gitService, milestoneStore }
 }
 
-/**
- * Wire getMilestones/saveMilestone so that saveMilestone updates the shared
- * milestone object, making iterations visible to the next getMilestones call.
- */
-function wireMilestoneStore(milestone: Milestone): void {
-  mockGetMilestones.mockImplementation(() => [milestone])
-  mockSaveMilestone.mockImplementation((_path: string, m: Milestone) => {
-    Object.assign(milestone, m)
-  })
+function createExecutor(
+  milestone: Milestone,
+  overrides: { onRateLimit?: (r: string) => void; onComplete?: () => void } = {}
+) {
+  const { stateRepo, milestoneRepo, gitService } = createMockRepos(milestone)
+  return {
+    executor: new MilestoneExecutor({
+      projectId: 'proj-1',
+      projectPath: '/test/project',
+      notifier: mockNotifier as any,
+      stateRepo: stateRepo as any,
+      milestoneRepo: milestoneRepo as any,
+      gitService: gitService as any,
+      onRateLimit: overrides.onRateLimit ?? vi.fn(),
+      onComplete: overrides.onComplete ?? vi.fn(),
+    }),
+    stateRepo,
+    milestoneRepo,
+  }
 }
 
 /** Helper: make acceptor emit all-passed TodoWrite and return MILESTONE_COMPLETE */
@@ -148,45 +164,33 @@ function accIncomplete(opts: any): string {
 describe('MilestoneExecutor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockGetProjectState.mockReturnValue({ ...DEFAULT_STATE })
-    mockPatchProjectState.mockImplementation((_path, patch) => ({ ...DEFAULT_STATE, ...patch }))
-    mockGetMilestones.mockReturnValue([createMilestone()])
-    mockGetCommitLog.mockResolvedValue('')
-    mockHasUncommittedChanges.mockResolvedValue(false)
   })
 
   describe('complete on first iteration', () => {
     it('returns completed when acceptor passes all todos', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
-
       mockAgentRun.mockImplementation(async (key: string, opts: any) => {
         if (key.includes('-acc-')) return accAllPassed(opts)
         return 'Implementation done. Commit: abc1234'
       })
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
-      expect(mockSaveMilestone).toHaveBeenCalled()
       expect(mockNotifier.notifyMilestoneCompleted).toHaveBeenCalledWith('m-1')
     })
 
     it('stops both agents after completion', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
-
       mockAgentRun.mockImplementation(async (key: string, opts: any) => {
         if (key.includes('-acc-')) return accAllPassed(opts)
         return 'done'
       })
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       await executor.execute(milestone)
 
-      // Both dev and acc agents should be stopped via finally
       expect(mockAgentStop).toHaveBeenCalledTimes(2)
       const stopKeys = mockAgentStop.mock.calls.map((c) => c[0] as string)
       expect(stopKeys.some((k) => k.includes('-dev-'))).toBe(true)
@@ -197,15 +201,12 @@ describe('MilestoneExecutor', () => {
   describe('multi-round relay within single iteration', () => {
     it('relays messages between dev and acc via continue()', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
 
-      // Round 1: dev run() → acc run() (incomplete)
       mockAgentRun.mockImplementation(async (key: string, opts: any) => {
         if (key.includes('-acc-')) return accIncomplete(opts)
         return 'Implementation done'
       })
 
-      // Round 2: dev continue() → acc continue() (all passed)
       mockAgentContinue.mockResolvedValueOnce('Fixed validation. Commit: def5678')
       mockAgentContinue.mockImplementation(async (_key: string, _msg: string, onEvent?: any) => {
         if (onEvent) {
@@ -221,11 +222,10 @@ describe('MilestoneExecutor', () => {
         return 'All good. MILESTONE_COMPLETE'
       })
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
-      // dev continue (fix) + acc continue (follow-up) = 2 continue calls
       expect(mockAgentContinue).toHaveBeenCalledTimes(2)
     })
   })
@@ -233,7 +233,6 @@ describe('MilestoneExecutor', () => {
   describe('error handling — no retry, next iteration', () => {
     it('moves to next iteration when developer crashes', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
 
       let devRunCount = 0
       mockAgentRun.mockImplementation(async (key: string, opts: any) => {
@@ -245,17 +244,15 @@ describe('MilestoneExecutor', () => {
         return accAllPassed(opts)
       })
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
-      // Iteration 1: dev crash → iteration 2: success
       expect(result.outcome).toBe('completed')
       expect(devRunCount).toBe(2)
     })
 
     it('moves to next iteration when acceptor crashes', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
 
       let accRunCount = 0
       mockAgentRun.mockImplementation(async (key: string, opts: any) => {
@@ -267,7 +264,7 @@ describe('MilestoneExecutor', () => {
         return 'Implementation done'
       })
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
@@ -278,12 +275,11 @@ describe('MilestoneExecutor', () => {
   describe('rate limit handling', () => {
     it('returns rate_limited and calls onRateLimit', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
       const onRateLimit = vi.fn()
 
       mockAgentRun.mockRejectedValue(new Error('Rate limit exceeded'))
 
-      const executor = createExecutor({ onRateLimit })
+      const { executor } = createExecutor(milestone, { onRateLimit })
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('rate_limited')
@@ -294,15 +290,13 @@ describe('MilestoneExecutor', () => {
 
   describe('max iterations', () => {
     it('returns max_iterations when round exceeds limit', async () => {
-      // Pre-populate milestone with 20 iterations so round = 21 > MAX
       const milestone = createMilestone({ iterations: createIterations(20) })
-      wireMilestoneStore(milestone)
 
-      const executor = createExecutor()
+      const { executor, stateRepo } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('max_iterations')
-      expect(mockPatchProjectState).toHaveBeenCalledWith('/test/project', expect.objectContaining({
+      expect(stateRepo.patch).toHaveBeenCalledWith('proj-1', expect.objectContaining({
         status: 'paused',
       }))
       expect(mockNotifier.notifyIterationPaused).toHaveBeenCalledWith('m-1', 'max_iterations')
@@ -312,28 +306,35 @@ describe('MilestoneExecutor', () => {
   describe('abort', () => {
     it('returns aborted when abort() is called between iterations', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
+      const { stateRepo, milestoneRepo, gitService } = createMockRepos(milestone)
 
-      // Battle 1: dev crash → quick incomplete without relay loop
+      const executor = new MilestoneExecutor({
+        projectId: 'proj-1',
+        projectPath: '/test/project',
+        notifier: mockNotifier as any,
+        stateRepo: stateRepo as any,
+        milestoneRepo: milestoneRepo as any,
+        gitService: gitService as any,
+        onRateLimit: vi.fn(),
+        onComplete: vi.fn(),
+      })
+
+      // Battle 1: dev crash
       mockAgentRun.mockImplementation(async (key: string) => {
         if (key.includes('-dev-')) throw new Error('Agent crashed')
         return 'done'
       })
 
-      const executor = createExecutor()
-
-      // Abort when second iteration starts
       let iterCount = 0
-      mockPatchProjectState.mockImplementation((_path, patch) => {
+      stateRepo.patch.mockImplementation((_id: string, patch: Partial<ProjectState>) => {
         if (patch.status === 'awake' && patch.currentIteration) {
           iterCount++
           if (iterCount >= 2) executor.abort()
         }
-        return { ...DEFAULT_STATE, ...patch }
+        return { ...DEFAULT_STATE, ...patch } as ProjectState
       })
 
       const result = await executor.execute(milestone)
-
       expect(result.outcome).toBe('aborted')
     })
   })
@@ -341,14 +342,13 @@ describe('MilestoneExecutor', () => {
   describe('agentKey format', () => {
     it('includes projectId, milestoneId, role, and round in agent keys', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
 
       mockAgentRun.mockImplementation(async (key: string, opts: any) => {
         if (key.includes('-acc-')) return accAllPassed(opts)
         return 'done'
       })
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       await executor.execute(milestone)
 
       const runKeys = mockAgentRun.mock.calls.map((c) => c[0] as string)
@@ -359,17 +359,13 @@ describe('MilestoneExecutor', () => {
 
   describe('agent cleanup on error', () => {
     it('stops both agents even when battle errors', async () => {
-      // Pre-populate 19 iterations so this battle is round 20 (last allowed).
-      // The error makes it a rejected iteration → round 21 triggers max_iterations.
       const milestone = createMilestone({ iterations: createIterations(19) })
-      wireMilestoneStore(milestone)
 
       mockAgentRun.mockRejectedValue(new Error('unexpected crash'))
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       await executor.execute(milestone)
 
-      // Agents should still be stopped via finally block
       expect(mockAgentStop).toHaveBeenCalled()
     })
   })
@@ -377,7 +373,6 @@ describe('MilestoneExecutor', () => {
   describe('feedback relay across iterations', () => {
     it('carries acceptor feedback to next iteration developer message', async () => {
       const milestone = createMilestone()
-      wireMilestoneStore(milestone)
 
       const iterDevMessages: string[] = []
       let battleCount = 0
@@ -387,20 +382,17 @@ describe('MilestoneExecutor', () => {
           iterDevMessages.push(opts.firstMessage)
           return 'Implementation done'
         }
-        // acc
         battleCount++
         if (battleCount === 1) return accIncomplete(opts)
         return accAllPassed(opts)
       })
 
-      // Relay loop continues return feedback text (no todos → allPassed stays false)
       mockAgentContinue.mockResolvedValue('MILESTONE_INCOMPLETE: still broken')
 
-      const executor = createExecutor()
+      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
-      // Second dev message should contain the acceptor feedback from the relay loop
       expect(iterDevMessages.length).toBe(2)
       expect(iterDevMessages[1]).toContain('MILESTONE_INCOMPLETE')
     })

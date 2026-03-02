@@ -1,33 +1,35 @@
 import { ipcMain } from 'electron'
-import { checkProjectSetup, readSetupFiles, startSetupSession, startSoulSession, writeSetupFile, listSoulTemplates, applySoulTemplate } from '../setup'
-import type { SetupType } from '../setup'
+import type { ServiceContext } from './index'
+import type { SetupType } from '../services/SetupService'
 
-export function registerSetupIPC(): void {
+export function registerSetupIPC(ctx: ServiceContext): void {
+  const { setupService } = ctx
+
   ipcMain.handle('setup:check', (_, projectPath: string) => {
-    return checkProjectSetup(projectPath)
+    return setupService.checkProjectSetup(projectPath)
   })
 
   ipcMain.handle('setup:readFiles', (_, projectPath: string) => {
-    return readSetupFiles(projectPath)
+    return setupService.readSetupFiles(projectPath)
   })
 
   ipcMain.handle('setup:writeFile', (_, projectPath: string, type: 'vision' | 'soul', content: string) => {
-    writeSetupFile(projectPath, type, content)
+    setupService.writeSetupFile(projectPath, type, content)
   })
 
   ipcMain.handle('setup:startAgent', (_, id: string, projectPath: string, type: SetupType, userContext?: string) => {
-    startSetupSession(id, projectPath, type, userContext)
+    setupService.startSetupSession(id, projectPath, type, userContext)
   })
 
   ipcMain.handle('setup:listTemplates', () => {
-    return listSoulTemplates()
+    return setupService.listSoulTemplates()
   })
 
   ipcMain.handle('setup:applyTemplate', (_, projectPath: string, templateId: string) => {
-    applySoulTemplate(projectPath, templateId)
+    setupService.applySoulTemplate(projectPath, templateId)
   })
 
   ipcMain.handle('setup:startSoulAgent', (_, id: string, projectPath: string, templateId: string) => {
-    startSoulSession(id, projectPath, templateId)
+    setupService.startSoulSession(id, projectPath, templateId)
   })
 }
