@@ -6,7 +6,7 @@ import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClas
 import { useProjects } from '@/store/projects'
 import type { Milestone, MilestoneStatus } from '@/types/index'
 
-const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'reviewed', 'reviewing', 'ready', 'draft', 'completed']
+const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'reviewed', 'reviewing', 'ready', 'draft', 'cancelled', 'completed']
 
 const GROUP_LABELS: Record<MilestoneStatus, string> = {
   'in-progress': 'In Progress',
@@ -14,6 +14,7 @@ const GROUP_LABELS: Record<MilestoneStatus, string> = {
   'reviewed': 'Reviewed',
   'ready': 'Ready to Start',
   'draft': 'Drafts',
+  'cancelled': 'Cancelled',
   'completed': 'Completed',
 }
 

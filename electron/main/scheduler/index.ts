@@ -51,6 +51,10 @@ class SchedulerManager {
     this.schedulers.get(projectId)?.updateSchedule(schedule)
   }
 
+  cancelMilestone(projectId: string, milestoneId: string): void {
+    this.schedulers.get(projectId)?.cancelMilestone(milestoneId)
+  }
+
   stopAll(): void {
     for (const scheduler of this.schedulers.values()) {
       scheduler.stop()

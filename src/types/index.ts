@@ -30,7 +30,7 @@ export interface InboxItem {
   milestoneId?: string
 }
 
-export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'completed'
+export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'completed' | 'cancelled'
 
 export interface MilestoneTask {
   id: string

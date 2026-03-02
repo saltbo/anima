@@ -16,4 +16,8 @@ export function registerSchedulerIPC(): void {
     schedulerManager.updateSchedule(projectId, schedule)
     patchProjectState(projectPath, { wakeSchedule: schedule })
   })
+
+  ipcMain.handle('milestone:cancel', (_, projectId: string, _projectPath: string, milestoneId: string) => {
+    schedulerManager.cancelMilestone(projectId, milestoneId)
+  })
 }

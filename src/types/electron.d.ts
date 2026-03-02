@@ -66,6 +66,7 @@ declare global {
       getProjectState: (projectPath: string) => Promise<ProjectState>
       wakeProject: (projectId: string) => Promise<void>
       updateWakeSchedule: (projectId: string, projectPath: string, schedule: WakeSchedule) => Promise<void>
+      cancelMilestone: (projectId: string, projectPath: string, milestoneId: string) => Promise<void>
       onProjectStatusChanged: (callback: (status: ProjectIterationStatus) => void) => () => void
       onProjectAgentEvent: (callback: (data: ProjectAgentEvent) => void) => () => void
       onIterationPaused: (callback: (data: { projectId: string; milestoneId: string; reason: string }) => void) => () => void

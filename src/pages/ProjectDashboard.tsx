@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity, ChevronRight, CheckCircle2, Circle } from 'lucide-react'
+import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity, ChevronRight, CheckCircle2, Circle, Play } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useProjects } from '@/store/projects'
 import { cn, statusBgColor, statusColor, statusLabel } from '@/lib/utils'
 
@@ -52,16 +53,29 @@ export function ProjectDashboard() {
 
       {/* Status card */}
       <div className="bg-card border border-border rounded-xl p-5">
-        <div className="flex items-center gap-2.5 mb-3">
-          <span className={cn('w-2 h-2 rounded-full shrink-0', statusBgColor(project.status))} />
-          <span className={cn('text-sm font-semibold', statusColor(project.status))}>
-            {statusLabel(project.status)}
-          </span>
-          {project.currentIteration && (
-            <>
-              <span className="text-muted-foreground/30">·</span>
-              <span className="text-sm text-muted-foreground">{project.currentIteration.milestoneId}</span>
-            </>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <span className={cn('w-2 h-2 rounded-full shrink-0', statusBgColor(project.status))} />
+            <span className={cn('text-sm font-semibold', statusColor(project.status))}>
+              {statusLabel(project.status)}
+            </span>
+            {project.currentIteration && (
+              <>
+                <span className="text-muted-foreground/30">·</span>
+                <span className="text-sm text-muted-foreground">{project.currentIteration.milestoneId}</span>
+              </>
+            )}
+          </div>
+          {project.status !== 'awake' && project.status !== 'checking' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5 cursor-pointer"
+              onClick={() => window.electronAPI.wakeProject(project.id)}
+            >
+              <Play size={12} />
+              Wake Now
+            </Button>
           )}
         </div>
 

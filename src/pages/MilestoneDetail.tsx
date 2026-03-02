@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save, Activity } from 'lucide-react'
+import { Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save, Activity, Ban, Pencil } from 'lucide-react'
 import MDEditor from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,7 @@ export function MilestoneDetail() {
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
   const [markdownContent, setMarkdownContent] = useState('')
   const [savingMarkdown, setSavingMarkdown] = useState(false)
 
@@ -76,7 +77,6 @@ export function MilestoneDetail() {
     const updated: Milestone = { ...milestone, status: 'ready' }
     await window.electronAPI.saveMilestone(project.path, updated)
     setMilestone(updated)
-    await window.electronAPI.wakeProject(project.id)
   }
 
   const handleMarkCompleted = async () => {
@@ -97,6 +97,20 @@ export function MilestoneDetail() {
     if (!project || !milestone) return
     await window.electronAPI.deleteMilestone(project.path, milestone.id)
     navigate(`/projects/${id}/milestones`)
+  }
+
+  const handleCancel = async () => {
+    if (!project || !milestone) return
+    await window.electronAPI.cancelMilestone(project.id, project.path, milestone.id)
+    setMilestone({ ...milestone, status: 'cancelled' })
+    setCancelOpen(false)
+  }
+
+  const handleEditCancelled = async () => {
+    if (!project || !milestone) return
+    const updated: Milestone = { ...milestone, status: 'draft' }
+    await window.electronAPI.saveMilestone(project.path, updated)
+    setMilestone(updated)
   }
 
   if (loading) {
@@ -138,6 +152,8 @@ export function MilestoneDetail() {
   const isReviewing = milestone.status === 'reviewing'
   const isReviewed = milestone.status === 'reviewed'
   const isInProgress = milestone.status === 'in-progress'
+  const isReady = milestone.status === 'ready'
+  const isCancelled = milestone.status === 'cancelled'
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -187,12 +203,26 @@ export function MilestoneDetail() {
               Mark Completed <ArrowRight size={12} />
             </Button>
           )}
-          <button
-            onClick={() => setDeleteOpen(true)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors duration-150 cursor-pointer px-1.5"
-          >
-            <Trash2 size={12} />
-          </button>
+          {(isReady || isInProgress) && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => setCancelOpen(true)}>
+              <Ban size={12} />
+              Cancel
+            </Button>
+          )}
+          {isCancelled && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleEditCancelled}>
+              <Pencil size={12} />
+              Edit
+            </Button>
+          )}
+          {milestone.status !== 'completed' && (
+            <button
+              onClick={() => setDeleteOpen(true)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors duration-150 cursor-pointer px-1.5"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -327,6 +357,24 @@ export function MilestoneDetail() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleteOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Cancel confirmation dialog ─────────────────────────── */}
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Milestone</DialogTitle>
+            <DialogDescription>
+              {isInProgress
+                ? 'This will stop all running agents and cancel the current iteration. The milestone can be re-edited and restarted later.'
+                : 'This will remove the milestone from the scheduler queue. You can re-edit and resubmit it later.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCancelOpen(false)}>Keep Running</Button>
+            <Button variant="destructive" onClick={handleCancel}>Cancel Milestone</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

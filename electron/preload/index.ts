@@ -96,6 +96,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   wakeProject: (projectId: string) => ipcRenderer.invoke('project:wake', projectId),
   updateWakeSchedule: (projectId: string, projectPath: string, schedule: unknown) =>
     ipcRenderer.invoke('project:updateSchedule', projectId, projectPath, schedule),
+  cancelMilestone: (projectId: string, projectPath: string, milestoneId: string) =>
+    ipcRenderer.invoke('milestone:cancel', projectId, projectPath, milestoneId),
 
   onProjectStatusChanged: (callback: (status: unknown) => void) => {
     const handler = (_: unknown, status: unknown) => callback(status)

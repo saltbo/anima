@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Zap, Moon, Loader2, Pause, AlertTriangle } from 'lucide-react'
+import { Zap, Moon, Loader2, Pause, AlertTriangle, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgentChat } from '@/components/AgentChat'
 import { useProjects } from '@/store/projects'
@@ -123,6 +123,11 @@ export function IterationMonitor() {
     if (id) window.electronAPI.wakeProject(id)
   }
 
+  const handleCancel = () => {
+    if (!id || !mid || !project) return
+    window.electronAPI.cancelMilestone(id, project.path, mid)
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -130,12 +135,20 @@ export function IterationMonitor() {
         <span className="text-xs font-semibold text-foreground truncate">
           {mid ?? '—'}
         </span>
-        {status.status !== 'awake' && (
-          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={handleWake}>
-            <Zap size={12} />
-            Wake Now
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {status.status === 'awake' && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950" onClick={handleCancel}>
+              <Ban size={12} />
+              Cancel
+            </Button>
+          )}
+          {status.status !== 'awake' && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={handleWake}>
+              <Zap size={12} />
+              Wake Now
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Agent panels */}

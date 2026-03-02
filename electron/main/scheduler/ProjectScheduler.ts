@@ -57,6 +57,32 @@ export class ProjectScheduler {
     this.scheduleCheck(0)
   }
 
+  cancelMilestone(milestoneId: string): void {
+    const milestones = getMilestones(this.projectPath)
+    const milestone = milestones.find((m) => m.id === milestoneId)
+    if (!milestone) return
+
+    if (milestone.status !== 'ready' && milestone.status !== 'in-progress') {
+      log.warn('cannot cancel milestone in status', { status: milestone.status })
+      return
+    }
+
+    // Abort active executor if in-progress
+    if (milestone.status === 'in-progress' && this.activeExecutor) {
+      this.activeExecutor.abort()
+      this.activeExecutor = null
+    }
+
+    // Update milestone status
+    saveMilestone(this.projectPath, { ...milestone, status: 'cancelled' })
+
+    // Reset project state
+    patchProjectState(this.projectPath, { status: 'sleeping', currentIteration: null })
+    this.broadcastStatus()
+    this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'cancelled' })
+    log.info('milestone cancelled', { milestone: milestoneId })
+  }
+
   updateSchedule(schedule: WakeSchedule): void {
     patchProjectState(this.projectPath, { wakeSchedule: schedule })
     if (this.wakeTimer) clearTimeout(this.wakeTimer)

@@ -54,6 +54,7 @@ export function milestoneStatusLabel(status: MilestoneStatus): string {
     case 'ready': return 'Ready'
     case 'in-progress': return 'In Progress'
     case 'completed': return 'Completed'
+    case 'cancelled': return 'Cancelled'
   }
 }
 
@@ -65,6 +66,7 @@ export function milestoneStatusBadgeClass(status: MilestoneStatus): string {
     case 'ready': return 'bg-primary/10 text-primary'
     case 'in-progress': return 'bg-purple-500/10 text-purple-600'
     case 'completed': return 'bg-green-500/10 text-green-600'
+    case 'cancelled': return 'bg-red-500/10 text-red-600'
   }
 }
 
@@ -76,5 +78,6 @@ export function milestoneStatusDotClass(status: MilestoneStatus): string {
     case 'ready': return 'bg-primary'
     case 'in-progress': return 'bg-purple-500'
     case 'completed': return 'bg-green-500'
+    case 'cancelled': return 'bg-red-500'
   }
 }
