@@ -345,16 +345,6 @@ export class MilestoneExecutor {
       model,
     })
 
-    if (totalTokens > 0 || totalCost > 0) {
-      const project = this.projectRepo.getById(this.projectId)
-      if (project) {
-        this.projectRepo.patch(this.projectId, {
-          totalTokens: project.totalTokens + totalTokens,
-          totalCost: project.totalCost + totalCost,
-        })
-      }
-    }
-
     const m = this.milestoneRepo.getById(milestoneId)
     if (m) {
       this.notifier.broadcastMilestoneUpdate(m)

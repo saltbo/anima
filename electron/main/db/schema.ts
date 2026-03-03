@@ -13,8 +13,6 @@ CREATE TABLE IF NOT EXISTS projects (
   current_iteration   TEXT,
   next_wake_time      TEXT,
   wake_schedule       TEXT NOT NULL DEFAULT '{"mode":"manual","intervalMinutes":null,"times":[]}',
-  total_tokens        INTEGER NOT NULL DEFAULT 0,
-  total_cost          REAL NOT NULL DEFAULT 0,
   rate_limit_reset_at TEXT
 );
 
