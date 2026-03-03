@@ -18,17 +18,15 @@ export function installBrowserStub() {
     listSoulTemplates: async () => [],
     applySoulTemplate: async () => {},
     startSoulAgent: async () => {},
-    sendAgentMessage: async () => {},
-    stopAgent: async () => {},
     writeSetupFile: async () => {},
 
-    readAgentEvents: async () => [],
     readSessionEvents: async () => [],
+    sendAgentMessage: async () => {},
+    stopAgent: async () => {},
 
     onProjectsUpdated: () => () => {},
     onNavigate: () => () => {},
     onTriggerAddProject: () => () => {},
-    onAgentEvents: () => () => {},
 
     getInboxItems: async () => [],
     addInboxItem: async () => ({ id: '', title: '', type: 'idea', priority: 'medium', status: 'pending', createdAt: '' }),
@@ -40,7 +38,7 @@ export function installBrowserStub() {
     updateMilestoneTask: async () => {},
     writeMilestoneMarkdown: async () => {},
     readMilestoneMarkdown: async () => null,
-    startMilestonePlanning: async () => {},
+    startMilestonePlanning: async () => ({ sessionId: '', milestoneId: '' }),
 
     onMilestonePlanningDone: () => () => {},
     onMilestoneReviewDone: () => () => {},

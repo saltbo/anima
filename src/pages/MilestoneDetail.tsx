@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams, useLoaderData } from 'react-router-dom'
 import {
   Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save,
@@ -249,15 +249,6 @@ export function MilestoneDetail() {
     if (activeAgent) setAgentSubTab(activeAgent)
   }, [activeAgent])
 
-  // Build agent keys for live mode
-  const lastKeysRef = useRef<{ dev: string; acc: string } | null>(null)
-  if (currentIter && isCurrentMilestone) {
-    lastKeysRef.current = {
-      dev: `${id}:${mid}-dev-${currentIter.round}`,
-      acc: `${id}:${mid}-acc-${currentIter.round}`,
-    }
-  }
-
   // Determine live vs history
   const isLive = selectedIdx === LIVE_INDEX && isCurrentMilestone && !!currentIter
   const selectedIteration = selectedIdx !== null && selectedIdx >= 0 ? iterations[selectedIdx] : undefined
@@ -266,17 +257,20 @@ export function MilestoneDetail() {
     selectedIteration.startedAt === currentIter.startedAt && status.status === 'busy'
   )
 
-  let devProps: { agentKey?: string; sessionId?: string } = {}
-  let accProps: { agentKey?: string; sessionId?: string } = {}
+  // Session IDs come from currentIteration (live) or iteration records (history)
+  const liveDevSessionId = isCurrentMilestone ? currentIter?.developerSessionId : undefined
+  const liveAccSessionId = isCurrentMilestone ? currentIter?.acceptorSessionId : undefined
+
+  let devProps: { sessionId?: string; live?: boolean } = {}
+  let accProps: { sessionId?: string; live?: boolean } = {}
 
   if (isLive) {
-    devProps = { agentKey: lastKeysRef.current?.dev }
-    accProps = { agentKey: lastKeysRef.current?.acc }
+    devProps = { sessionId: liveDevSessionId, live: true }
+    accProps = { sessionId: liveAccSessionId, live: true }
   } else if (selectedIteration) {
-    // If this iteration is still live, prefer agentKey for real-time updates
-    if (isSelectedLive && lastKeysRef.current) {
-      devProps = { agentKey: lastKeysRef.current.dev }
-      accProps = { agentKey: lastKeysRef.current.acc }
+    if (isSelectedLive) {
+      devProps = { sessionId: liveDevSessionId ?? selectedIteration.developerSessionId, live: true }
+      accProps = { sessionId: liveAccSessionId ?? selectedIteration.acceptorSessionId, live: true }
     } else {
       devProps = { sessionId: selectedIteration.developerSessionId }
       accProps = { sessionId: selectedIteration.acceptorSessionId }
@@ -828,11 +822,11 @@ export function MilestoneDetail() {
 
                 {/* Full-width single agent panel */}
                 <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  {activeSubProps.agentKey || activeSubProps.sessionId ? (
+                  {activeSubProps.sessionId ? (
                     <AgentChat
-                      key={activeSubProps.agentKey ?? activeSubProps.sessionId}
-                      agentKey={activeSubProps.agentKey}
+                      key={activeSubProps.sessionId}
                       sessionId={activeSubProps.sessionId}
+                      live={activeSubProps.live}
                       className="flex-1 min-h-0"
                     />
                   ) : (

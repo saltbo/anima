@@ -28,7 +28,7 @@ export function setupIPC(getWindow: () => BrowserWindow | null, ctx: ServiceCont
   registerProjectsIPC(getWindow, ctx)
   registerWindowIPC(getWindow)
   registerSetupIPC(ctx)
-  registerAgentIPC()
+  registerAgentIPC(ctx)
   registerInboxIPC(ctx)
   registerMilestonesIPC(ctx)
   registerSchedulerIPC(ctx)

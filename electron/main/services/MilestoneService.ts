@@ -183,18 +183,47 @@ export class MilestoneService {
 
   // ── Agent orchestration ───────────────────────────────────────────────────
 
+  /** Track active planning sessions: sessionId → { projectId, milestoneId, agentId } */
+  private planningSessions = new Map<string, { projectId: string; milestoneId: string; agentId: string }>()
+  /** Queue of pending resume messages per sessionId — ensures sequential execution. */
+  private resumeQueues = new Map<string, Array<{ projectPath: string; message: string }>>()
+
+  private makePlanningDoneHandler(sessionId: string) {
+    return (event: { event: string }): void => {
+      const session = this.planningSessions.get(sessionId)
+      if (!session || event.event !== 'done') return
+
+      const projectPath = this.resolvePath(session.projectId)
+      if (!projectPath) return
+
+      const draftPath = milestoneDraftMdPath(projectPath, session.milestoneId)
+      if (!fs.existsSync(draftPath)) return
+
+      // Draft file exists — planning is complete
+      this.planningSessions.delete(sessionId)
+      const mdPath = milestoneMdPath(projectPath, session.milestoneId)
+      fs.renameSync(draftPath, mdPath)
+      const m = this.milestoneRepo.getById(session.milestoneId)
+      if (m) {
+        this.milestoneRepo.save(session.projectId, { ...m, status: 'reviewing' })
+      }
+      this.getWindow()?.webContents.send('milestones:planningDone', session.agentId, session.milestoneId)
+      this.startReview(session.milestoneId, session.projectId)
+    }
+  }
+
   async startPlanningSession(
     agentId: string,
     projectId: string,
     inboxItemIds: string[],
     title: string,
     description: string
-  ): Promise<void> {
+  ): Promise<{ sessionId: string; milestoneId: string }> {
     const projectPath = this.resolvePath(projectId)
-    if (!projectPath) return
+    if (!projectPath) return { sessionId: '', milestoneId: '' }
 
     const milestoneId = randomUUID()
-    const draftPath = milestoneDraftMdPath(projectPath, milestoneId)
+    const sessionId = randomUUID()
 
     // Save milestone JSON immediately
     this.milestoneRepo.save(projectId, {
@@ -219,26 +248,71 @@ export class MilestoneService {
       .map((id) => this.inboxRepo.getById(id))
       .filter((i): i is InboxItem => i !== null)
 
+    // Register planning session for resume tracking
+    this.planningSessions.set(sessionId, { projectId, milestoneId, agentId })
+
+    // Mark session as busy so resume calls queue behind the initial run
+    this.resumeQueues.set(sessionId, [])
+
+    // Fire-and-forget: run agent in background
+    this.agentRunner.run({
+      projectPath,
+      sessionId,
+      systemPrompt: MILESTONE_PLANNING_ROLE,
+      message: buildFirstMessage(projectPath, inboxItems, milestoneId),
+      onEvent: this.makePlanningDoneHandler(sessionId),
+    }).catch(() => {
+      // session ended (user closed or error) — no action needed
+    }).finally(() => {
+      // Drain any queued resume messages, or clear the queue
+      const queue = this.resumeQueues.get(sessionId)
+      if (queue && queue.length > 0) {
+        const next = queue.shift()!
+        this.drainResumeQueue(sessionId, next.projectPath, next.message)
+      } else {
+        this.resumeQueues.delete(sessionId)
+      }
+    })
+
+    return { sessionId, milestoneId }
+  }
+
+  /** Resume an active planning session with a follow-up user message (fire-and-forget with queue). */
+  resumePlanningSession(projectId: string, sessionId: string, message: string): void {
+    const projectPath = this.resolvePath(projectId)
+    if (!projectPath) return
+
+    const queue = this.resumeQueues.get(sessionId)
+    if (queue) {
+      // Already processing — enqueue
+      queue.push({ projectPath, message })
+      return
+    }
+
+    // Start processing
+    this.resumeQueues.set(sessionId, [])
+    this.drainResumeQueue(sessionId, projectPath, message)
+  }
+
+  private async drainResumeQueue(sessionId: string, projectPath: string, message: string): Promise<void> {
     try {
-      await this.agentRunner.run({
+      await this.agentRunner.resume({
         projectPath,
-        systemPrompt: MILESTONE_PLANNING_ROLE,
-        message: buildFirstMessage(projectPath, inboxItems, milestoneId),
-        onEvent: (event) => {
-          if (event.event === 'done' && fs.existsSync(draftPath)) {
-            const mdPath = milestoneMdPath(projectPath, milestoneId)
-            fs.renameSync(draftPath, mdPath)
-            const m = this.milestoneRepo.getById(milestoneId)
-            if (m) {
-              this.milestoneRepo.save(projectId, { ...m, status: 'reviewing' })
-            }
-            this.getWindow()?.webContents.send('milestones:planningDone', agentId, milestoneId)
-            this.startReview(milestoneId, projectId)
-          }
-        },
+        sessionId,
+        message,
+        onEvent: this.makePlanningDoneHandler(sessionId),
       })
     } catch {
-      // session ended (user closed or error) — no action needed
+      // agent errored — continue draining
+    }
+
+    // Process next queued message
+    const queue = this.resumeQueues.get(sessionId)
+    if (queue && queue.length > 0) {
+      const next = queue.shift()!
+      this.drainResumeQueue(sessionId, next.projectPath, next.message)
+    } else {
+      this.resumeQueues.delete(sessionId)
     }
   }
 
@@ -249,8 +323,10 @@ export class MilestoneService {
     let reviewResult = ''
 
     try {
+      const sessionId = randomUUID()
       await this.agentRunner.run({
         projectPath,
+        sessionId,
         systemPrompt: MILESTONE_REVIEW_ROLE,
         message: buildReviewMessage(projectPath, milestoneId),
         onEvent: (event) => {

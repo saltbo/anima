@@ -45,17 +45,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('setup:startSoulAgent', id, projectPath, templateId),
 
   // ── Agent ──────────────────────────────────────────────────────────────────
-  readAgentEvents: (agentKey: string) => ipcRenderer.invoke('agent:readEvents', agentKey),
   readSessionEvents: (sessionId: string) => ipcRenderer.invoke('agent:readSessionEvents', sessionId),
-  sendAgentMessage: (id: string, message: string) =>
-    ipcRenderer.invoke('agent:sendMessage', id, message),
-  stopAgent: (id: string) => ipcRenderer.invoke('agent:stop', id),
-
-  onAgentEvents: (callback: (agentKey: string, events: unknown[]) => void) => {
-    const handler = (_: unknown, agentKey: string, events: unknown[]) => callback(agentKey, events)
-    ipcRenderer.on('agent:events', handler)
-    return () => ipcRenderer.removeListener('agent:events', handler)
-  },
+  sendAgentMessage: (projectId: string, sessionId: string, message: string) =>
+    ipcRenderer.invoke('agent:sendMessage', projectId, sessionId, message),
+  stopAgent: (sessionId: string) => ipcRenderer.invoke('agent:stop', sessionId),
 
   // ── Inbox ──────────────────────────────────────────────────────────────────
   getInboxItems: (projectId: string) => ipcRenderer.invoke('inbox:list', projectId),

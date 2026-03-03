@@ -18,7 +18,7 @@ export function registerSetupIPC(ctx: ServiceContext): void {
   })
 
   safeHandle('setup:startAgent', (_, id: string, projectPath: string, type: SetupType, userContext?: string) => {
-    setupService.startSetupSession(id, projectPath, type, userContext)
+    return setupService.startSetupSession(id, projectPath, type, userContext)
   })
 
   safeHandle('setup:listTemplates', () => {
@@ -30,6 +30,6 @@ export function registerSetupIPC(ctx: ServiceContext): void {
   })
 
   safeHandle('setup:startSoulAgent', (_, id: string, projectPath: string, templateId: string) => {
-    setupService.startSoulSession(id, projectPath, templateId)
+    return setupService.startSoulSession(id, projectPath, templateId)
   })
 }

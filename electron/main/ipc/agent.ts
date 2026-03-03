@@ -1,14 +1,9 @@
 import { findSessionFile, readEventsFromFile } from '../agents/claude-code/parser'
+import type { ServiceContext } from './index'
 import { safeHandle } from './safeHandle'
 
-export function registerAgentIPC(): void {
-  // Agent event forwarding is now handled per-session by AgentRunner's onEvent callback.
-  // The UI reads historical events via sessionId from iteration records.
-
-  safeHandle('agent:readEvents', (_, _agentKey: string) => {
-    // Legacy: no longer have live agent registry. Return empty.
-    return []
-  })
+export function registerAgentIPC(ctx: ServiceContext): void {
+  const { milestoneService } = ctx
 
   safeHandle('agent:readSessionEvents', (_, sessionId: string) => {
     const filePath = findSessionFile(sessionId)
@@ -16,12 +11,12 @@ export function registerAgentIPC(): void {
     return readEventsFromFile(filePath, 0).events
   })
 
-  safeHandle('agent:sendMessage', (_, _id: string, _message: string) => {
-    // Planning sessions now use AgentRunner (not interactive).
-    // Interactive send is no longer supported from the UI.
+  safeHandle('agent:sendMessage', (_, projectId: string, sessionId: string, message: string) => {
+    milestoneService.resumePlanningSession(projectId, sessionId, message)
   })
 
-  safeHandle('agent:stop', (_, _id: string) => {
-    // No-op: sessions are managed by AgentRunner lifecycle
+  safeHandle('agent:stop', (_) => {
+    // With stateless resume model, there's no long-running process to stop.
+    // The agent process exits on its own after each message.
   })
 }

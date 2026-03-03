@@ -99,17 +99,12 @@ export function SoulVision() {
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [templates, setTemplates] = useState<SoulTemplate[]>([])
-
-  const sessionId = project ? `${project.id}-init` : ''
+  const [agentSessionId, setAgentSessionId] = useState<string | null>(null)
 
   // Load templates once
   useEffect(() => {
     window.electronAPI.listSoulTemplates().then((t) => setTemplates(t as SoulTemplate[]))
   }, [])
-
-  useEffect(() => {
-    return () => { window.electronAPI.stopAgent(sessionId) }
-  }, [sessionId])
 
   useEffect(() => {
     if (!project) return
@@ -127,14 +122,16 @@ export function SoulVision() {
   const handlePickTemplate = useCallback(async (templateId: string) => {
     if (!project) return
     setStatus('generating')
-    await window.electronAPI.startSoulAgent(sessionId, project.path, templateId)
-  }, [project, sessionId])
+    const sid = await window.electronAPI.startSoulAgent(project.id, project.path, templateId)
+    setAgentSessionId(sid)
+  }, [project])
 
   const handleGenerate = useCallback(async () => {
     if (!project) return
     setStatus('generating')
-    await window.electronAPI.startSetupAgent(sessionId, project.path, 'init')
-  }, [project, sessionId])
+    const sid = await window.electronAPI.startSetupAgent(project.id, project.path, 'init')
+    setAgentSessionId(sid)
+  }, [project])
 
   const handleDone = useCallback(async () => {
     if (!project) return
@@ -144,9 +141,9 @@ export function SoulVision() {
   }, [project])
 
   const handleReinit = useCallback(() => {
-    window.electronAPI.stopAgent(sessionId)
+    setAgentSessionId(null)
     setStatus('idle')
-  }, [sessionId])
+  }, [])
 
   const handleEdit = () => {
     setDraft(soul)
@@ -182,7 +179,7 @@ export function SoulVision() {
           <span className="text-sm font-medium text-foreground">Giving this project a soul…</span>
         </div>
         <div className="flex-1 min-h-0">
-          <AgentChat agentKey={sessionId} className="h-full" onDone={handleDone} />
+          <AgentChat sessionId={agentSessionId ?? undefined} live className="h-full" onDone={handleDone} />
         </div>
       </div>
     )

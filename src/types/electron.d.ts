@@ -7,7 +7,7 @@ export type AgentRole = 'developer' | 'acceptor'
 export interface ProjectAgentEvent {
   projectId: string
   role: AgentRole
-  agentKey: string
+  sessionId: string
 }
 
 export interface ProjectIterationStatus {
@@ -35,17 +35,15 @@ declare global {
       checkProjectSetup: (projectPath: string) => Promise<{ hasVision: boolean; hasSoul: boolean }>
       readSetupFiles: (projectPath: string) => Promise<{ vision: string | null; soul: string | null }>
       writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
-      startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) => Promise<void>
+      startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) => Promise<string>
       listSoulTemplates: () => Promise<Array<{ id: string; name: string; description: string; content: string }>>
       applySoulTemplate: (projectPath: string, templateId: string) => Promise<void>
-      startSoulAgent: (id: string, projectPath: string, templateId: string) => Promise<void>
+      startSoulAgent: (id: string, projectPath: string, templateId: string) => Promise<string>
 
       // ── Agent ────────────────────────────────────────────────────────────
-      readAgentEvents: (agentKey: string) => Promise<AgentEvent[]>
       readSessionEvents: (sessionId: string) => Promise<AgentEvent[]>
-      sendAgentMessage: (id: string, message: string) => Promise<void>
-      stopAgent: (id: string) => Promise<void>
-      onAgentEvents: (callback: (agentKey: string, events: AgentEvent[]) => void) => () => void
+      sendAgentMessage: (projectId: string, sessionId: string, message: string) => Promise<void>
+      stopAgent: (sessionId: string) => Promise<void>
 
       // ── Inbox ────────────────────────────────────────────────────────────
       getInboxItems: (projectId: string) => Promise<InboxItem[]>
@@ -60,7 +58,7 @@ declare global {
       updateMilestoneTask: (projectId: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
       readMilestoneMarkdown: (projectId: string, id: string) => Promise<string | null>
       writeMilestoneMarkdown: (projectId: string, id: string, content: string) => Promise<void>
-      startMilestonePlanning: (id: string, projectId: string, inboxItemIds: string[], title: string, description: string) => Promise<void>
+      startMilestonePlanning: (id: string, projectId: string, inboxItemIds: string[], title: string, description: string) => Promise<{ sessionId: string; milestoneId: string }>
       onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => () => void
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
       onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void

@@ -29,8 +29,8 @@ export function registerMilestonesIPC(ctx: ServiceContext): void {
     milestoneService.writeMilestoneMarkdown(projectId, id, content)
   })
 
-  safeHandle('milestones:startPlanning', (_, id: string, projectId: string, inboxItemIds: string[], title: string, description: string) => {
-    milestoneService.startPlanningSession(id, projectId, inboxItemIds, title, description)
+  safeHandle('milestones:startPlanning', async (_, id: string, projectId: string, inboxItemIds: string[], title: string, description: string) => {
+    return milestoneService.startPlanningSession(id, projectId, inboxItemIds, title, description)
   })
 
   safeHandle('milestones:transition', async (_, projectId: string, milestoneId: string, payload: TransitionPayload) => {

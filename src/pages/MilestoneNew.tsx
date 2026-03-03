@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgentChat } from '@/components/AgentChat'
+import type { AgentChatHandle } from '@/components/AgentChat'
 import { useProjects } from '@/store/projects'
 import type { InboxItem } from '@/types/index'
 
@@ -20,15 +21,15 @@ export function MilestoneNew() {
   const { projects } = useProjects()
   const project = projects.find((p) => p.id === id)
 
-  const sessionId = project ? `${project.id}-milestone-planning` : ''
-
   const [phase, setPhase] = useState<Phase>('setup')
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [starting, setStarting] = useState(false)
-  const [input, setInput] = useState('')
+  const [planningSessionId, setPlanningSessionId] = useState<string | null>(null)
+  const [chatInput, setChatInput] = useState('')
+  const chatRef = useRef<AgentChatHandle>(null)
 
   useEffect(() => {
     if (!project) return
@@ -37,34 +38,31 @@ export function MilestoneNew() {
   }, [project?.id])
 
   useEffect(() => {
-    return () => { window.electronAPI.stopAgent(sessionId) }
-  }, [sessionId])
-
-  useEffect(() => {
-    return window.electronAPI.onMilestonePlanningDone((sid, milestoneId) => {
-      if (sid !== sessionId) return
+    return window.electronAPI.onMilestonePlanningDone((_sid, milestoneId) => {
       navigate(`/projects/${id}/milestones/${milestoneId}`)
     })
-  }, [sessionId, id, navigate])
+  }, [id, navigate])
 
   const handleStartPlanning = async () => {
     if (!project || starting || !title.trim()) return
     setStarting(true)
-    await window.electronAPI.startMilestonePlanning(
-      sessionId,
+    const result = await window.electronAPI.startMilestonePlanning(
+      project.id,
       project.id,
       Array.from(selectedIds),
       title.trim(),
       description.trim()
     )
+    setPlanningSessionId(result.sessionId)
     setPhase('chatting')
   }
 
   const handleSend = () => {
-    const text = input.trim()
-    if (!text) return
-    window.electronAPI.sendAgentMessage(sessionId, text)
-    setInput('')
+    const text = chatInput.trim()
+    if (!text || !planningSessionId || !project) return
+    chatRef.current?.appendUserMessage(text)
+    setChatInput('')
+    window.electronAPI.sendAgentMessage(project.id, planningSessionId, text)
   }
 
   if (!project) {
@@ -162,28 +160,6 @@ export function MilestoneNew() {
   }
 
   // ── Chatting phase ────────────────────────────────────────────────────────────
-  const inputBar = (
-    <div className="flex gap-2 items-end">
-      <textarea
-        rows={1}
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault()
-            handleSend()
-          }
-        }}
-        placeholder="Type a message… (⌘↵ to send)"
-        className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[36px] max-h-[120px] overflow-auto"
-        style={{ fieldSizing: 'content' } as React.CSSProperties}
-      />
-      <Button size="sm" onClick={handleSend} disabled={!input.trim()}>
-        →
-      </Button>
-    </div>
-  )
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 pt-6 pb-4">
@@ -192,9 +168,32 @@ export function MilestoneNew() {
       </div>
 
       <AgentChat
-        agentKey={sessionId}
+        ref={chatRef}
+        sessionId={planningSessionId ?? undefined}
+        live
         className="flex-1 min-h-0"
-        input={inputBar}
+        input={
+          <div className="flex items-end gap-2">
+            <textarea
+              rows={1}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              placeholder="Type a message… (Shift+Enter for newline)"
+              className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-h-32 overflow-y-auto"
+              style={{ fieldSizing: 'content' } as React.CSSProperties}
+              autoFocus
+            />
+            <Button size="icon" variant="ghost" className="shrink-0" onClick={handleSend} disabled={!chatInput.trim()}>
+              <Send size={16} />
+            </Button>
+          </div>
+        }
       />
     </div>
   )

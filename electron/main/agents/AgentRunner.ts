@@ -11,6 +11,7 @@ const log = createLogger('agent-runner')
 
 export interface RunOptions {
   projectPath: string
+  sessionId: string
   systemPrompt: string
   message: string
   onEvent?: (event: AgentEvent) => void
@@ -41,17 +42,18 @@ export interface RunResult {
 
 export class AgentRunner {
   async run(options: RunOptions): Promise<RunResult> {
-    const args = ['--system-prompt', options.systemPrompt]
-    return this.execute(options.projectPath, args, options.message, options.onEvent, options.signal)
+    const args = ['--session-id', options.sessionId, '--system-prompt', options.systemPrompt]
+    return this.execute(options.projectPath, options.sessionId, args, options.message, options.onEvent, options.signal)
   }
 
   async resume(options: ResumeOptions): Promise<RunResult> {
     const args = ['--resume', options.sessionId]
-    return this.execute(options.projectPath, args, options.message, options.onEvent, options.signal)
+    return this.execute(options.projectPath, options.sessionId, args, options.message, options.onEvent, options.signal)
   }
 
   private async execute(
     projectPath: string,
+    sessionId: string,
     extraArgs: string[],
     message: string,
     onEvent?: (event: AgentEvent) => void,
@@ -96,7 +98,6 @@ export class AgentRunner {
     })
 
     return new Promise<RunResult>((resolve, reject) => {
-      let sessionId = ''
       let model = ''
       const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }
       let cost = 0
@@ -109,7 +110,6 @@ export class AgentRunner {
         onEvent?.(event)
 
         if (event.event === 'system') {
-          sessionId = event.sessionId
           model = event.model || model
         }
         if (event.event === 'done') {
@@ -159,11 +159,12 @@ export class AgentRunner {
 
       child.on('spawn', () => {
         log.info('spawned', { pid: child.pid })
-        // Send message once process is ready
+        // Send message once process is ready, then close stdin so CLI knows input is done
         if (!messageSent) {
           messageSent = true
           const payload = JSON.stringify({ type: 'user', message: { role: 'user', content: message } })
           child.stdin?.write(payload + '\n')
+          child.stdin?.end()
         }
       })
 

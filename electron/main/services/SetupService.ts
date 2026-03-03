@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import type { AgentRunner } from '../agents/AgentRunner'
 
@@ -94,10 +95,11 @@ export class SetupService {
     this.writeSetupFile(projectPath, 'soul', template.content)
   }
 
-  startSoulSession(_id: string, projectPath: string, templateId: string): void {
+  startSoulSession(_id: string, projectPath: string, templateId: string): string {
     const template = this.listSoulTemplates().find((t) => t.id === templateId)
     if (!template?.content) throw new Error(`Soul template not found: ${templateId}`)
 
+    const sessionId = randomUUID()
     const message = `You are giving this project its soul.
 
 A soul.md is a first-person character document — the project speaking about itself as an engineer.
@@ -130,12 +132,15 @@ Now read the project and enrich this soul with project-specific knowledge. Write
     this.agentRunner
       .run({
         projectPath,
+        sessionId,
         systemPrompt: SOUL_SYSTEM_PROMPT,
         message,
       })
       .catch(() => {
         // session ended (user closed or error) — no action needed
       })
+
+    return sessionId
   }
 
   checkProjectSetup(projectPath: string): { hasVision: boolean; hasSoul: boolean } {
@@ -144,7 +149,8 @@ Now read the project and enrich this soul with project-specific knowledge. Write
     return { hasVision, hasSoul }
   }
 
-  startSetupSession(_id: string, projectPath: string, _type: SetupType, userContext?: string): void {
+  startSetupSession(_id: string, projectPath: string, _type: SetupType, userContext?: string): string {
+    const sessionId = randomUUID()
     let message = FIRST_MESSAGE
     if (userContext) {
       message += `\n\nThe user has provided the following context about their project. Prioritize this information over guesses when generating the documents:\n\n${userContext}`
@@ -152,12 +158,14 @@ Now read the project and enrich this soul with project-specific knowledge. Write
     this.agentRunner
       .run({
         projectPath,
+        sessionId,
         systemPrompt: SYSTEM_PROMPT,
         message,
       })
       .catch(() => {
         // session ended (user closed or error) — no action needed
       })
+    return sessionId
   }
 
   readSetupFiles(projectPath: string): { vision: string | null; soul: string | null } {

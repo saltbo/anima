@@ -165,10 +165,10 @@ export interface AgentChatHandle {
 }
 
 export interface AgentChatProps {
-  /** Live mode: stream events from a running agent by its agentKey */
-  agentKey?: string
-  /** History mode: load events from a completed session by its Claude sessionId */
+  /** Session ID — reads events from session JSONL file. Polls while live. */
   sessionId?: string
+  /** Whether this session is still running (enables polling). */
+  live?: boolean
   /** Render the input bar. Caller controls send logic. */
   input?: React.ReactNode
   /** Extra content rendered below the conversation (e.g. action buttons) */
@@ -179,12 +179,13 @@ export interface AgentChatProps {
 }
 
 export const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
-function AgentChat({ agentKey, sessionId, input, footer, className, onDone }, ref) {
+function AgentChat({ sessionId, live, input, footer, className, onDone }, ref) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const idRef = useRef(0)
   const nextId = useCallback(() => idRef.current++, [])
   const onDoneRef = useRef(onDone)
   useEffect(() => { onDoneRef.current = onDone }, [onDone])
+  const eventCountRef = useRef(0)
 
   const push = useCallback((ev: TimelineEvent) => {
     setEvents((prev) => {
@@ -212,61 +213,42 @@ function AgentChat({ agentKey, sessionId, input, footer, className, onDone }, re
     },
   }), [push, nextId])
 
-  // History mode: load events from completed session file (one-shot, no streaming)
+  // Poll session file for events (works for both live and history)
   useEffect(() => {
     if (!sessionId) return
     let cancelled = false
+
+    // Reset state for new session
     setEvents([])
     idRef.current = 0
-    window.electronAPI.readSessionEvents(sessionId).then((history) => {
-      if (!cancelled) applyEvents(history as AgentEvent[])
-    })
-    return () => { cancelled = true }
-  }, [sessionId, applyEvents])
+    eventCountRef.current = 0
 
-  // Live mode: stream incremental updates + poll for catch-up
-  //
-  // The agent process may emit events before this component subscribes (IPC
-  // timing gap). We subscribe first for real-time events, then poll
-  // readAgentEvents until the session file becomes available and we can
-  // backfill any events that arrived before the subscription.
-  useEffect(() => {
-    if (!agentKey || sessionId) return
-    let cancelled = false
-    let backfilled = false
-
-    // 1. Subscribe to real-time events immediately
-    const unsub = window.electronAPI.onAgentEvents((key, incoming) => {
-      if (key !== agentKey) return
-      applyEvents(incoming as AgentEvent[])
-    })
-
-    // 2. Poll readAgentEvents to backfill events that arrived before subscription.
-    //    The session file may not exist yet, so retry a few times.
-    const tryBackfill = (): void => {
-      if (cancelled || backfilled) return
-      window.electronAPI.readAgentEvents(agentKey).then((history) => {
-        if (cancelled || backfilled) return
-        if (history.length > 0) {
-          backfilled = true
-          // Reset and replay full history to get a clean timeline
-          setEvents([])
-          idRef.current = 0
-          applyEvents(history as AgentEvent[])
+    const poll = (): void => {
+      if (cancelled) return
+      window.electronAPI.readSessionEvents(sessionId).then((allEvents) => {
+        if (cancelled) return
+        const newEvents = (allEvents as AgentEvent[]).slice(eventCountRef.current)
+        if (newEvents.length > 0) {
+          eventCountRef.current += newEvents.length
+          applyEvents(newEvents)
         }
       })
     }
 
-    // Initial attempt + retries at 1s, 2s, 3s
-    tryBackfill()
-    const timers = [1000, 2000, 3000].map((ms) => setTimeout(tryBackfill, ms))
+    // Initial load
+    poll()
+
+    // If live, poll periodically for new events
+    let interval: ReturnType<typeof setInterval> | undefined
+    if (live) {
+      interval = setInterval(poll, 1000)
+    }
 
     return () => {
       cancelled = true
-      unsub()
-      timers.forEach(clearTimeout)
+      if (interval) clearInterval(interval)
     }
-  }, [agentKey, sessionId, applyEvents])
+  }, [sessionId, live, applyEvents])
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
@@ -325,15 +307,3 @@ function AgentChat({ agentKey, sessionId, input, footer, className, onDone }, re
 })
 
 AgentChat.displayName = 'AgentChat'
-
-// ── Helper hook for adding user messages to the timeline ──────────────────────
-
-export function useAgentChat() {
-  const [events, setEvents] = useState<TimelineEvent[]>([])
-
-  const addUserMessage = useCallback((text: string) => {
-    setEvents((prev) => [...prev, { kind: 'text', id: Date.now(), text, role: 'user' }])
-  }, [])
-
-  return { events, addUserMessage }
-}

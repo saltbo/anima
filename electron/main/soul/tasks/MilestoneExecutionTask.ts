@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { createLogger } from '../../logger'
 import { nowISO } from '../../lib/time'
 import type { AgentRunner, RunResult } from '../../agents/AgentRunner'
@@ -6,7 +7,6 @@ import type { MilestoneRepository } from '../../repositories/MilestoneRepository
 import type { CommentRepository } from '../../repositories/CommentRepository'
 import type { GitService } from '../../services/GitService'
 import type { Milestone, IterationOutcome } from '../../../../src/types/index'
-import type { AgentEvent } from '../../../../src/types/agent'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
@@ -81,21 +81,20 @@ export class MilestoneExecutionTask implements SoulTask {
     ensureAnimaMcpConfig(this.projectPath, this.mcpServerPath, this.dbPath)
 
     const branch = `milestone/${milestone.id}`
-    let devSessionId: string | undefined
-    let accSessionId: string | undefined
+    let devSessionId = randomUUID()
+    let accSessionId = randomUUID()
 
     for (let round = 1; round <= MAX_ITERATIONS; round++) {
       if (signal.aborted) return
 
       const startedAt = nowISO()
-      this.updateIterationState(milestone.id, round, startedAt)
+      this.updateIterationState(milestone.id, round, startedAt, devSessionId, accSessionId)
       log.info('starting iteration', { milestone: milestone.id, round })
 
       try {
         // ── Developer ──
-        const devResult = await this.runDeveloper(devSessionId, milestone.id, branch, signal)
+        const devResult = await this.runDeveloper(devSessionId, milestone.id, branch, round, signal)
         devSessionId = devResult.sessionId
-        this.patchSessionId('developerSessionId', devSessionId, milestone.id, round)
 
         milestone = this.refresh(milestone)
         if (this.isComplete(milestone)) {
@@ -107,9 +106,8 @@ export class MilestoneExecutionTask implements SoulTask {
         if (signal.aborted) return
 
         // ── Acceptor ──
-        const accResult = await this.runAcceptor(accSessionId, milestone.id, signal)
+        const accResult = await this.runAcceptor(accSessionId, milestone.id, round, signal)
         accSessionId = accResult.sessionId
-        this.patchSessionId('acceptorSessionId', accSessionId, milestone.id, round)
 
         milestone = this.refresh(milestone)
         const outcome: IterationOutcome = this.isComplete(milestone) ? 'passed' : 'rejected'
@@ -144,62 +142,54 @@ export class MilestoneExecutionTask implements SoulTask {
   // ── Agent interaction ────────────────────────────────────────────────────
 
   private async runDeveloper(
-    sessionId: string | undefined,
+    sessionId: string,
     milestoneId: string,
     branch: string,
+    round: number,
     signal: AbortSignal
   ): Promise<RunResult> {
-    const onEvent = (event: AgentEvent): void => {
-      if (event.event === 'system') {
-        this.notifier.broadcastAgentEvent('developer', `${this.projectId}:${milestoneId}-dev`)
-      }
-    }
+    this.notifier.broadcastAgentEvent('developer', sessionId)
 
-    if (sessionId) {
+    if (round > 1) {
       return this.agentRunner.resume({
         projectPath: this.projectPath,
         sessionId,
         message: buildDeveloperResumeMessage(milestoneId),
-        onEvent,
         signal,
       })
     }
 
     return this.agentRunner.run({
       projectPath: this.projectPath,
+      sessionId,
       systemPrompt: buildDeveloperSystemPrompt(),
       message: buildDeveloperFirstMessage(milestoneId, branch),
-      onEvent,
       signal,
     })
   }
 
   private async runAcceptor(
-    sessionId: string | undefined,
+    sessionId: string,
     milestoneId: string,
+    round: number,
     signal: AbortSignal
   ): Promise<RunResult> {
-    const onEvent = (event: AgentEvent): void => {
-      if (event.event === 'system') {
-        this.notifier.broadcastAgentEvent('acceptor', `${this.projectId}:${milestoneId}-acc`)
-      }
-    }
+    this.notifier.broadcastAgentEvent('acceptor', sessionId)
 
-    if (sessionId) {
+    if (round > 1) {
       return this.agentRunner.resume({
         projectPath: this.projectPath,
         sessionId,
         message: buildAcceptorResumeMessage(milestoneId),
-        onEvent,
         signal,
       })
     }
 
     return this.agentRunner.run({
       projectPath: this.projectPath,
+      sessionId,
       systemPrompt: buildAcceptorSystemPrompt(),
       message: buildAcceptorFirstMessage(milestoneId),
-      onEvent,
       signal,
     })
   }
@@ -288,25 +278,12 @@ export class MilestoneExecutionTask implements SoulTask {
     return this.milestoneRepo.getById(milestone.id) ?? milestone
   }
 
-  private updateIterationState(milestoneId: string, round: number, startedAt: string): void {
+  private updateIterationState(milestoneId: string, round: number, startedAt: string, devSessionId: string, accSessionId: string): void {
     this.projectRepo.patch(this.projectId, {
       status: 'busy',
-      currentIteration: { milestoneId, round, startedAt },
+      currentIteration: { milestoneId, round, startedAt, developerSessionId: devSessionId, acceptorSessionId: accSessionId },
     })
     this.broadcastStatus()
-  }
-
-  private patchSessionId(
-    key: 'developerSessionId' | 'acceptorSessionId',
-    sessionId: string,
-    milestoneId: string,
-    round: number
-  ): void {
-    const project = this.projectRepo.getById(this.projectId)
-    const cur = project?.currentIteration ?? { milestoneId, round }
-    this.projectRepo.patch(this.projectId, {
-      currentIteration: { ...cur, [key]: sessionId },
-    })
   }
 
   private recordIteration(
