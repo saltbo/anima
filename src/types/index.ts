@@ -24,6 +24,7 @@ export interface Project {
   currentIteration: Iteration | null
   nextWakeTime: string | null
   wakeSchedule: WakeSchedule
+  autoMerge: boolean
   totalTokens: number
   totalCost: number
   rateLimitResetAt: string | null
@@ -44,7 +45,7 @@ export interface InboxItem {
   milestoneId?: string
 }
 
-export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'completed' | 'cancelled'
+export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'awaiting_review' | 'completed' | 'cancelled'
 
 export interface MilestoneTask {
   id: string
@@ -71,7 +72,6 @@ export interface Milestone {
   status: MilestoneStatus
   acceptanceCriteria: AcceptanceCriterion[]
   tasks: MilestoneTask[]
-  review?: string
   createdAt: string
   completedAt?: string
   iterationCount: number
@@ -87,4 +87,24 @@ export interface WakeSchedule {
   mode: WakeScheduleMode
   intervalMinutes: number | null
   times: string[]
+}
+
+export interface MilestoneComment {
+  id: string
+  milestoneId: string
+  body: string
+  author: 'human' | 'system'
+  path?: string
+  line?: number
+  startLine?: number
+  commitId?: string
+  inReplyToId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MilestoneGitInfo {
+  branch: string
+  commitCount: number
+  diffStats: { filesChanged: number; insertions: number; deletions: number }
 }

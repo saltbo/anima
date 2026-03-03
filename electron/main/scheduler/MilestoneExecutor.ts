@@ -80,8 +80,8 @@ export class MilestoneExecutor {
 
   // ── Public API ────────────────────────────────────────────────────────────
 
-  async execute(milestone: Milestone): Promise<ExecutorResult> {
-    let feedback = ''
+  async execute(milestone: Milestone, initialFeedback = ''): Promise<ExecutorResult> {
+    let feedback = initialFeedback
 
     for (let attempt = 0; attempt < MAX_ITERATIONS; attempt++) {
       if (this.aborted) return { outcome: 'aborted' }
@@ -101,7 +101,7 @@ export class MilestoneExecutor {
 
       if (result.complete) {
         this.recordIteration(milestone.id, round, 'passed', startedAt)
-        this.completeMilestone(milestone, round)
+        await this.completeMilestone(milestone, round)
         return { outcome: 'completed' }
       }
       if ('rateLimited' in result) {
@@ -289,21 +289,54 @@ export class MilestoneExecutor {
     this.notifier.notifyIterationPaused(milestone.id, 'max_iterations')
   }
 
-  private completeMilestone(milestone: Milestone, round: number): void {
+  private async completeMilestone(milestone: Milestone, round: number): Promise<void> {
     log.info('milestone completed!', { milestone: milestone.id })
     const m = this.milestoneRepo.getById(milestone.id)
-    if (m) {
-      this.milestoneRepo.save(this.projectId, {
-        ...m,
-        status: 'completed',
-        completedAt: nowISO(),
-        iterationCount: round,
-      })
+    const project = this.projectRepo.getById(this.projectId)
+
+    if (project?.autoMerge) {
+      try {
+        const defaultBranch = await this.gitService.getDefaultBranch(this.projectPath)
+        const branch = `milestone/${milestone.id}`
+        await this.gitService.squashMerge(this.projectPath, branch, defaultBranch, `feat: ${milestone.title}`)
+        await this.gitService.deleteBranch(this.projectPath, branch)
+        if (m) {
+          this.milestoneRepo.save(this.projectId, {
+            ...m,
+            status: 'completed',
+            completedAt: nowISO(),
+            iterationCount: round,
+          })
+        }
+        this.projectRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
+        this.broadcastStatus()
+        this.notifier.notifyMilestoneCompleted(milestone.id)
+        this.onComplete()
+      } catch (err) {
+        log.warn('autoMerge failed, falling back to awaiting_review', { error: String(err) })
+        if (m) {
+          this.milestoneRepo.save(this.projectId, {
+            ...m,
+            status: 'awaiting_review',
+            iterationCount: round,
+          })
+        }
+        this.projectRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
+        this.broadcastStatus()
+        this.notifier.notifyMilestoneAwaitingReview(milestone.id)
+      }
+    } else {
+      if (m) {
+        this.milestoneRepo.save(this.projectId, {
+          ...m,
+          status: 'awaiting_review',
+          iterationCount: round,
+        })
+      }
+      this.projectRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
+      this.broadcastStatus()
+      this.notifier.notifyMilestoneAwaitingReview(milestone.id)
     }
-    this.projectRepo.patch(this.projectId, { status: 'sleeping', currentIteration: null })
-    this.broadcastStatus()
-    this.notifier.notifyMilestoneCompleted(milestone.id)
-    this.onComplete()
   }
 
   private updateIterationState(milestoneId: string, round: number, startedAt: string): void {

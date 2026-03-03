@@ -37,6 +37,7 @@ const DEFAULT_PROJECT: Project = {
   currentIteration: { milestoneId: 'm-1', round: 0 },
   nextWakeTime: null,
   wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
+  autoMerge: false,
   totalTokens: 0,
   totalCost: 0,
   rateLimitResetAt: null,
@@ -50,10 +51,11 @@ function createMilestone(overrides: Partial<Milestone> = {}): Milestone {
     status: 'in-progress',
     acceptanceCriteria: [],
     tasks: [],
-
     createdAt: '2026-01-01T00:00:00Z',
     iterationCount: 0,
     iterations: [],
+    totalTokens: 0,
+    totalCost: 0,
     ...overrides,
   }
 }
@@ -76,6 +78,7 @@ const mockNotifier = {
   notifyIterationPaused: vi.fn(),
   notifyRateLimited: vi.fn(),
   notifyMilestoneCompleted: vi.fn(),
+  notifyMilestoneAwaitingReview: vi.fn(),
 }
 
 /** Create mock repos that simulate in-memory state */
@@ -113,6 +116,12 @@ function createMockRepos(milestone: Milestone) {
     getCurrentBranch: vi.fn().mockResolvedValue('main'),
     checkoutBranch: vi.fn(),
     isGitRepo: vi.fn().mockResolvedValue(true),
+    getDefaultBranch: vi.fn().mockResolvedValue('main'),
+    squashMerge: vi.fn().mockResolvedValue(undefined),
+    deleteBranch: vi.fn().mockResolvedValue(undefined),
+    resetBranchToCommit: vi.fn().mockResolvedValue(undefined),
+    getCommitCountSince: vi.fn().mockResolvedValue(0),
+    getDiffStats: vi.fn().mockResolvedValue({ filesChanged: 0, insertions: 0, deletions: 0 }),
   }
 
   return { projectRepo, milestoneRepo, gitService, milestoneStore }
@@ -185,7 +194,7 @@ describe('MilestoneExecutor', () => {
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
-      expect(mockNotifier.notifyMilestoneCompleted).toHaveBeenCalledWith('m-1')
+      expect(mockNotifier.notifyMilestoneAwaitingReview).toHaveBeenCalledWith('m-1')
     })
 
     it('stops both agents after completion', async () => {

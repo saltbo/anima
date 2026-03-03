@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save,
   Activity, Ban, Pencil, Zap, Moon, Pause, AlertTriangle, CheckCircle, Clock,
+  GitBranch, MessageSquare, RotateCcw, Check,
 } from 'lucide-react'
 import MDEditor from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
@@ -21,7 +22,7 @@ import { useProjects } from '@/store/projects'
 import { AgentChat } from '@/components/AgentChat'
 import { timeAgo, formatElapsed, formatTime, nowISO } from '@/lib/time'
 import type { ProjectIterationStatus } from '@/types/electron.d'
-import type { Milestone, InboxItem, ProjectStatus, Iteration, IterationOutcome } from '@/types/index'
+import type { Milestone, InboxItem, ProjectStatus, Iteration, IterationOutcome, MilestoneComment, MilestoneGitInfo } from '@/types/index'
 
 const TYPE_STYLES: Record<string, string> = {
   idea: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
@@ -113,6 +114,11 @@ export function MilestoneDetail() {
   const [loading, setLoading] = useState(true)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [rollbackOpen, setRollbackOpen] = useState(false)
+  const [requestChangesOpen, setRequestChangesOpen] = useState(false)
+  const [requestChangesText, setRequestChangesText] = useState('')
+  const [comments, setComments] = useState<MilestoneComment[]>([])
+  const [gitInfo, setGitInfo] = useState<MilestoneGitInfo | null>(null)
   const [markdownContent, setMarkdownContent] = useState('')
   const [savingMarkdown, setSavingMarkdown] = useState(false)
 
@@ -135,16 +141,26 @@ export function MilestoneDetail() {
       window.electronAPI.getMilestones(project.id),
       window.electronAPI.getInboxItems(project.id),
       window.electronAPI.readMilestoneMarkdown(project.id, mid!),
-    ]).then(([milestones, items, md]) => {
+      window.electronAPI.getMilestoneComments(mid!),
+    ]).then(([milestones, items, md, cmts]) => {
       const m = milestones.find((ms) => ms.id === mid) ?? null
       setMilestone(m)
       setIterations(m?.iterations ?? [])
       setMarkdownContent(md ?? '')
       setInboxItems(items)
+      setComments(cmts)
       setLoading(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, mid])
+
+  // Load git info when milestone is in-progress or awaiting_review
+  useEffect(() => {
+    if (!project || !milestone) return
+    if (milestone.status !== 'in-progress' && milestone.status !== 'awaiting_review') return
+    window.electronAPI.getMilestoneGitStatus(project.id, milestone.id).then(setGitInfo)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, milestone?.id, milestone?.status])
 
   useEffect(() => {
     return window.electronAPI.onMilestoneReviewDone((milestoneId) => {
@@ -346,6 +362,36 @@ export function MilestoneDetail() {
     window.electronAPI.cancelMilestone(id, mid)
   }
 
+  const handleAcceptMerge = async () => {
+    if (!project || !milestone) return
+    await window.electronAPI.acceptMilestone(project.id, milestone.id)
+    setMilestone({ ...milestone, status: 'completed', completedAt: nowISO() })
+  }
+
+  const handleRollback = async () => {
+    if (!project || !milestone) return
+    await window.electronAPI.rollbackMilestone(project.id, milestone.id)
+    setMilestone({ ...milestone, status: 'ready', iterationCount: 0 })
+    setRollbackOpen(false)
+  }
+
+  const handleRequestChanges = async () => {
+    if (!project || !milestone || !requestChangesText.trim()) return
+    const commentId = crypto.randomUUID()
+    await window.electronAPI.requestChanges(project.id, milestone.id, { id: commentId, body: requestChangesText.trim() })
+    setComments([...comments, {
+      id: commentId,
+      milestoneId: milestone.id,
+      body: requestChangesText.trim(),
+      author: 'human',
+      createdAt: nowISO(),
+      updatedAt: nowISO(),
+    }])
+    setMilestone({ ...milestone, status: 'ready' })
+    setRequestChangesText('')
+    setRequestChangesOpen(false)
+  }
+
   // Resolve which agent props to show based on sub-tab
   const activeSubProps = agentSubTab === 'developer' ? devProps : accProps
 
@@ -389,6 +435,7 @@ export function MilestoneDetail() {
   const isReviewing = milestone.status === 'reviewing'
   const isReviewed = milestone.status === 'reviewed'
   const isInProgress = milestone.status === 'in-progress'
+  const isAwaitingReview = milestone.status === 'awaiting_review'
   const isReady = milestone.status === 'ready'
   const isCancelled = milestone.status === 'cancelled'
 
@@ -424,7 +471,7 @@ export function MilestoneDetail() {
               Mark as Ready <ArrowRight size={12} />
             </Button>
           )}
-          {isReviewed && milestone.review && (
+          {isReviewed && (
             <Button size="sm" className="h-7 text-xs gap-1 cursor-pointer" onClick={handleMarkReady}>
               Approve <ArrowRight size={12} />
             </Button>
@@ -434,6 +481,22 @@ export function MilestoneDetail() {
               Mark Completed <ArrowRight size={12} />
             </Button>
           )}
+          {isAwaitingReview && (
+            <>
+              <Button size="sm" className="h-7 text-xs gap-1.5 cursor-pointer bg-green-600 hover:bg-green-700 text-white" onClick={handleAcceptMerge}>
+                <Check size={12} />
+                Accept &amp; Merge
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={() => setRequestChangesOpen(true)}>
+                <MessageSquare size={12} />
+                Request Changes
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => setRollbackOpen(true)}>
+                <RotateCcw size={12} />
+                Rollback
+              </Button>
+            </>
+          )}
           {(isReady || isInProgress) && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => setCancelOpen(true)}>
               <Ban size={12} />
@@ -441,10 +504,18 @@ export function MilestoneDetail() {
             </Button>
           )}
           {isCancelled && (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleEditCancelled}>
-              <Pencil size={12} />
-              Edit
-            </Button>
+            <>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleEditCancelled}>
+                <Pencil size={12} />
+                Edit
+              </Button>
+              {milestone.baseCommit && (
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => setRollbackOpen(true)}>
+                  <RotateCcw size={12} />
+                  Rollback
+                </Button>
+              )}
+            </>
           )}
           {milestone.status !== 'completed' && (
             <button
@@ -462,6 +533,17 @@ export function MilestoneDetail() {
         <div className="flex items-center gap-3 px-5 py-2.5 border-b border-yellow-500/20 bg-yellow-500/5 shrink-0">
           <Loader2 size={13} className="text-yellow-500 animate-spin shrink-0" />
           <span className="text-xs text-yellow-700 dark:text-yellow-400">AI review in progress…</span>
+        </div>
+      )}
+
+      {/* ── Awaiting review banner ────────────────────────────── */}
+      {isAwaitingReview && (
+        <div className="flex items-center gap-3 px-5 py-2.5 border-b border-amber-500/20 bg-amber-500/5 shrink-0">
+          <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+          <span className="text-xs text-amber-700 dark:text-amber-400">
+            Awaiting human review
+            {gitInfo && ` — ${gitInfo.commitCount} commit${gitInfo.commitCount !== 1 ? 's' : ''}, ${gitInfo.diffStats.filesChanged} file${gitInfo.diffStats.filesChanged !== 1 ? 's' : ''} changed (+${gitInfo.diffStats.insertions} / -${gitInfo.diffStats.deletions})`}
+          </span>
         </div>
       )}
 
@@ -538,6 +620,47 @@ export function MilestoneDetail() {
           {/* RIGHT: Sidebar */}
           <div className="w-72 shrink-0 overflow-y-auto">
 
+            {/* Git info */}
+            {gitInfo && (isInProgress || isAwaitingReview) && (
+              <div className="border-b border-border p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Git</p>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <GitBranch size={12} className="text-muted-foreground shrink-0" />
+                    <span className="font-mono text-foreground truncate">{gitInfo.branch}</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    {gitInfo.commitCount} commit{gitInfo.commitCount !== 1 ? 's' : ''} · {gitInfo.diffStats.filesChanged} file{gitInfo.diffStats.filesChanged !== 1 ? 's' : ''} changed
+                  </div>
+                  <div className="text-muted-foreground">
+                    <span className="text-green-600 dark:text-green-400">+{gitInfo.diffStats.insertions}</span>
+                    {' / '}
+                    <span className="text-red-600 dark:text-red-400">-{gitInfo.diffStats.deletions}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Comments */}
+            {comments.length > 0 && (
+              <div className="border-b border-border p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Comments</p>
+                <div className="space-y-2">
+                  {comments.map((c) => (
+                    <div key={c.id} className="rounded-lg bg-muted/50 p-2.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[10px] font-medium text-foreground capitalize">{c.author}</span>
+                        <span className="text-[10px] text-muted-foreground">{timeAgo(c.createdAt)}</span>
+                      </div>
+                      <div data-color-mode={resolvedTheme}>
+                        <MDEditor.Markdown source={c.body} className="!bg-transparent !text-xs" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Iterations summary card */}
             {iterations.length > 0 && (
               <div className="border-b border-border p-4">
@@ -557,16 +680,6 @@ export function MilestoneDetail() {
                       <span className="text-muted-foreground ml-auto">{outcomeLabel(iter.outcome)}</span>
                     </button>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {/* Reviewed: AI Review block */}
-            {isReviewed && milestone.review && (
-              <div className="border-b border-border p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">AI Review</p>
-                <div data-color-mode={resolvedTheme}>
-                  <MDEditor.Markdown source={milestone.review} className="!bg-transparent !text-xs" />
                 </div>
               </div>
             )}
@@ -806,6 +919,44 @@ export function MilestoneDetail() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setCancelOpen(false)}>Keep Running</Button>
             <Button variant="destructive" onClick={handleCancel}>Cancel Milestone</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Request Changes dialog ─────────────────────────────── */}
+      <Dialog open={requestChangesOpen} onOpenChange={setRequestChangesOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Changes</DialogTitle>
+            <DialogDescription>
+              Describe what needs to be changed. The milestone will be set back to &quot;ready&quot; and the AI will incorporate your feedback in the next iteration.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={requestChangesText}
+            onChange={(e) => setRequestChangesText(e.target.value)}
+            placeholder="Describe the changes needed..."
+            className="w-full h-32 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRequestChangesOpen(false)}>Cancel</Button>
+            <Button onClick={handleRequestChanges} disabled={!requestChangesText.trim()}>Submit Feedback</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Rollback confirmation dialog ────────────────────────── */}
+      <Dialog open={rollbackOpen} onOpenChange={setRollbackOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rollback Milestone</DialogTitle>
+            <DialogDescription>
+              This will reset the milestone branch to the base commit, discarding all changes made during iterations. The milestone will be set back to &quot;ready&quot; so it can be re-run.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRollbackOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRollback}>Rollback</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

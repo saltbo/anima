@@ -40,6 +40,7 @@ const DEFAULT_PROJECT: Project = {
   currentIteration: null,
   nextWakeTime: null,
   wakeSchedule: { mode: 'manual', intervalMinutes: null, times: [] },
+  autoMerge: false,
   totalTokens: 0,
   totalCost: 0,
   rateLimitResetAt: null,
@@ -53,10 +54,11 @@ function createMilestone(overrides: Partial<Milestone> = {}): Milestone {
     status: 'ready',
     acceptanceCriteria: [],
     tasks: [],
-
     createdAt: '2026-01-01T00:00:00Z',
     iterationCount: 0,
     iterations: [],
+    totalTokens: 0,
+    totalCost: 0,
     ...overrides,
   }
 }
@@ -96,13 +98,25 @@ function createMockRepos() {
     getCommitLog: vi.fn().mockResolvedValue(''),
     hasUncommittedChanges: vi.fn().mockResolvedValue(false),
     isGitRepo: vi.fn().mockResolvedValue(true),
+    getDefaultBranch: vi.fn().mockResolvedValue('main'),
+    squashMerge: vi.fn().mockResolvedValue(undefined),
+    deleteBranch: vi.fn().mockResolvedValue(undefined),
+    resetBranchToCommit: vi.fn().mockResolvedValue(undefined),
+    getCommitCountSince: vi.fn().mockResolvedValue(0),
+    getDiffStats: vi.fn().mockResolvedValue({ filesChanged: 0, insertions: 0, deletions: 0 }),
   }
 
-  return { projectRepo, milestoneRepo, gitService }
+  const commentRepo = {
+    getByMilestoneId: vi.fn().mockReturnValue([]),
+    add: vi.fn(),
+    delete: vi.fn(),
+  }
+
+  return { projectRepo, milestoneRepo, gitService, commentRepo }
 }
 
 function createScheduler(repos?: ReturnType<typeof createMockRepos>) {
-  const { projectRepo, milestoneRepo, gitService } = repos ?? createMockRepos()
+  const { projectRepo, milestoneRepo, gitService, commentRepo } = repos ?? createMockRepos()
   const mockWin = {
     isDestroyed: () => false,
     webContents: { send: vi.fn() },
@@ -114,7 +128,9 @@ function createScheduler(repos?: ReturnType<typeof createMockRepos>) {
       getWindow: () => mockWin as any,
       projectRepo: projectRepo as any,
       milestoneRepo: milestoneRepo as any,
+      commentRepo: commentRepo as any,
       gitService: gitService as any,
+      conversationAgent: { run: vi.fn(), continue: vi.fn(), send: vi.fn(), stop: vi.fn() } as any,
     }),
     projectRepo,
     milestoneRepo,
@@ -307,7 +323,7 @@ describe('ProjectScheduler', () => {
 
       expect(gitService.checkoutBranch).toHaveBeenCalledWith('/test/project', 'milestone/m-1')
       expect(MilestoneExecutor).toHaveBeenCalled()
-      expect(mockExecutorExecute).toHaveBeenCalledWith(milestone)
+      expect(mockExecutorExecute).toHaveBeenCalledWith(milestone, '')
 
       scheduler.stop()
     })

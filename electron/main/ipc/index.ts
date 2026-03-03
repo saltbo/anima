@@ -4,6 +4,7 @@ import type { InboxService } from '../services/InboxService'
 import type { MilestoneService } from '../services/MilestoneService'
 import type { SchedulerService } from '../services/SchedulerService'
 import type { SetupService } from '../services/SetupService'
+import type { CommentRepository } from '../repositories/CommentRepository'
 import { registerProjectsIPC } from './projects'
 import { registerWindowIPC } from './window'
 import { registerSetupIPC } from './setup'
@@ -20,6 +21,7 @@ export interface ServiceContext {
   milestoneService: MilestoneService
   schedulerService: SchedulerService
   setupService: SetupService
+  commentRepo: CommentRepository
 }
 
 export function setupIPC(getWindow: () => BrowserWindow | null, ctx: ServiceContext): void {

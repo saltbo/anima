@@ -15,7 +15,6 @@ interface MilestoneRow {
   status: string
   acceptance_criteria: string
   tasks: string
-  review: string | null
   created_at: string
   completed_at: string | null
   iteration_count: number
@@ -44,7 +43,6 @@ function rowToMilestone(row: MilestoneRow, iterations: Iteration[]): Milestone {
     status: row.status as MilestoneStatus,
     acceptanceCriteria: JSON.parse(row.acceptance_criteria) as AcceptanceCriterion[],
     tasks: JSON.parse(row.tasks) as MilestoneTask[],
-    review: row.review ?? undefined,
     createdAt: row.created_at,
     completedAt: row.completed_at ?? undefined,
     iterationCount: row.iteration_count,
@@ -98,15 +96,14 @@ export class MilestoneRepository {
     this.db
       .prepare(
         `INSERT INTO milestones
-         (id, project_id, title, description, status, acceptance_criteria, tasks, review, created_at, completed_at, iteration_count, base_commit)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (id, project_id, title, description, status, acceptance_criteria, tasks, created_at, completed_at, iteration_count, base_commit)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            title = excluded.title,
            description = excluded.description,
            status = excluded.status,
            acceptance_criteria = excluded.acceptance_criteria,
            tasks = excluded.tasks,
-           review = excluded.review,
            completed_at = excluded.completed_at,
            iteration_count = excluded.iteration_count,
            base_commit = excluded.base_commit`
@@ -119,7 +116,6 @@ export class MilestoneRepository {
         milestone.status,
         JSON.stringify(milestone.acceptanceCriteria),
         JSON.stringify(milestone.tasks),
-        milestone.review ?? null,
         milestone.createdAt,
         milestone.completedAt ?? null,
         milestone.iterationCount,

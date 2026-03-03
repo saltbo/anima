@@ -7,10 +7,11 @@ import { useProjects } from '@/store/projects'
 import { timeAgo, formatTokens } from '@/lib/time'
 import type { Milestone, MilestoneStatus } from '@/types/index'
 
-const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'reviewed', 'reviewing', 'ready', 'draft', 'cancelled', 'completed']
+const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'awaiting_review', 'reviewed', 'reviewing', 'ready', 'draft', 'cancelled', 'completed']
 
 const GROUP_LABELS: Record<MilestoneStatus, string> = {
   'in-progress': 'In Progress',
+  'awaiting_review': 'Awaiting Review',
   'reviewing': 'Under Review',
   'reviewed': 'Reviewed',
   'ready': 'Ready to Start',

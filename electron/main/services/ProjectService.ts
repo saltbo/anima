@@ -19,4 +19,8 @@ export class ProjectService {
   getByPath(projectPath: string): Project | null {
     return this.projectRepo.getByPath(projectPath)
   }
+
+  patch(id: string, patch: Partial<Pick<Project, 'autoMerge'>>): Project {
+    return this.projectRepo.patch(id, patch)
+  }
 }

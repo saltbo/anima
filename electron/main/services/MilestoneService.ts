@@ -7,6 +7,7 @@ import type { Milestone, MilestoneTask, InboxItem } from '../../../src/types/ind
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { InboxRepository } from '../repositories/InboxRepository'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
+import type { CommentRepository } from '../repositories/CommentRepository'
 import type { ConversationAgent, TaskAgent } from './types'
 
 // Capability boundary: agent reads anything, writes only to its designated milestone file.
@@ -97,6 +98,7 @@ export class MilestoneService {
     private milestoneRepo: MilestoneRepository,
     private inboxRepo: InboxRepository,
     private projectRepo: ProjectRepository,
+    private commentRepo: CommentRepository,
     private conversationAgent: ConversationAgent,
     private taskAgent: TaskAgent,
     private getWindow: () => BrowserWindow | null
@@ -219,7 +221,18 @@ export class MilestoneService {
       onComplete: () => {
         const m = this.milestoneRepo.getById(milestoneId)
         if (m) {
-          this.milestoneRepo.save(projectId, { ...m, status: 'reviewed', review: reviewResult })
+          this.milestoneRepo.save(projectId, { ...m, status: 'reviewed' })
+        }
+        if (reviewResult) {
+          const now = nowISO()
+          this.commentRepo.add({
+            id: randomUUID(),
+            milestoneId,
+            body: reviewResult,
+            author: 'system',
+            createdAt: now,
+            updatedAt: now,
+          })
         }
         this.getWindow()?.webContents.send('milestones:reviewDone', milestoneId)
       },

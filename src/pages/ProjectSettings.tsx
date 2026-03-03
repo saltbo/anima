@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useProjects } from '@/store/projects'
 import { FileText, BookOpen, Plus, X, Save, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import type { WakeSchedule, WakeScheduleMode } from '@/types/index'
 
 const MODE_OPTIONS: { value: WakeScheduleMode; label: string; description: string }[] = [
@@ -151,10 +152,21 @@ export function ProjectSettings() {
         </div>
       </Section>
 
-      <Section title="Human Review">
-        <p className="text-sm text-muted-foreground">
-          Human review settings will be available in M5.
-        </p>
+      <Section title="Completion Behavior">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">Auto-merge on completion</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {project.autoMerge
+                ? 'Milestone branches are automatically squash-merged to main when all acceptance criteria pass.'
+                : 'Milestones pause for human review before merging. You can accept, request changes, or rollback.'}
+            </p>
+          </div>
+          <Switch
+            checked={project.autoMerge}
+            onCheckedChange={(checked) => window.electronAPI.updateAutoMerge(project.id, checked)}
+          />
+        </div>
       </Section>
 
       <Section title="Vision &amp; Soul">

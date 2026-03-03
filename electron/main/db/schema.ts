@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS milestones (
   status               TEXT NOT NULL DEFAULT 'draft',
   acceptance_criteria  TEXT NOT NULL DEFAULT '[]',
   tasks                TEXT NOT NULL DEFAULT '[]',
-  review               TEXT,
   created_at           TEXT NOT NULL,
   completed_at         TEXT,
   iteration_count      INTEGER NOT NULL DEFAULT 0,
@@ -57,10 +56,25 @@ CREATE TABLE IF NOT EXISTS iterations (
   model                 TEXT
 );
 
+CREATE TABLE IF NOT EXISTS milestone_comments (
+  id              TEXT PRIMARY KEY,
+  milestone_id    TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+  body            TEXT NOT NULL,
+  author          TEXT NOT NULL DEFAULT 'human',
+  path            TEXT,
+  line            INTEGER,
+  start_line      INTEGER,
+  commit_id       TEXT,
+  in_reply_to_id  TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_inbox_project ON inbox_items(project_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_project ON milestones(project_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
+CREATE INDEX IF NOT EXISTS idx_comments_milestone ON milestone_comments(milestone_id);
 `
 
 function migrateIterationUsageColumns(db: Database.Database): void {
@@ -76,8 +90,42 @@ function migrateIterationUsageColumns(db: Database.Database): void {
   `)
 }
 
+function migrateAutoMergeColumn(db: Database.Database): void {
+  const cols = db.pragma('table_info(projects)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (colNames.has('auto_merge')) return
+
+  log.info('migrating projects table: adding auto_merge column')
+  db.exec(`ALTER TABLE projects ADD COLUMN auto_merge INTEGER NOT NULL DEFAULT 0;`)
+}
+
+function migrateMilestoneCommentsTable(db: Database.Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='milestone_comments'").all()
+  if (tables.length > 0) return
+
+  log.info('migrating: creating milestone_comments table')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestone_comments (
+      id              TEXT PRIMARY KEY,
+      milestone_id    TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+      body            TEXT NOT NULL,
+      author          TEXT NOT NULL DEFAULT 'human',
+      path            TEXT,
+      line            INTEGER,
+      start_line      INTEGER,
+      commit_id       TEXT,
+      in_reply_to_id  TEXT,
+      created_at      TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_comments_milestone ON milestone_comments(milestone_id);
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
   migrateIterationUsageColumns(db)
+  migrateAutoMergeColumn(db)
+  migrateMilestoneCommentsTable(db)
 }

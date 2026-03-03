@@ -44,4 +44,8 @@ export class Notifier {
   notifyMilestoneCompleted(milestoneId: string): void {
     this.send('milestones:completed', { projectId: this.projectId, milestoneId })
   }
+
+  notifyMilestoneAwaitingReview(milestoneId: string): void {
+    this.send('milestones:awaitingReview', { projectId: this.projectId, milestoneId })
+  }
 }

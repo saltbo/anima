@@ -102,8 +102,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   wakeProject: (projectId: string) => ipcRenderer.invoke('project:wake', projectId),
   updateWakeSchedule: (projectId: string, schedule: unknown) =>
     ipcRenderer.invoke('project:updateSchedule', projectId, schedule),
+  updateAutoMerge: (projectId: string, autoMerge: boolean) =>
+    ipcRenderer.invoke('project:updateAutoMerge', projectId, autoMerge),
   cancelMilestone: (projectId: string, milestoneId: string) =>
     ipcRenderer.invoke('milestone:cancel', projectId, milestoneId),
+  acceptMilestone: (projectId: string, milestoneId: string) =>
+    ipcRenderer.invoke('milestone:accept', projectId, milestoneId),
+  rollbackMilestone: (projectId: string, milestoneId: string) =>
+    ipcRenderer.invoke('milestone:rollback', projectId, milestoneId),
+  requestChanges: (projectId: string, milestoneId: string, comment: { id: string; body: string }) =>
+    ipcRenderer.invoke('milestone:requestChanges', projectId, milestoneId, comment),
+  getMilestoneGitStatus: (projectId: string, milestoneId: string) =>
+    ipcRenderer.invoke('milestone:gitStatus', projectId, milestoneId),
+  getMilestoneComments: (milestoneId: string) =>
+    ipcRenderer.invoke('milestone:comments', milestoneId),
+  addMilestoneComment: (comment: unknown) =>
+    ipcRenderer.invoke('milestone:addComment', comment),
+
+  onMilestoneAwaitingReview: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('milestones:awaitingReview', handler)
+    return () => ipcRenderer.removeListener('milestones:awaitingReview', handler)
+  },
 
   onProjectStatusChanged: (callback: (status: unknown) => void) => {
     const handler = (_: unknown, status: unknown) => callback(status)

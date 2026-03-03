@@ -7,6 +7,7 @@ import { initSchema } from './db/schema'
 import { ProjectRepository } from './repositories/ProjectRepository'
 import { InboxRepository } from './repositories/InboxRepository'
 import { MilestoneRepository } from './repositories/MilestoneRepository'
+import { CommentRepository } from './repositories/CommentRepository'
 import { ProjectService } from './services/ProjectService'
 import { InboxService } from './services/InboxService'
 import { MilestoneService } from './services/MilestoneService'
@@ -85,18 +86,19 @@ app.whenReady().then(() => {
   const projectRepo = new ProjectRepository(db)
   const inboxRepo = new InboxRepository(db)
   const milestoneRepo = new MilestoneRepository(db)
+  const commentRepo = new CommentRepository(db)
 
   // ── Services ──────────────────────────────────────────────────────────
   const gitService = new GitService()
   const projectService = new ProjectService(projectRepo)
   const inboxService = new InboxService(inboxRepo)
   const milestoneService = new MilestoneService(
-    milestoneRepo, inboxRepo, projectRepo,
+    milestoneRepo, inboxRepo, projectRepo, commentRepo,
     conversationAgent, taskAgent, getWindow
   )
   const setupService = new SetupService(conversationAgent)
   schedulerService = new SchedulerService(
-    projectRepo, milestoneRepo, gitService, conversationAgent, getWindow
+    projectRepo, milestoneRepo, commentRepo, gitService, conversationAgent, getWindow
   )
 
   // ── Wire up ───────────────────────────────────────────────────────────
@@ -107,6 +109,7 @@ app.whenReady().then(() => {
     milestoneService,
     schedulerService,
     setupService,
+    commentRepo,
   })
   schedulerService.startAll()
 
