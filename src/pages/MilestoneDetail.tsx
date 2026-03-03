@@ -51,8 +51,8 @@ const TYPE_STYLES: Record<string, string> = {
 
 function StatusIcon({ status }: { status: ProjectStatus }) {
   switch (status) {
-    case 'awake': return <Zap size={13} className="text-green-400" />
-    case 'checking': return <Loader2 size={13} className="text-yellow-400 animate-spin" />
+    case 'busy': return <Zap size={13} className="text-green-400" />
+    case 'idle': return <Loader2 size={13} className="text-yellow-400 animate-spin" />
     case 'sleeping': return <Moon size={13} className="text-muted-foreground" />
     case 'paused': return <Pause size={13} className="text-orange-400" />
     case 'rate_limited': return <AlertTriangle size={13} className="text-red-400" />
@@ -63,8 +63,8 @@ function StatusIcon({ status }: { status: ProjectStatus }) {
 function iterationStatusLabel(s: ProjectIterationStatus): string {
   switch (s.status) {
     case 'sleeping': return 'Sleeping'
-    case 'checking': return 'Checking for milestones…'
-    case 'awake':
+    case 'idle': return 'Idle'
+    case 'busy':
       return s.currentIteration
         ? `Round ${s.currentIteration.round}`
         : 'Working'
@@ -263,7 +263,7 @@ export function MilestoneDetail() {
   const selectedIteration = selectedIdx !== null && selectedIdx >= 0 ? iterations[selectedIdx] : undefined
   const isSelectedLive = isLive || (
     selectedIteration && isCurrentMilestone && currentIter &&
-    selectedIteration.startedAt === currentIter.startedAt && status.status === 'awake'
+    selectedIteration.startedAt === currentIter.startedAt && status.status === 'busy'
   )
 
   let devProps: { agentKey?: string; sessionId?: string } = {}
@@ -304,7 +304,7 @@ export function MilestoneDetail() {
     })
   }
 
-  if (isCurrentMilestone && currentIter && liveAlreadyRecorded && status.status === 'awake') {
+  if (isCurrentMilestone && currentIter && liveAlreadyRecorded && status.status === 'busy') {
     const idx = iterations.findIndex((i) => i.startedAt === currentIter.startedAt)
     if (idx !== -1 && iterationEntries[idx]) iterationEntries[idx].live = true
   }
@@ -542,13 +542,13 @@ export function MilestoneDetail() {
         {/* Iteration controls in tab bar */}
         {activeTab === 'iterations' && isInProgress && (
           <div className="ml-auto flex items-center gap-2">
-            {status.status === 'awake' && (
+            {status.status === 'busy' && (
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950 cursor-pointer" onClick={handleCancelIteration}>
                 <Ban size={12} />
                 Cancel
               </Button>
             )}
-            {status.status !== 'awake' && (
+            {status.status !== 'busy' && (
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleWake}>
                 <Zap size={12} />
                 Wake Now

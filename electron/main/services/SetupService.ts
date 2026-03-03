@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { app } from 'electron'
-import type { ConversationAgent } from './types'
+import type { AgentRunner } from '../agents/AgentRunner'
 
 export type SetupType = 'init'
 
@@ -77,7 +77,7 @@ Steps:
 Do not ask questions. Write the files now.`
 
 export class SetupService {
-  constructor(private conversationAgent: ConversationAgent) {}
+  constructor(private agentRunner: AgentRunner) {}
 
   listSoulTemplates(): SoulTemplate[] {
     const dir = getTemplatesDir()
@@ -94,11 +94,11 @@ export class SetupService {
     this.writeSetupFile(projectPath, 'soul', template.content)
   }
 
-  startSoulSession(id: string, projectPath: string, templateId: string): void {
+  startSoulSession(_id: string, projectPath: string, templateId: string): void {
     const template = this.listSoulTemplates().find((t) => t.id === templateId)
     if (!template?.content) throw new Error(`Soul template not found: ${templateId}`)
 
-    const firstMessage = `You are giving this project its soul.
+    const message = `You are giving this project its soul.
 
 A soul.md is a first-person character document — the project speaking about itself as an engineer.
 It is short (one page or less), opinionated, and written in first-person voice.
@@ -127,11 +127,11 @@ ${template.content}
 
 Now read the project and enrich this soul with project-specific knowledge. Write .anima/soul.md when done.`
 
-    this.conversationAgent
-      .run(id, {
+    this.agentRunner
+      .run({
         projectPath,
         systemPrompt: SOUL_SYSTEM_PROMPT,
-        firstMessage,
+        message,
       })
       .catch(() => {
         // session ended (user closed or error) — no action needed
@@ -144,16 +144,16 @@ Now read the project and enrich this soul with project-specific knowledge. Write
     return { hasVision, hasSoul }
   }
 
-  startSetupSession(id: string, projectPath: string, _type: SetupType, userContext?: string): void {
+  startSetupSession(_id: string, projectPath: string, _type: SetupType, userContext?: string): void {
     let message = FIRST_MESSAGE
     if (userContext) {
       message += `\n\nThe user has provided the following context about their project. Prioritize this information over guesses when generating the documents:\n\n${userContext}`
     }
-    this.conversationAgent
-      .run(id, {
+    this.agentRunner
+      .run({
         projectPath,
         systemPrompt: SYSTEM_PROMPT,
-        firstMessage: message,
+        message,
       })
       .catch(() => {
         // session ended (user closed or error) — no action needed

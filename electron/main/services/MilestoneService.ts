@@ -8,9 +8,9 @@ import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { InboxRepository } from '../repositories/InboxRepository'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
-import type { ConversationAgent, TaskAgent } from './types'
+import type { AgentRunner } from '../agents/AgentRunner'
 import { validateTransition } from './milestoneTransitions'
-import type { SchedulerService } from './SchedulerService'
+import type { SoulService } from './SoulService'
 
 // Capability boundary: agent reads anything, writes only to its designated milestone file.
 const MILESTONE_PLANNING_ROLE =
@@ -96,19 +96,18 @@ function milestoneDraftMdPath(projectPath: string, id: string): string {
 }
 
 export class MilestoneService {
-  private getSchedulerService: () => SchedulerService
+  private getSoulService: () => SoulService
 
   constructor(
     private milestoneRepo: MilestoneRepository,
     private inboxRepo: InboxRepository,
     private projectRepo: ProjectRepository,
     private commentRepo: CommentRepository,
-    private conversationAgent: ConversationAgent,
-    private taskAgent: TaskAgent,
+    private agentRunner: AgentRunner,
     private getWindow: () => BrowserWindow | null,
-    getSchedulerService: () => SchedulerService
+    getSoulService: () => SoulService
   ) {
-    this.getSchedulerService = getSchedulerService
+    this.getSoulService = getSoulService
   }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -172,7 +171,7 @@ export class MilestoneService {
     }
 
     if (rule.needsScheduler) {
-      await this.getSchedulerService().transitionMilestone(projectId, milestoneId, payload)
+      await this.getSoulService().transition(projectId, milestoneId, payload)
     } else {
       this.milestoneRepo.save(projectId, { ...milestone, status: rule.to })
       this.getWindow()?.webContents.send('milestones:updated', {
@@ -184,13 +183,13 @@ export class MilestoneService {
 
   // ── Agent orchestration ───────────────────────────────────────────────────
 
-  startPlanningSession(
+  async startPlanningSession(
     agentId: string,
     projectId: string,
     inboxItemIds: string[],
     title: string,
     description: string
-  ): void {
+  ): Promise<void> {
     const projectPath = this.resolvePath(projectId)
     if (!projectPath) return
 
@@ -220,11 +219,11 @@ export class MilestoneService {
       .map((id) => this.inboxRepo.getById(id))
       .filter((i): i is InboxItem => i !== null)
 
-    this.conversationAgent
-      .run(agentId, {
+    try {
+      await this.agentRunner.run({
         projectPath,
         systemPrompt: MILESTONE_PLANNING_ROLE,
-        firstMessage: buildFirstMessage(projectPath, inboxItems, milestoneId),
+        message: buildFirstMessage(projectPath, inboxItems, milestoneId),
         onEvent: (event) => {
           if (event.event === 'done' && fs.existsSync(draftPath)) {
             const mdPath = milestoneMdPath(projectPath, milestoneId)
@@ -238,44 +237,46 @@ export class MilestoneService {
           }
         },
       })
-      .catch(() => {
-        // session ended (user closed or error) — no action needed
-      })
+    } catch {
+      // session ended (user closed or error) — no action needed
+    }
   }
 
-  startReview(milestoneId: string, projectId: string): void {
+  async startReview(milestoneId: string, projectId: string): Promise<void> {
     const projectPath = this.resolvePath(projectId)
     if (!projectPath) return
 
-    const agentKey = `${milestoneId}-review`
     let reviewResult = ''
 
-    this.taskAgent.run(agentKey, {
-      projectPath,
-      systemPrompt: MILESTONE_REVIEW_ROLE,
-      message: buildReviewMessage(projectPath, milestoneId),
-      onEvent: (event) => {
-        if (event.event === 'done') reviewResult = event.result ?? ''
-      },
-      onComplete: () => {
-        const m = this.milestoneRepo.getById(milestoneId)
-        if (m) {
-          this.milestoneRepo.save(projectId, { ...m, status: 'reviewed' })
-        }
-        if (reviewResult) {
-          const now = nowISO()
-          this.commentRepo.add({
-            id: randomUUID(),
-            milestoneId,
-            body: reviewResult,
-            author: 'system',
-            createdAt: now,
-            updatedAt: now,
-          })
-        }
-        this.getWindow()?.webContents.send('milestones:reviewDone', milestoneId)
-      },
-    })
+    try {
+      await this.agentRunner.run({
+        projectPath,
+        systemPrompt: MILESTONE_REVIEW_ROLE,
+        message: buildReviewMessage(projectPath, milestoneId),
+        onEvent: (event) => {
+          if (event.event === 'done') reviewResult = event.result ?? ''
+        },
+      })
+    } catch {
+      // session ended — no action needed
+    }
+
+    const m = this.milestoneRepo.getById(milestoneId)
+    if (m) {
+      this.milestoneRepo.save(projectId, { ...m, status: 'reviewed' })
+    }
+    if (reviewResult) {
+      const now = nowISO()
+      this.commentRepo.add({
+        id: randomUUID(),
+        milestoneId,
+        body: reviewResult,
+        author: 'system',
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+    this.getWindow()?.webContents.send('milestones:reviewDone', milestoneId)
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

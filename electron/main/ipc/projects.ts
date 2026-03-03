@@ -5,7 +5,7 @@ import { safeHandle } from './safeHandle'
 import { updateTray } from '../app/tray'
 
 export function registerProjectsIPC(getWindow: () => BrowserWindow | null, ctx: ServiceContext): void {
-  const { projectService, schedulerService } = ctx
+  const { projectService, soulService } = ctx
 
   safeHandle('projects:list', () => {
     return projectService.list()
@@ -23,7 +23,7 @@ export function registerProjectsIPC(getWindow: () => BrowserWindow | null, ctx: 
     }
 
     const project = projectService.add(result.filePaths[0])
-    schedulerService.add(project)
+    soulService.add(project)
 
     getWindow()?.webContents.send('projects:changed', projectService.list())
     updateTray(projectService, getWindow)
@@ -32,7 +32,7 @@ export function registerProjectsIPC(getWindow: () => BrowserWindow | null, ctx: 
   })
 
   safeHandle('projects:remove', (_, id: string) => {
-    schedulerService.remove(id)
+    soulService.remove(id)
     projectService.remove(id)
 
     getWindow()?.webContents.send('projects:changed', projectService.list())

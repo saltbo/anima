@@ -9,8 +9,8 @@ export function cn(...inputs: ClassValue[]) {
 export function statusColor(status: ProjectStatus): string {
   switch (status) {
     case 'sleeping': return 'text-status-sleeping'
-    case 'checking': return 'text-status-checking'
-    case 'awake': return 'text-status-awake'
+    case 'idle': return 'text-status-checking'
+    case 'busy': return 'text-status-awake'
     case 'paused': return 'text-status-paused'
     case 'rate_limited': return 'text-status-rate-limited'
   }
@@ -19,8 +19,8 @@ export function statusColor(status: ProjectStatus): string {
 export function statusIcon(status: ProjectStatus): string {
   switch (status) {
     case 'sleeping': return '💤'
-    case 'checking': return '⟳'
-    case 'awake': return '✦'
+    case 'idle': return '⟳'
+    case 'busy': return '✦'
     case 'paused': return '⚠'
     case 'rate_limited': return '⏱'
   }
@@ -29,8 +29,8 @@ export function statusIcon(status: ProjectStatus): string {
 export function statusLabel(status: ProjectStatus): string {
   switch (status) {
     case 'sleeping': return 'Sleeping'
-    case 'checking': return 'Checking'
-    case 'awake': return 'Working'
+    case 'idle': return 'Idle'
+    case 'busy': return 'Working'
     case 'paused': return 'Paused'
     case 'rate_limited': return 'Rate Limited'
   }
@@ -39,8 +39,8 @@ export function statusLabel(status: ProjectStatus): string {
 export function statusBgColor(status: ProjectStatus): string {
   switch (status) {
     case 'sleeping': return 'bg-status-sleeping'
-    case 'checking': return 'bg-status-checking'
-    case 'awake': return 'bg-status-awake'
+    case 'idle': return 'bg-status-checking'
+    case 'busy': return 'bg-status-awake'
     case 'paused': return 'bg-status-paused'
     case 'rate_limited': return 'bg-status-rate-limited'
   }

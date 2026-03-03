@@ -11,16 +11,16 @@ import { CommentRepository } from './repositories/CommentRepository'
 import { ProjectService } from './services/ProjectService'
 import { InboxService } from './services/InboxService'
 import { MilestoneService } from './services/MilestoneService'
-import { SchedulerService } from './services/SchedulerService'
+import { SoulService } from './services/SoulService'
 import { SetupService } from './services/SetupService'
 import { GitService } from './services/GitService'
-import { conversationAgent, taskAgent } from './agents/service'
+import { AgentRunner } from './agents/AgentRunner'
 import { createTray } from './app/tray'
 import { setupIPC } from './ipc/index'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
-let schedulerService: SchedulerService | null = null
+let soulService: SoulService | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -90,18 +90,19 @@ app.whenReady().then(() => {
 
   // ── Services ──────────────────────────────────────────────────────────
   const gitService = new GitService()
+  const agentRunner = new AgentRunner()
   const projectService = new ProjectService(projectRepo)
   const inboxService = new InboxService(inboxRepo)
   const milestoneService = new MilestoneService(
     milestoneRepo, inboxRepo, projectRepo, commentRepo,
-    conversationAgent, taskAgent, getWindow,
-    () => schedulerService!
+    agentRunner, getWindow,
+    () => soulService!
   )
-  const setupService = new SetupService(conversationAgent)
+  const setupService = new SetupService(agentRunner)
   const mcpServerPath = join(__dirname, 'mcp-server.js')
   const dbPath = join(app.getPath('userData'), 'anima.db')
-  schedulerService = new SchedulerService(
-    projectRepo, milestoneRepo, commentRepo, gitService, conversationAgent, getWindow,
+  soulService = new SoulService(
+    projectRepo, milestoneRepo, commentRepo, gitService, agentRunner, getWindow,
     mcpServerPath, dbPath
   )
 
@@ -111,11 +112,11 @@ app.whenReady().then(() => {
     projectService,
     inboxService,
     milestoneService,
-    schedulerService,
+    soulService,
     setupService,
     commentRepo,
   })
-  schedulerService.startAll()
+  soulService.startAll()
 
   app.on('activate', () => {
     if (mainWindow === null) {
@@ -129,7 +130,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true
-  schedulerService?.stopAll()
+  soulService?.stopAll()
   closeDb()
 })
 

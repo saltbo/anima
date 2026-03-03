@@ -52,7 +52,7 @@ export function ProjectDashboard() {
               </>
             )}
           </div>
-          {project.status !== 'awake' && project.status !== 'checking' && (
+          {project.status !== 'busy' && project.status !== 'idle' && (
             <Button
               size="sm"
               variant="outline"
@@ -66,7 +66,7 @@ export function ProjectDashboard() {
         </div>
 
         <div className="text-sm text-muted-foreground">
-          {project.status === 'awake' && project.currentIteration && (
+          {project.status === 'busy' && project.currentIteration && (
             <span>Round <span className="text-foreground font-medium">{project.currentIteration.round}</span> in progress</span>
           )}
           {project.status === 'sleeping' && project.nextWakeTime && (
@@ -77,7 +77,7 @@ export function ProjectDashboard() {
           {project.status === 'sleeping' && !project.nextWakeTime && (
             <span>Idle — no wake schedule configured</span>
           )}
-          {project.status === 'checking' && <span>Scanning for changes...</span>}
+          {project.status === 'idle' && <span>Soul is awake, waiting for work...</span>}
           {project.status === 'paused' && (
             <div className="flex items-center gap-1.5 text-status-paused">
               <AlertTriangle size={13} />

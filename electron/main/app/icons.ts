@@ -70,13 +70,13 @@ function createCirclePNG(r: number, g: number, b: number, size = 16): Buffer {
   ])
 }
 
-export type TrayIconStatus = 'sleeping' | 'checking' | 'awake' | 'paused'
+export type TrayIconStatus = 'sleeping' | 'idle' | 'busy' | 'paused'
 
 export function createTrayIcons(): Record<TrayIconStatus, NativeImage> {
   return {
     sleeping: nativeImage.createFromBuffer(createCirclePNG(136, 136, 136)),
-    checking: nativeImage.createFromBuffer(createCirclePNG(245, 158, 11)),
-    awake: nativeImage.createFromBuffer(createCirclePNG(16, 185, 129)),
+    idle: nativeImage.createFromBuffer(createCirclePNG(245, 158, 11)),
+    busy: nativeImage.createFromBuffer(createCirclePNG(16, 185, 129)),
     paused: nativeImage.createFromBuffer(createCirclePNG(239, 68, 68)),
   }
 }

@@ -3,18 +3,18 @@ import { safeHandle } from './safeHandle'
 import type { WakeSchedule } from '../../../src/types/index'
 
 export function registerSchedulerIPC(ctx: ServiceContext): void {
-  const { schedulerService, commentRepo } = ctx
+  const { soulService, commentRepo } = ctx
 
   safeHandle('project:wake', (_, projectId: string) => {
-    schedulerService.wakeNow(projectId)
+    soulService.wake(projectId)
   })
 
   safeHandle('project:updateSchedule', (_, projectId: string, schedule: WakeSchedule) => {
-    schedulerService.updateSchedule(projectId, schedule)
+    soulService.updateSchedule(projectId, schedule)
   })
 
   safeHandle('milestone:gitStatus', async (_, projectId: string, milestoneId: string) => {
-    return schedulerService.getMilestoneGitStatus(projectId, milestoneId)
+    return soulService.getMilestoneGitStatus(projectId, milestoneId)
   })
 
   safeHandle('milestone:comments', (_, milestoneId: string) => {

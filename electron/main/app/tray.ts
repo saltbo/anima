@@ -12,16 +12,16 @@ function getAggregateStatus(projects: Project[]): TrayIconStatus {
   if (projects.length === 0) return 'sleeping'
   const states = projects.map((p) => p.status)
   if (states.some((s) => s === 'paused')) return 'paused'
-  if (states.some((s) => s === 'awake')) return 'awake'
-  if (states.some((s) => s === 'checking' || s === 'rate_limited')) return 'checking'
+  if (states.some((s) => s === 'busy')) return 'busy'
+  if (states.some((s) => s === 'idle' || s === 'rate_limited')) return 'idle'
   return 'sleeping'
 }
 
 function statusIcon(status: ProjectStatus): string {
   switch (status) {
     case 'sleeping': return '💤'
-    case 'checking': return '⟳'
-    case 'awake': return '✦'
+    case 'idle': return '⟳'
+    case 'busy': return '✦'
     case 'paused': return '⚠'
     case 'rate_limited': return '⏱'
     default: return '💤'
@@ -34,8 +34,8 @@ function statusText(project: Project): string {
       return project.nextWakeTime
         ? `Sleeping · next: ${dayjs(project.nextWakeTime).format('HH:mm')}`
         : 'Sleeping'
-    case 'checking': return 'Checking…'
-    case 'awake':
+    case 'idle': return 'Idle'
+    case 'busy':
       return project.currentIteration
         ? `Working · Round ${project.currentIteration.round}`
         : 'Working'

@@ -1,4 +1,4 @@
-export type ProjectStatus = 'sleeping' | 'checking' | 'awake' | 'paused' | 'rate_limited'
+export type ProjectStatus = 'sleeping' | 'idle' | 'busy' | 'paused' | 'rate_limited'
 
 export type IterationOutcome = 'passed' | 'rejected' | 'cancelled' | 'rate_limited' | 'error'
 

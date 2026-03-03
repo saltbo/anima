@@ -1,15 +1,13 @@
-import type { BrowserWindow } from 'electron'
-import { conversationAgent, agentManager } from '../agents/service'
 import { findSessionFile, readEventsFromFile } from '../agents/claude-code/parser'
 import { safeHandle } from './safeHandle'
 
-export function registerAgentIPC(getWindow: () => BrowserWindow | null): void {
-  agentManager.on('events', (agentKey: string, events: unknown[]) => {
-    getWindow()?.webContents.send('agent:events', agentKey, events)
-  })
+export function registerAgentIPC(): void {
+  // Agent event forwarding is now handled per-session by AgentRunner's onEvent callback.
+  // The UI reads historical events via sessionId from iteration records.
 
-  safeHandle('agent:readEvents', (_, agentKey: string) => {
-    return agentManager.readEvents(agentKey)
+  safeHandle('agent:readEvents', (_, _agentKey: string) => {
+    // Legacy: no longer have live agent registry. Return empty.
+    return []
   })
 
   safeHandle('agent:readSessionEvents', (_, sessionId: string) => {
@@ -18,11 +16,12 @@ export function registerAgentIPC(getWindow: () => BrowserWindow | null): void {
     return readEventsFromFile(filePath, 0).events
   })
 
-  safeHandle('agent:sendMessage', (_, id: string, message: string) => {
-    conversationAgent.send(id, message)
+  safeHandle('agent:sendMessage', (_, _id: string, _message: string) => {
+    // Planning sessions now use AgentRunner (not interactive).
+    // Interactive send is no longer supported from the UI.
   })
 
-  safeHandle('agent:stop', (_, id: string) => {
-    conversationAgent.stop(id)
+  safeHandle('agent:stop', (_, _id: string) => {
+    // No-op: sessions are managed by AgentRunner lifecycle
   })
 }
