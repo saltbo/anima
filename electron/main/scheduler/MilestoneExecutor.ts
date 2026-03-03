@@ -64,6 +64,7 @@ export class MilestoneExecutor {
   private aborted = false
   private activeAgentKeys: string[] = []
   private capturedSessionIds: { developerSessionId?: string; acceptorSessionId?: string } = {}
+  private capturedUsage = { totalTokens: 0, totalCost: 0, model: undefined as string | undefined }
 
   constructor(options: ExecutorOptions) {
     this.projectId = options.projectId
@@ -138,6 +139,7 @@ export class MilestoneExecutor {
     const accKey = `${this.projectId}:${milestone.id}-acc-${iteration}`
     this.activeAgentKeys = [devKey, accKey]
     this.capturedSessionIds = {}
+    this.capturedUsage = { totalTokens: 0, totalCost: 0, model: undefined }
 
     try {
       // 1. Developer works
@@ -164,9 +166,13 @@ export class MilestoneExecutor {
             log.info('developer system event', { sessionId: event.sessionId, devKey })
             this.notifier.broadcastAgentEvent('developer', devKey)
             this.capturedSessionIds.developerSessionId = event.sessionId
+            this.capturedUsage.model = event.model || this.capturedUsage.model
             const project = this.projectRepo.getById(this.projectId)
             const cur = project?.currentIteration
             if (cur) this.projectRepo.patch(this.projectId, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
+          }
+          if (event.event === 'done') {
+            this.accumulateUsage(event)
           }
           if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
             const todos = parseTodoWrite(event.toolInput)
@@ -189,9 +195,13 @@ export class MilestoneExecutor {
           log.info('acceptor system event', { sessionId: event.sessionId, accKey })
           this.notifier.broadcastAgentEvent('acceptor', accKey)
           this.capturedSessionIds.acceptorSessionId = event.sessionId
+          this.capturedUsage.model = event.model || this.capturedUsage.model
           const project = this.projectRepo.getById(this.projectId)
           const cur = project?.currentIteration
           if (cur) this.projectRepo.patch(this.projectId, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
+        }
+        if (event.event === 'done') {
+          this.accumulateUsage(event)
         }
         if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
           const parsed = parseTodoWrite(event.toolInput)
@@ -302,15 +312,27 @@ export class MilestoneExecutor {
     this.broadcastStatus()
   }
 
+  private accumulateUsage(event: AgentEvent & { event: 'done' }): void {
+    if (event.usage) {
+      this.capturedUsage.totalTokens += event.usage.inputTokens + event.usage.outputTokens + event.usage.cacheReadTokens + event.usage.cacheCreationTokens
+    }
+    if (event.totalCostUsd) this.capturedUsage.totalCost += event.totalCostUsd
+    if (event.model) this.capturedUsage.model = event.model
+  }
+
   private recordIteration(milestoneId: string, round: number, outcome: IterationOutcome, startedAt: string): void {
+    const { totalTokens, totalCost, model } = this.capturedUsage
     log.info('recordIteration', {
       milestoneId,
       round,
       outcome,
       devSessionId: this.capturedSessionIds.developerSessionId ?? 'NONE',
       accSessionId: this.capturedSessionIds.acceptorSessionId ?? 'NONE',
+      totalTokens,
+      totalCost,
+      model,
     })
-    const record: Iteration = {
+    this.milestoneRepo.addIteration({
       milestoneId,
       round,
       developerSessionId: this.capturedSessionIds.developerSessionId,
@@ -318,8 +340,21 @@ export class MilestoneExecutor {
       outcome,
       startedAt,
       completedAt: nowISO(),
+      totalTokens,
+      totalCost,
+      model,
+    })
+
+    if (totalTokens > 0 || totalCost > 0) {
+      const project = this.projectRepo.getById(this.projectId)
+      if (project) {
+        this.projectRepo.patch(this.projectId, {
+          totalTokens: project.totalTokens + totalTokens,
+          totalCost: project.totalCost + totalCost,
+        })
+      }
     }
-    this.milestoneRepo.addIteration(record)
+
     const m = this.milestoneRepo.getById(milestoneId)
     if (m) {
       this.notifier.broadcastMilestoneUpdate(m)

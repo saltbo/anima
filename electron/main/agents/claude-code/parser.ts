@@ -76,7 +76,19 @@ export function parseLine(line: string, onEvent: (event: AgentEvent) => void): v
       }
     }
     if (json.type === 'result') {
-      onEvent({ event: 'done', result: json.result })
+      const usage = json.usage
+      onEvent({
+        event: 'done',
+        result: json.result,
+        totalCostUsd: json.total_cost_usd,
+        usage: usage ? {
+          inputTokens: usage.input_tokens ?? 0,
+          outputTokens: usage.output_tokens ?? 0,
+          cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+        } : undefined,
+        model: json.model,
+      })
     }
   } catch { /* non-JSON lines ignored */ }
 }
@@ -136,8 +148,21 @@ export function parseJsonlLine(line: Record<string, unknown>): AgentEvent[] {
     return []
   }
 
-  if (type === 'result')
-    return [{ event: 'done', result: line.result as string | undefined }]
+  if (type === 'result') {
+    const usage = line.usage as { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } | undefined
+    return [{
+      event: 'done' as const,
+      result: line.result as string | undefined,
+      totalCostUsd: line.total_cost_usd as number | undefined,
+      usage: usage ? {
+        inputTokens: usage.input_tokens ?? 0,
+        outputTokens: usage.output_tokens ?? 0,
+        cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+      } : undefined,
+      model: line.model as string | undefined,
+    }]
+  }
 
   return []
 }

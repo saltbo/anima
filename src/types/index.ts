@@ -10,6 +10,9 @@ export interface Iteration {
   outcome?: IterationOutcome
   startedAt?: string
   completedAt?: string
+  totalTokens?: number
+  totalCost?: number
+  model?: string
 }
 
 export interface Project {

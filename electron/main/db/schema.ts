@@ -53,7 +53,10 @@ CREATE TABLE IF NOT EXISTS iterations (
   acceptor_session_id   TEXT,
   outcome               TEXT,
   started_at            TEXT,
-  completed_at          TEXT
+  completed_at          TEXT,
+  total_tokens          INTEGER NOT NULL DEFAULT 0,
+  total_cost            REAL NOT NULL DEFAULT 0,
+  model                 TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_inbox_project ON inbox_items(project_id);
@@ -62,7 +65,21 @@ CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(project_id, statu
 CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
 `
 
+function migrateIterationUsageColumns(db: Database.Database): void {
+  const cols = db.pragma('table_info(iterations)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (colNames.has('total_tokens')) return
+
+  log.info('migrating iterations table: adding usage columns')
+  db.exec(`
+    ALTER TABLE iterations ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE iterations ADD COLUMN total_cost REAL NOT NULL DEFAULT 0;
+    ALTER TABLE iterations ADD COLUMN model TEXT;
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
+  migrateIterationUsageColumns(db)
 }
