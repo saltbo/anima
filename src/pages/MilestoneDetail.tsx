@@ -507,7 +507,7 @@ export function MilestoneDetail() {
               )}
             </>
           )}
-          {milestone.status !== 'completed' && (
+          {!isReviewing && !isInProgress && (
             <button
               onClick={() => setDeleteOpen(true)}
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors duration-150 cursor-pointer px-1.5"

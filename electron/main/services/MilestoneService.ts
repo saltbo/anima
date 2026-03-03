@@ -128,6 +128,10 @@ export class MilestoneService {
   }
 
   deleteMilestone(projectId: string, id: string): void {
+    const existing = this.milestoneRepo.getById(id)
+    if (existing && (existing.status === 'reviewing' || existing.status === 'in-progress')) {
+      throw new Error(`Cannot delete milestone in status: ${existing.status}`)
+    }
     this.milestoneRepo.delete(id)
     const projectPath = this.resolvePath(projectId)
     if (projectPath) {
