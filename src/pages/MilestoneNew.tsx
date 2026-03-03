@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MessageSquare } from 'lucide-react'
+import { MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgentChat } from '@/components/AgentChat'
 import { useProjects } from '@/store/projects'
@@ -68,25 +68,17 @@ export function MilestoneNew() {
   }
 
   if (!project) {
-    return <div className="p-6 text-sm text-muted-foreground">Project not found.</div>
+    return <div className="py-6 text-sm text-muted-foreground">Project not found.</div>
   }
 
   if (phase === 'setup') {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(`/projects/${id}/milestones`)}
-            className="h-7 w-7"
-          >
-            <ArrowLeft size={14} />
-          </Button>
+        <div className="flex items-center gap-3 pt-6 pb-4">
           <h2 className="text-sm font-semibold text-foreground">New Milestone</h2>
         </div>
 
-        <div className="flex-1 overflow-auto p-6 space-y-5">
+        <div className="flex-1 overflow-auto py-6 space-y-5">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <MessageSquare size={15} className="text-primary" />
@@ -156,7 +148,7 @@ export function MilestoneNew() {
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-border">
+        <div className="py-4 border-t border-border">
           <Button
             className="w-full"
             onClick={handleStartPlanning}
@@ -194,15 +186,7 @@ export function MilestoneNew() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(`/projects/${id}/milestones`)}
-          className="h-7 w-7"
-        >
-          <ArrowLeft size={14} />
-        </Button>
+      <div className="flex items-center gap-3 pt-6 pb-4">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse ml-1" />
       </div>

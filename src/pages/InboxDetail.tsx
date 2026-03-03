@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, EyeOff, RefreshCw, Trash2, Pencil, X, Check } from 'lucide-react'
+import { useState } from 'react'
+import { useParams, useNavigate, useLoaderData } from 'react-router-dom'
+import { EyeOff, RefreshCw, Trash2, Pencil, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,6 +16,15 @@ import {
 import { useProjects } from '@/store/projects'
 import { timeAgo } from '@/lib/time'
 import type { InboxItem, InboxItemType, InboxItemPriority } from '@/types/index'
+import type { InboxDetailLoaderData } from '@/types/router'
+import type { LoaderFunctionArgs } from 'react-router-dom'
+
+export const inboxDetailLoader = async ({ params }: LoaderFunctionArgs) => {
+  const { id, itemId } = params
+  const items = await window.electronAPI.getInboxItems(id!)
+  const item = items.find((i) => i.id === itemId) ?? null
+  return { meta: { title: item?.title ?? '' }, item } satisfies InboxDetailLoaderData
+}
 
 const TYPE_STYLES: Record<InboxItemType, string> = {
   idea: 'bg-blue-500/10 text-blue-600 border border-blue-500/30',
@@ -26,28 +35,22 @@ const PRIORITY_LABEL: Record<InboxItemPriority, string> = { high: '↑ High', me
 const PRIORITY_COLOR: Record<InboxItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
 
 export function InboxDetail() {
-  const { id, itemId } = useParams<{ id: string; itemId: string }>()
+  const { id } = useParams<{ id: string; itemId: string }>()
   const navigate = useNavigate()
   const { projects } = useProjects()
   const project = projects.find((p) => p.id === id)
+  const { item: initial } = useLoaderData() as InboxDetailLoaderData
 
-  const [item, setItem] = useState<InboxItem | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [item, setItem] = useState<InboxItem | null>(initial)
   const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ type: 'idea' as InboxItemType, title: '', description: '', priority: 'medium' as InboxItemPriority })
+  const [editForm, setEditForm] = useState(() => ({
+    type: (initial?.type ?? 'idea') as InboxItemType,
+    title: initial?.title ?? '',
+    description: initial?.description ?? '',
+    priority: (initial?.priority ?? 'medium') as InboxItemPriority,
+  }))
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-
-  useEffect(() => {
-    if (!project) return
-    window.electronAPI.getInboxItems(project.id).then((items) => {
-      const found = items.find((i) => i.id === itemId) ?? null
-      setItem(found)
-      if (found) setEditForm({ type: found.type, title: found.title, description: found.description ?? '', priority: found.priority })
-      setLoading(false)
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, itemId])
 
   const startEdit = () => {
     if (!item) return
@@ -87,33 +90,14 @@ export function InboxDetail() {
     navigate(`/projects/${id}/inbox`)
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 space-y-3">
-        {[60, 80, 100].map((w, i) => (
-          <div key={i} className="h-3 rounded bg-muted animate-pulse" style={{ width: `${w}%` }} />
-        ))}
-      </div>
-    )
-  }
-
   if (!item) {
-    return <div className="p-6 text-sm text-muted-foreground">Item not found.</div>
+    return <div className="py-6 text-sm text-muted-foreground">Item not found.</div>
   }
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(`/projects/${id}/inbox`)}
-          className="h-7 w-7"
-        >
-          <ArrowLeft size={14} />
-        </Button>
-        <span className="text-sm font-semibold text-foreground">Inbox Item</span>
+      <div className="flex items-center gap-3 pt-6 pb-4 shrink-0">
         <div className="flex-1" />
         {!editing && item.status !== 'included' && (
           <div className="flex items-center gap-1">
@@ -158,7 +142,7 @@ export function InboxDetail() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6 space-y-5">
+      <div className="flex-1 overflow-auto py-6 space-y-5">
         {/* Badges */}
         {!editing && (
           <div className="flex items-center gap-2 flex-wrap">

@@ -1,6 +1,5 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { HashRouter } from 'react-router-dom'
 import App from './App'
 import { ThemeProvider } from './store/theme'
 import { ProjectsProvider } from './store/projects'
@@ -11,12 +10,10 @@ installBrowserStub()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <HashRouter>
-      <ThemeProvider>
-        <ProjectsProvider>
-          <App />
-        </ProjectsProvider>
-      </ThemeProvider>
-    </HashRouter>
+    <ThemeProvider>
+      <ProjectsProvider>
+        <App />
+      </ProjectsProvider>
+    </ThemeProvider>
   </React.StrictMode>
 )

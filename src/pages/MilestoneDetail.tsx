@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLoaderData } from 'react-router-dom'
 import {
   Trash2, CheckCircle2, Circle, XCircle, ArrowRight, Loader2, Save,
   Activity, Ban, Pencil, Zap, Moon, Pause, AlertTriangle, CheckCircle, Clock,
@@ -23,6 +23,23 @@ import { AgentChat } from '@/components/AgentChat'
 import { timeAgo, formatElapsed, formatTime, nowISO } from '@/lib/time'
 import type { ProjectIterationStatus } from '@/types/electron.d'
 import type { Milestone, InboxItem, ProjectStatus, Iteration, IterationOutcome, MilestoneComment, MilestoneGitInfo, MilestoneAction } from '@/types/index'
+import type { MilestoneDetailLoaderData } from '@/types/router'
+import type { LoaderFunctionArgs } from 'react-router-dom'
+
+export const milestoneDetailLoader = async ({ params }: LoaderFunctionArgs) => {
+  const { id, mid } = params
+  const [milestones, inboxItems, markdown, comments] = await Promise.all([
+    window.electronAPI.getMilestones(id!),
+    window.electronAPI.getInboxItems(id!),
+    window.electronAPI.readMilestoneMarkdown(id!, mid!),
+    window.electronAPI.getMilestoneComments(mid!),
+  ])
+  const milestone = milestones.find((m) => m.id === mid) ?? null
+  return {
+    meta: { title: milestone?.title ?? '' },
+    milestone, inboxItems, markdown: markdown ?? '', comments,
+  } satisfies MilestoneDetailLoaderData
+}
 
 const TYPE_STYLES: Record<string, string> = {
   idea: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
@@ -108,18 +125,20 @@ export function MilestoneDetail() {
   const activeTab = (searchParams.get('tab') as Tab) || 'overview'
   const setActiveTab = (tab: Tab) => setSearchParams(tab === 'overview' ? {} : { tab })
 
+  // ── Loader data ──────────────────────────────────────────────────────────
+  const loaderData = useLoaderData() as MilestoneDetailLoaderData
+
   // ── Overview state ─────────────────────────────────────────────────────────
-  const [milestone, setMilestone] = useState<Milestone | null>(null)
-  const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [milestone, setMilestone] = useState<Milestone | null>(loaderData.milestone)
+  const [inboxItems] = useState<InboxItem[]>(loaderData.inboxItems)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [rollbackOpen, setRollbackOpen] = useState(false)
   const [requestChangesOpen, setRequestChangesOpen] = useState(false)
   const [requestChangesText, setRequestChangesText] = useState('')
-  const [comments, setComments] = useState<MilestoneComment[]>([])
+  const [comments, setComments] = useState<MilestoneComment[]>(loaderData.comments)
   const [gitInfo, setGitInfo] = useState<MilestoneGitInfo | null>(null)
-  const [markdownContent, setMarkdownContent] = useState('')
+  const [markdownContent, setMarkdownContent] = useState(loaderData.markdown)
   const [savingMarkdown, setSavingMarkdown] = useState(false)
 
   // ── Iteration state (from IterationMonitor) ────────────────────────────────
@@ -130,29 +149,9 @@ export function MilestoneDetail() {
     rateLimitResetAt: project?.rateLimitResetAt ?? null,
   }))
   const [activeAgent, setActiveAgent] = useState<'developer' | 'acceptor' | null>(null)
-  const [iterations, setIterations] = useState<Iteration[]>([])
+  const [iterations, setIterations] = useState<Iteration[]>(loaderData.milestone?.iterations ?? [])
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [agentSubTab, setAgentSubTab] = useState<'developer' | 'acceptor'>('developer')
-
-  // ── Data loading ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!project) return
-    Promise.all([
-      window.electronAPI.getMilestones(project.id),
-      window.electronAPI.getInboxItems(project.id),
-      window.electronAPI.readMilestoneMarkdown(project.id, mid!),
-      window.electronAPI.getMilestoneComments(mid!),
-    ]).then(([milestones, items, md, cmts]) => {
-      const m = milestones.find((ms) => ms.id === mid) ?? null
-      setMilestone(m)
-      setIterations(m?.iterations ?? [])
-      setMarkdownContent(md ?? '')
-      setInboxItems(items)
-      setComments(cmts)
-      setLoading(false)
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, mid])
 
   // Load git info when milestone is in-progress or awaiting_review
   useEffect(() => {
@@ -390,32 +389,8 @@ export function MilestoneDetail() {
   // Resolve which agent props to show based on sub-tab
   const activeSubProps = agentSubTab === 'developer' ? devProps : accProps
 
-  // ── Loading state ──────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="h-full flex flex-col">
-        <div className="px-5 py-4 border-b border-border space-y-2 shrink-0">
-          <div className="h-4 rounded-md bg-muted animate-pulse w-2/5" />
-          <div className="h-3 rounded-md bg-muted animate-pulse w-3/5" />
-        </div>
-        <div className="flex-1 flex">
-          <div className="flex-1 border-r border-border p-5 space-y-3">
-            {[100, 85, 90, 70].map((w, i) => (
-              <div key={i} className="h-3 rounded bg-muted animate-pulse" style={{ width: `${w}%` }} />
-            ))}
-          </div>
-          <div className="w-72 p-4 space-y-3">
-            {[60, 80, 50].map((w, i) => (
-              <div key={i} className="h-3 rounded bg-muted animate-pulse" style={{ width: `${w}%` }} />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   if (!milestone) {
-    return <div className="p-6 text-sm text-muted-foreground">Milestone not found.</div>
+    return <div className="py-6 text-sm text-muted-foreground">Milestone not found.</div>
   }
 
   const completedCount = milestone.tasks.filter((t) => t.completed).length
@@ -438,7 +413,7 @@ export function MilestoneDetail() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* ── Header strip ──────────────────────────────────────── */}
-      <div className="px-5 py-3.5 border-b border-border shrink-0 flex items-start justify-between gap-4">
+      <div className="pt-6 pb-4 border-b border-border shrink-0 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${milestoneStatusBadgeClass(milestone.status)}`}>
@@ -520,7 +495,7 @@ export function MilestoneDetail() {
 
       {/* ── Reviewing banner ──────────────────────────────────── */}
       {isReviewing && (
-        <div className="flex items-center gap-3 px-5 py-2.5 border-b border-yellow-500/20 bg-yellow-500/5 shrink-0">
+        <div className="flex items-center gap-3 py-2.5 border-b border-yellow-500/20 bg-yellow-500/5 shrink-0">
           <Loader2 size={13} className="text-yellow-500 animate-spin shrink-0" />
           <span className="text-xs text-yellow-700 dark:text-yellow-400">AI review in progress…</span>
         </div>
@@ -528,7 +503,7 @@ export function MilestoneDetail() {
 
       {/* ── Awaiting review banner ────────────────────────────── */}
       {isAwaitingReview && (
-        <div className="flex items-center gap-3 px-5 py-2.5 border-b border-amber-500/20 bg-amber-500/5 shrink-0">
+        <div className="flex items-center gap-3 py-2.5 border-b border-amber-500/20 bg-amber-500/5 shrink-0">
           <AlertTriangle size={13} className="text-amber-500 shrink-0" />
           <span className="text-xs text-amber-700 dark:text-amber-400">
             Awaiting human review
@@ -538,7 +513,7 @@ export function MilestoneDetail() {
       )}
 
       {/* ── Tab bar ───────────────────────────────────────────── */}
-      <div className="flex items-center gap-0 px-5 border-b border-border shrink-0">
+      <div className="flex items-center gap-0 border-b border-border shrink-0">
         <button
           onClick={() => setActiveTab('overview')}
           className={`px-3 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
@@ -870,7 +845,7 @@ export function MilestoneDetail() {
 
             {/* Status bar */}
             {isInProgress && (
-              <div className="flex items-center gap-2 px-5 py-2 border-t border-border bg-muted/10 shrink-0">
+              <div className="flex items-center gap-2 py-2 border-t border-border bg-muted/10 shrink-0">
                 <StatusIcon status={status.status} />
                 <span className="text-[11px] text-muted-foreground">{iterationStatusLabel(status)}</span>
               </div>

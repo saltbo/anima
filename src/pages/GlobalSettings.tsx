@@ -34,7 +34,7 @@ function ThemePicker() {
 
 export function GlobalSettings() {
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <div className="py-6 space-y-6 max-w-2xl">
       <h2 className="text-sm font-semibold text-foreground">Global Settings</h2>
 
       <Section title="Appearance">

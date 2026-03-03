@@ -40,7 +40,7 @@ export function Milestones() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="py-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="h-4 w-24 rounded bg-muted animate-pulse" />
           <div className="h-7 w-28 rounded bg-muted animate-pulse" />
@@ -56,7 +56,7 @@ export function Milestones() {
   }, {})
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="py-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">Milestones</h2>
         <Button size="sm" onClick={() => navigate(`/projects/${id}/milestones/new`)}>

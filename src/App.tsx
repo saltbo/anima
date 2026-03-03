@@ -1,31 +1,79 @@
-import { Routes, Route } from 'react-router-dom'
+import { createHashRouter, RouterProvider } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { GlobalDashboard } from '@/pages/GlobalDashboard'
 import { ProjectDashboard } from '@/pages/ProjectDashboard'
 import { Milestones } from '@/pages/Milestones'
-import { MilestoneDetail } from '@/pages/MilestoneDetail'
+import { MilestoneDetail, milestoneDetailLoader } from '@/pages/MilestoneDetail'
 import { MilestoneNew } from '@/pages/MilestoneNew'
 import { Inbox } from '@/pages/Inbox'
-import { InboxDetail } from '@/pages/InboxDetail'
+import { InboxDetail, inboxDetailLoader } from '@/pages/InboxDetail'
 import { ProjectSettings } from '@/pages/ProjectSettings'
 import { SoulVision } from '@/pages/SoulVision'
 import { GlobalSettings } from '@/pages/GlobalSettings'
+import type { RouteHandle } from '@/types/router'
+
+const router = createHashRouter([
+  {
+    path: '/',
+    element: <MainLayout />,
+    children: [
+      { index: true, element: <GlobalDashboard /> },
+      { path: 'settings', element: <GlobalSettings /> },
+      {
+        path: 'projects/:id',
+        element: <ProjectDashboard />,
+        handle: { crumb: [{ label: 'Dashboard' }] } satisfies RouteHandle,
+      },
+      {
+        path: 'projects/:id/soul-vision',
+        element: <SoulVision />,
+        handle: { crumb: [{ label: 'Soul & Vision' }] } satisfies RouteHandle,
+      },
+      {
+        path: 'projects/:id/milestones',
+        element: <Milestones />,
+        handle: { crumb: [{ label: 'Milestones' }] } satisfies RouteHandle,
+      },
+      {
+        path: 'projects/:id/milestones/new',
+        element: <MilestoneNew />,
+        handle: {
+          crumb: [
+            { label: 'Milestones', path: 'milestones' },
+            { label: 'New' },
+          ],
+        } satisfies RouteHandle,
+      },
+      {
+        path: 'projects/:id/milestones/:mid',
+        element: <MilestoneDetail />,
+        handle: {
+          crumb: [{ label: 'Milestones', path: 'milestones' }],
+        } satisfies RouteHandle,
+        loader: milestoneDetailLoader,
+      },
+      {
+        path: 'projects/:id/inbox',
+        element: <Inbox />,
+        handle: { crumb: [{ label: 'Inbox' }] } satisfies RouteHandle,
+      },
+      {
+        path: 'projects/:id/inbox/:itemId',
+        element: <InboxDetail />,
+        handle: {
+          crumb: [{ label: 'Inbox', path: 'inbox' }],
+        } satisfies RouteHandle,
+        loader: inboxDetailLoader,
+      },
+      {
+        path: 'projects/:id/settings',
+        element: <ProjectSettings />,
+        handle: { crumb: [{ label: 'Settings' }] } satisfies RouteHandle,
+      },
+    ],
+  },
+])
 
 export default function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<MainLayout />}>
-        <Route index element={<GlobalDashboard />} />
-        <Route path="settings" element={<GlobalSettings />} />
-        <Route path="projects/:id" element={<ProjectDashboard />} />
-        <Route path="projects/:id/soul-vision" element={<SoulVision />} />
-        <Route path="projects/:id/milestones" element={<Milestones />} />
-        <Route path="projects/:id/milestones/new" element={<MilestoneNew />} />
-        <Route path="projects/:id/milestones/:mid" element={<MilestoneDetail />} />
-        <Route path="projects/:id/inbox" element={<Inbox />} />
-        <Route path="projects/:id/inbox/:itemId" element={<InboxDetail />} />
-        <Route path="projects/:id/settings" element={<ProjectSettings />} />
-      </Route>
-    </Routes>
-  )
+  return <RouterProvider router={router} />
 }

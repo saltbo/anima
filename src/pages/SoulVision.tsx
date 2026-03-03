@@ -23,7 +23,7 @@ function LoadingSkeleton() {
   return (
     <div className="flex flex-col h-full">
       <div className="h-10 border-b border-border shrink-0" />
-      <div className="flex-1 px-6 py-5 space-y-3">
+      <div className="flex-1 py-5 space-y-3">
         {[70, 50, 85, 40, 65].map((w, i) => (
           <div key={i} className="h-2.5 rounded bg-muted animate-pulse" style={{ width: `${w}%` }} />
         ))}
@@ -165,7 +165,7 @@ export function SoulVision() {
   }, [project, draft])
 
   if (!project) {
-    return <div className="p-6 text-sm text-muted-foreground">Project not found.</div>
+    return <div className="py-6 text-sm text-muted-foreground">Project not found.</div>
   }
 
   if (status === 'loading') return <LoadingSkeleton />
@@ -177,7 +177,7 @@ export function SoulVision() {
   if (status === 'generating') {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <div className="flex items-center gap-2.5 px-5 h-10 border-b border-border shrink-0">
+        <div className="flex items-center gap-2.5 h-10 border-b border-border shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
           <span className="text-sm font-medium text-foreground">Giving this project a soul…</span>
         </div>
@@ -192,7 +192,7 @@ export function SoulVision() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 h-10 border-b border-border shrink-0">
+      <div className="flex items-center justify-between pt-6 pb-4 border-b border-border shrink-0">
         <span className="text-sm font-medium text-foreground">Soul</span>
         <div className="flex items-center gap-2">
           {editing ? (
@@ -225,7 +225,7 @@ export function SoulVision() {
         {editing ? (
           <MDEditor value={draft} onChange={(v) => setDraft(v ?? '')} preview="live" height="100%" />
         ) : (
-          <div className="w-full h-full overflow-auto px-6 py-5">
+          <div className="w-full h-full overflow-auto py-5">
             <MDEditor.Markdown source={soul} />
           </div>
         )}

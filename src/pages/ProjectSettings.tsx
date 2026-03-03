@@ -29,7 +29,7 @@ export function ProjectSettings() {
     }
   }, [project])
 
-  if (!project) return <div className="p-6 text-muted-foreground">Project not found.</div>
+  if (!project) return <div className="py-6 text-muted-foreground">Project not found.</div>
 
   const handleRemove = async () => {
     await removeProject(project.id)
@@ -53,7 +53,7 @@ export function ProjectSettings() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <div className="py-6 space-y-6 max-w-2xl">
       <h2 className="text-sm font-semibold text-foreground">Project Settings</h2>
 
       <Section title="General">

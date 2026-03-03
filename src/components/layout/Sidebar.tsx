@@ -1,46 +1,61 @@
-import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Settings } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import {
+  ChevronDown,
+  Home,
+  Inbox,
+  LayoutDashboard,
+  Flag,
+  Plus,
+  Settings,
+  Sparkles,
+} from 'lucide-react'
 import { cn, statusBgColor } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import type { Project } from '@/types'
 
-function ProjectItem({
-  project,
-  isSelected,
-  onClick,
-}: {
-  project: Project
-  isSelected: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-left transition-colors cursor-pointer',
-        isSelected
-          ? 'bg-secondary text-foreground'
-          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-      )}
-    >
-      <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusBgColor(project.status))} />
-      <span className="flex-1 text-sm font-medium truncate">{project.name}</span>
-    </button>
-  )
-}
+const PROJECT_TABS = [
+  { label: 'Dashboard', path: '', icon: LayoutDashboard },
+  { label: 'Soul & Vision', path: '/soul-vision', icon: Sparkles },
+  { label: 'Milestones', path: '/milestones', icon: Flag },
+  { label: 'Inbox', path: '/inbox', icon: Inbox },
+  { label: 'Settings', path: '/settings', icon: Settings },
+]
 
 export function Sidebar() {
-  const { projects, addProject, selectedProjectId, setSelectedProjectId } = useProjects()
+  const { projects, addProject, selectedProjectId, setSelectedProjectId, selectedProject } =
+    useProjects()
   const navigate = useNavigate()
   const location = useLocation()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClick)
+      return () => document.removeEventListener('mousedown', handleClick)
+    }
+  }, [dropdownOpen])
+
+  // Close dropdown on route change
+  useEffect(() => {
+    setDropdownOpen(false)
+  }, [location.pathname])
 
   const handleSelectProject = (project: Project) => {
     setSelectedProjectId(project.id)
+    setDropdownOpen(false)
     navigate(`/projects/${project.id}`)
   }
 
   const handleAddProject = async () => {
+    setDropdownOpen(false)
     const project = await addProject()
     if (project) {
       setSelectedProjectId(project.id)
@@ -48,62 +63,130 @@ export function Sidebar() {
     }
   }
 
-  const handleClickLogo = () => {
+  const handleClickHome = () => {
     setSelectedProjectId(null)
     navigate('/')
   }
 
-  const isSettingsActive = location.pathname === '/settings'
+  const isGlobalSettingsActive = location.pathname === '/settings'
 
   return (
     <div className="flex flex-col h-full bg-app-sidebar border-r border-border select-none">
-      {/* macOS traffic light safe area + app name */}
+      {/* macOS traffic light safe area + project selector */}
       <div
-        className="h-[52px] flex items-end px-4 pb-3"
+        className="pt-[52px] px-3 pb-2"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
-        <button
-          onClick={handleClickLogo}
-          className="text-xs font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          Anima
-        </button>
-      </div>
+        <div ref={dropdownRef} className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <button
+            onClick={() => setDropdownOpen((v) => !v)}
+            className={cn(
+              'w-full flex items-center gap-2 px-2.5 h-8 rounded-md text-left transition-colors cursor-pointer',
+              'hover:bg-accent',
+              selectedProject ? 'text-foreground' : 'text-muted-foreground'
+            )}
+          >
+            {selectedProject ? (
+              <>
+                <span
+                  className={cn(
+                    'w-1.5 h-1.5 rounded-full shrink-0',
+                    statusBgColor(selectedProject.status)
+                  )}
+                />
+                <span className="flex-1 text-sm font-semibold truncate">
+                  {selectedProject.name}
+                </span>
+              </>
+            ) : (
+              <span className="flex-1 text-sm font-semibold truncate">Anima</span>
+            )}
+            <ChevronDown
+              size={14}
+              className={cn(
+                'shrink-0 text-muted-foreground transition-transform',
+                dropdownOpen && 'rotate-180'
+              )}
+            />
+          </button>
 
-      {/* Projects section header */}
-      <div className="px-3 pt-2 pb-1.5 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-          Projects
-        </span>
-        <button
-          onClick={handleAddProject}
-          title="Add Project"
-          className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-        >
-          <Plus size={11} />
-        </button>
-      </div>
-
-      {/* Project list */}
-      <ScrollArea className="flex-1">
-        <div className="px-2 py-0.5 space-y-0.5">
-          {projects.length === 0 ? (
-            <p className="px-3 py-6 text-xs text-muted-foreground/60 text-center">No projects yet</p>
-          ) : (
-            projects.map((project) => (
-              <ProjectItem
-                key={project.id}
-                project={project}
-                isSelected={selectedProjectId === project.id}
-                onClick={() => handleSelectProject(project)}
-              />
-            ))
+          {/* Dropdown */}
+          {dropdownOpen && (
+            <div className="absolute left-0 right-0 top-9 z-50 rounded-md border border-border bg-popover shadow-md py-1">
+              {projects.map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() => handleSelectProject(project)}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 h-8 text-left text-sm transition-colors cursor-pointer',
+                    project.id === selectedProjectId
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full shrink-0',
+                      statusBgColor(project.status)
+                    )}
+                  />
+                  <span className="flex-1 truncate">{project.name}</span>
+                </button>
+              ))}
+              {projects.length > 0 && <div className="my-1 border-t border-border" />}
+              <button
+                onClick={handleAddProject}
+                className="w-full flex items-center gap-2 px-3 h-8 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Add Project</span>
+              </button>
+            </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
-      {/* Settings */}
+      {/* Divider */}
+      <div className="mx-3 border-t border-border" />
+
+      {/* Navigation */}
+      <div className="flex-1 px-2 py-2 space-y-0.5">
+        {selectedProject ? (
+          PROJECT_TABS.map((tab) => (
+            <NavLink
+              key={tab.label}
+              to={`/projects/${selectedProjectId}${tab.path}`}
+              end={tab.path === ''}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-2.5 px-3 h-8 rounded-md text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                )
+              }
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </NavLink>
+          ))
+        ) : (
+          <button
+            onClick={handleClickHome}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-sm font-medium transition-colors cursor-pointer',
+              !isGlobalSettingsActive
+                ? 'bg-secondary text-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            )}
+          >
+            <Home size={16} />
+            Home
+          </button>
+        )}
+      </div>
+
+      {/* Global Settings */}
       <div className="px-2 py-2 border-t border-border">
         <button
           onClick={() => {
@@ -112,13 +195,13 @@ export function Sidebar() {
           }}
           className={cn(
             'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-left transition-colors cursor-pointer',
-            isSettingsActive
+            isGlobalSettingsActive
               ? 'bg-secondary text-foreground'
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           )}
         >
           <Settings size={14} />
-          <span className="text-sm font-medium">Settings</span>
+          <span className="text-sm font-medium">Preferences</span>
         </button>
       </div>
     </div>

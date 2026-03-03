@@ -53,7 +53,7 @@ function InboxRow({ item, onOpen, onDismiss, onRestore, onDeleteRequest }: RowPr
   const isDismissed = item.status === 'dismissed'
   const isIncluded = item.status === 'included'
   return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 border-b border-border hover:bg-accent/40 transition-colors ${isDismissed ? 'opacity-50' : ''}`}>
+    <div className={`flex items-center gap-3 py-2.5 border-b border-border hover:bg-accent/40 transition-colors ${isDismissed ? 'opacity-50' : ''}`}>
       <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
         {item.type}
       </span>
@@ -186,7 +186,7 @@ export function Inbox() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <div className="flex items-center justify-between pt-6 pb-4 shrink-0">
         <h2 className="text-sm font-semibold text-foreground">Inbox</h2>
         <Button size="sm" onClick={() => { setForm(EMPTY_FORM); setAddOpen(true) }}>
           <Plus size={12} className="mr-1.5" />
@@ -195,7 +195,7 @@ export function Inbox() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 pb-3 border-b border-border shrink-0">
         <div className="relative flex-1 max-w-xs">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -237,7 +237,7 @@ export function Inbox() {
       <div className="flex-1 overflow-auto">
         {/* Column header */}
         {filtered.length > 0 && (
-          <div className="flex items-center gap-3 px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <div className="flex items-center gap-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             <span className="w-14">Type</span>
             <span className="flex-1">Title</span>
             <span className="w-12 text-right">Priority</span>

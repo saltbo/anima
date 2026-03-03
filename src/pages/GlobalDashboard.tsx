@@ -117,7 +117,7 @@ export function GlobalDashboard() {
   }
 
   return (
-    <div className="p-6">
+    <div className="py-6">
       <div
         className="flex items-center justify-between mb-6"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}

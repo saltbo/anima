@@ -31,11 +31,11 @@ export function ProjectDashboard() {
   }, [project])
 
   if (!project) {
-    return <div className="p-6 text-muted-foreground">Project not found.</div>
+    return <div className="py-6 text-muted-foreground">Project not found.</div>
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="py-6 space-y-4">
 
       {/* Status card */}
       <div className="bg-card border border-border rounded-xl p-5">
