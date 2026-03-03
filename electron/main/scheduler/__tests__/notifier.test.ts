@@ -75,7 +75,7 @@ describe('Notifier', () => {
         status: 'in-progress' as const,
         acceptanceCriteria: [],
         tasks: [],
-        inboxItemIds: [],
+    
         createdAt: '2026-01-01',
         iterationCount: 0,
         iterations: [],

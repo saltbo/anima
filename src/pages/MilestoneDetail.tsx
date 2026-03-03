@@ -641,22 +641,18 @@ export function MilestoneDetail() {
               )}
 
               {/* Linked Inbox Items */}
-              {milestone.inboxItemIds.length > 0 && (
+              {inboxItems.filter((i) => i.milestoneId === milestone.id).length > 0 && (
                 <section className="space-y-2">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Linked Inbox Items</p>
                   <div className="space-y-1">
-                    {milestone.inboxItemIds.map((iid) => {
-                      const item = inboxItems.find((i) => i.id === iid)
-                      if (!item) return null
-                      return (
-                        <div key={iid} className="flex items-center gap-2 py-1">
-                          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
-                            {item.type}
-                          </span>
-                          <span className="text-xs text-foreground">{item.title}</span>
-                        </div>
-                      )
-                    })}
+                    {inboxItems.filter((i) => i.milestoneId === milestone.id).map((item) => (
+                      <div key={item.id} className="flex items-center gap-2 py-1">
+                        <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
+                          {item.type}
+                        </span>
+                        <span className="text-xs text-foreground">{item.title}</span>
+                      </div>
+                    ))}
                   </div>
                 </section>
               )}

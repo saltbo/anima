@@ -96,7 +96,7 @@ app.whenReady().then(() => {
   )
   const setupService = new SetupService(conversationAgent)
   schedulerService = new SchedulerService(
-    projectRepo, milestoneRepo, gitService, getWindow
+    projectRepo, milestoneRepo, gitService, conversationAgent, getWindow
   )
 
   // ── Wire up ───────────────────────────────────────────────────────────

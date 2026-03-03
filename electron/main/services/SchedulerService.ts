@@ -4,6 +4,7 @@ import type { Project, WakeSchedule } from '../../../src/types/index'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from './GitService'
+import type { ConversationAgent } from './types'
 import { createLogger } from '../logger'
 
 const log = createLogger('scheduler-service')
@@ -15,6 +16,7 @@ export class SchedulerService {
     private projectRepo: ProjectRepository,
     private milestoneRepo: MilestoneRepository,
     private gitService: GitService,
+    private conversationAgent: ConversationAgent,
     private getWindow: () => BrowserWindow | null
   ) {}
 
@@ -37,6 +39,7 @@ export class SchedulerService {
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
       gitService: this.gitService,
+      conversationAgent: this.conversationAgent,
     })
     this.schedulers.set(project.id, scheduler)
     scheduler.start()

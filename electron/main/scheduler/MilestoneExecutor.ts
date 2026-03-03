@@ -1,5 +1,5 @@
 import { createLogger } from '../logger'
-import { conversationAgent } from '../agents/service'
+import type { ConversationAgent } from '../services/types'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from '../services/GitService'
@@ -31,6 +31,7 @@ export interface ExecutorOptions {
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
   gitService: GitService
+  conversationAgent: ConversationAgent
   onRateLimit: (resetAt: string) => void
   onComplete: () => void
 }
@@ -56,6 +57,7 @@ export class MilestoneExecutor {
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
   private gitService: GitService
+  private agent: ConversationAgent
   private onRateLimit: (resetAt: string) => void
   private onComplete: () => void
   private aborted = false
@@ -69,6 +71,7 @@ export class MilestoneExecutor {
     this.projectRepo = options.projectRepo
     this.milestoneRepo = options.milestoneRepo
     this.gitService = options.gitService
+    this.agent = options.conversationAgent
     this.onRateLimit = options.onRateLimit
     this.onComplete = options.onComplete
   }
@@ -118,7 +121,7 @@ export class MilestoneExecutor {
   abort(): void {
     this.aborted = true
     for (const key of this.activeAgentKeys) {
-      conversationAgent.stop(key)
+      this.agent.stop(key)
     }
     this.activeAgentKeys = []
   }
@@ -141,7 +144,7 @@ export class MilestoneExecutor {
       const commitLog = await this.gitService.getCommitLog(this.projectPath, branch)
       const uncommitted = await this.gitService.hasUncommittedChanges(this.projectPath)
 
-      const devReport = await conversationAgent.run(devKey, {
+      const devReport = await this.agent.run(devKey, {
         projectPath: this.projectPath,
         systemPrompt: buildDeveloperSystemPrompt(),
         firstMessage: buildDeveloperFirstMessage({
@@ -200,7 +203,7 @@ export class MilestoneExecutor {
         }
       }
 
-      let accReport = await conversationAgent.run(accKey, {
+      let accReport = await this.agent.run(accKey, {
         projectPath: this.projectPath,
         systemPrompt: buildAcceptorSystemPrompt(),
         firstMessage: buildAcceptorMessage(milestone, devReport, iteration, this.projectPath),
@@ -213,10 +216,10 @@ export class MilestoneExecutor {
       for (let round = 2; round <= MAX_ROUNDS_PER_ITERATION; round++) {
         if (this.aborted) return { complete: false, feedback: accReport }
 
-        const fixReport = await conversationAgent.continue(devKey, buildDeveloperFixMessage(accReport))
+        const fixReport = await this.agent.continue(devKey, buildDeveloperFixMessage(accReport))
 
         const nextTodos: TodoItem[] = []
-        accReport = await conversationAgent.continue(
+        accReport = await this.agent.continue(
           accKey,
           buildAcceptorFollowUpMessage(fixReport, round),
           (e) => onAccEvent(e, nextTodos)
@@ -230,8 +233,8 @@ export class MilestoneExecutor {
       return this.handleBattleError(err, feedback)
     } finally {
       this.activeAgentKeys = []
-      conversationAgent.stop(devKey)
-      conversationAgent.stop(accKey)
+      this.agent.stop(devKey)
+      this.agent.stop(accKey)
     }
   }
 

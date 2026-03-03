@@ -12,6 +12,8 @@ import { registerInboxIPC } from './inbox'
 import { registerMilestonesIPC } from './milestones'
 import { registerSchedulerIPC } from './scheduler'
 
+export type { IpcError } from './safeHandle'
+
 export interface ServiceContext {
   projectService: ProjectService
   inboxService: InboxService

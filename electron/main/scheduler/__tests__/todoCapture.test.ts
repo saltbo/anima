@@ -147,7 +147,7 @@ describe('captureDeveloperTodos', () => {
     status: 'in-progress',
     acceptanceCriteria: [],
     tasks: [],
-    inboxItemIds: [],
+
     createdAt: '2026-01-01',
     iterationCount: 0,
     iterations: [],
@@ -184,7 +184,7 @@ describe('captureAcceptorTodos', () => {
     status: 'in-progress',
     acceptanceCriteria: [],
     tasks: [],
-    inboxItemIds: [],
+
     createdAt: '2026-01-01',
     iterationCount: 0,
     iterations: [],

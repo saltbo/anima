@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS milestones (
   status               TEXT NOT NULL DEFAULT 'draft',
   acceptance_criteria  TEXT NOT NULL DEFAULT '[]',
   tasks                TEXT NOT NULL DEFAULT '[]',
-  inbox_item_ids       TEXT NOT NULL DEFAULT '[]',
   review               TEXT,
   created_at           TEXT NOT NULL,
   completed_at         TEXT,

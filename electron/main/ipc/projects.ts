@@ -1,16 +1,17 @@
-import { ipcMain, dialog } from 'electron'
+import { dialog } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { ServiceContext } from './index'
+import { safeHandle } from './safeHandle'
 import { updateTray } from '../app/tray'
 
 export function registerProjectsIPC(getWindow: () => BrowserWindow | null, ctx: ServiceContext): void {
   const { projectService, schedulerService } = ctx
 
-  ipcMain.handle('projects:list', () => {
+  safeHandle('projects:list', () => {
     return projectService.list()
   })
 
-  ipcMain.handle('projects:add', async () => {
+  safeHandle('projects:add', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
       title: 'Select Project Directory',
@@ -30,7 +31,7 @@ export function registerProjectsIPC(getWindow: () => BrowserWindow | null, ctx: 
     return project
   })
 
-  ipcMain.handle('projects:remove', (_, id: string) => {
+  safeHandle('projects:remove', (_, id: string) => {
     schedulerService.remove(id)
     projectService.remove(id)
 

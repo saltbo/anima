@@ -163,7 +163,6 @@ export class MilestoneService {
       status: 'draft',
       acceptanceCriteria: [],
       tasks: [],
-      inboxItemIds,
       createdAt: new Date().toISOString(),
       iterationCount: 0,
       iterations: [],

@@ -52,7 +52,7 @@ function createMilestone(overrides: Partial<Milestone> = {}): Milestone {
     status: 'ready',
     acceptanceCriteria: [],
     tasks: [],
-    inboxItemIds: [],
+
     createdAt: '2026-01-01T00:00:00Z',
     iterationCount: 0,
     iterations: [],

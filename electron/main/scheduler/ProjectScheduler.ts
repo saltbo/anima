@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { createLogger } from '../logger'
+import type { ConversationAgent } from '../services/types'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from '../services/GitService'
@@ -19,6 +20,7 @@ export interface SchedulerOptions {
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
   gitService: GitService
+  conversationAgent: ConversationAgent
 }
 
 // ── Per-project scheduler ─────────────────────────────────────────────────────
@@ -30,6 +32,7 @@ export class ProjectScheduler {
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
   private gitService: GitService
+  private conversationAgent: ConversationAgent
   private wakeTimer: ReturnType<typeof setTimeout> | null = null
   private running = false
   private activeExecutor: MilestoneExecutor | null = null
@@ -40,6 +43,7 @@ export class ProjectScheduler {
     this.projectRepo = options.projectRepo
     this.milestoneRepo = options.milestoneRepo
     this.gitService = options.gitService
+    this.conversationAgent = options.conversationAgent
     this.notifier = new Notifier(options.projectId, options.getWindow)
   }
 
@@ -206,6 +210,7 @@ export class ProjectScheduler {
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
       gitService: this.gitService,
+      conversationAgent: this.conversationAgent,
       onRateLimit: (resetAt) => {
         const msUntilReset = Math.max(0, new Date(resetAt).getTime() - Date.now())
         this.scheduleCheck(msUntilReset)

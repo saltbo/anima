@@ -8,13 +8,12 @@ const mockAgentRun = vi.fn<(...args: any[]) => Promise<string>>()
 const mockAgentContinue = vi.fn<(...args: any[]) => Promise<string>>()
 const mockAgentStop = vi.fn()
 
-vi.mock('../../agents/service', () => ({
-  conversationAgent: {
-    run: (...args: any[]) => mockAgentRun(...args),
-    continue: (...args: any[]) => mockAgentContinue(...args),
-    stop: (...args: any[]) => mockAgentStop(...args),
-  },
-}))
+const mockConversationAgent = {
+  run: (...args: any[]) => mockAgentRun(...args),
+  continue: (...args: any[]) => mockAgentContinue(...args),
+  send: vi.fn(),
+  stop: (...args: any[]) => mockAgentStop(...args),
+}
 
 vi.mock('../../logger', () => ({
   createLogger: () => ({
@@ -51,7 +50,7 @@ function createMilestone(overrides: Partial<Milestone> = {}): Milestone {
     status: 'in-progress',
     acceptanceCriteria: [],
     tasks: [],
-    inboxItemIds: [],
+
     createdAt: '2026-01-01T00:00:00Z',
     iterationCount: 0,
     iterations: [],
@@ -132,6 +131,7 @@ function createExecutor(
       projectRepo: projectRepo as any,
       milestoneRepo: milestoneRepo as any,
       gitService: gitService as any,
+      conversationAgent: mockConversationAgent as any,
       onRateLimit: overrides.onRateLimit ?? vi.fn(),
       onComplete: overrides.onComplete ?? vi.fn(),
     }),
@@ -322,6 +322,7 @@ describe('MilestoneExecutor', () => {
         projectRepo: projectRepo as any,
         milestoneRepo: milestoneRepo as any,
         gitService: gitService as any,
+        conversationAgent: mockConversationAgent as any,
         onRateLimit: vi.fn(),
         onComplete: vi.fn(),
       })

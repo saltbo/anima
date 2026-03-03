@@ -68,7 +68,6 @@ export interface Milestone {
   status: MilestoneStatus
   acceptanceCriteria: AcceptanceCriterion[]
   tasks: MilestoneTask[]
-  inboxItemIds: string[]
   review?: string
   createdAt: string
   completedAt?: string
