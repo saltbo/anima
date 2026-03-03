@@ -76,6 +76,8 @@ export interface Milestone {
   completedAt?: string
   iterationCount: number
   iterations: Iteration[]
+  totalTokens: number
+  totalCost: number
   baseCommit?: string
 }
 

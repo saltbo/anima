@@ -49,6 +49,8 @@ function rowToMilestone(row: MilestoneRow, iterations: Iteration[]): Milestone {
     completedAt: row.completed_at ?? undefined,
     iterationCount: row.iteration_count,
     iterations,
+    totalTokens: iterations.reduce((sum, i) => sum + (i.totalTokens ?? 0), 0),
+    totalCost: iterations.reduce((sum, i) => sum + (i.totalCost ?? 0), 0),
     baseCommit: row.base_commit ?? undefined,
   }
 }

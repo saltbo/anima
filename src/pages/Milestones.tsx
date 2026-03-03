@@ -4,7 +4,7 @@ import { Plus, Flag, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
-import { timeAgo } from '@/lib/time'
+import { timeAgo, formatTokens } from '@/lib/time'
 import type { Milestone, MilestoneStatus } from '@/types/index'
 
 const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'reviewed', 'reviewing', 'ready', 'draft', 'cancelled', 'completed']
@@ -115,6 +115,7 @@ export function Milestones() {
                         <p className="text-xs text-muted-foreground truncate">{m.description}</p>
                         <p className="text-xs text-muted-foreground">
                           {completed}/{total} tasks completed · created {timeAgo(m.createdAt)}
+                          {m.totalCost > 0 && ` · ${formatTokens(m.totalTokens)} · $${m.totalCost.toFixed(2)}`}
                         </p>
                       </div>
                     </div>
