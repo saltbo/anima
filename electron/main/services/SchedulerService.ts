@@ -19,7 +19,9 @@ export class SchedulerService {
     private commentRepo: CommentRepository,
     private gitService: GitService,
     private conversationAgent: ConversationAgent,
-    private getWindow: () => BrowserWindow | null
+    private getWindow: () => BrowserWindow | null,
+    private mcpServerPath: string,
+    private dbPath: string
   ) {}
 
   startAll(): void {
@@ -37,6 +39,8 @@ export class SchedulerService {
     const scheduler = new ProjectScheduler({
       projectId: project.id,
       projectPath: project.path,
+      mcpServerPath: this.mcpServerPath,
+      dbPath: this.dbPath,
       getWindow: this.getWindow,
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,

@@ -1,8 +1,10 @@
+import { randomUUID } from 'crypto'
 import type Database from 'better-sqlite3'
 import type {
   Milestone,
   MilestoneTask,
   AcceptanceCriterion,
+  AcceptanceCriterionStatus,
   Iteration,
   MilestoneStatus,
 } from '../../../src/types/index'
@@ -165,5 +167,64 @@ export class MilestoneRepository {
       | { project_id: string }
       | undefined
     return row?.project_id ?? null
+  }
+
+  /** Upsert acceptance criteria by title + iteration. Returns updated milestone or null if not found. */
+  mergeAcceptanceCriteria(
+    milestoneId: string,
+    criteria: Array<{ title: string; status: AcceptanceCriterionStatus; description?: string }>,
+    iteration: number
+  ): Milestone | null {
+    const milestone = this.getById(milestoneId)
+    if (!milestone) return null
+
+    const ac = [...milestone.acceptanceCriteria]
+    for (const c of criteria) {
+      const idx = ac.findIndex((e) => e.title === c.title && e.iteration === iteration)
+      if (idx >= 0) {
+        ac[idx] = { ...ac[idx], status: c.status, description: c.description }
+      } else {
+        ac.push({ title: c.title, status: c.status, description: c.description, iteration })
+      }
+    }
+
+    this.db
+      .prepare('UPDATE milestones SET acceptance_criteria = ? WHERE id = ?')
+      .run(JSON.stringify(ac), milestoneId)
+
+    return { ...milestone, acceptanceCriteria: ac }
+  }
+
+  /** Upsert tasks by title. Returns updated milestone or null if not found. */
+  mergeTasks(
+    milestoneId: string,
+    tasks: Array<{ title: string; completed: boolean; description?: string }>,
+    iteration: number
+  ): Milestone | null {
+    const milestone = this.getById(milestoneId)
+    if (!milestone) return null
+
+    const existing = [...milestone.tasks]
+    for (const t of tasks) {
+      const idx = existing.findIndex((e) => e.title === t.title)
+      if (idx >= 0) {
+        existing[idx] = { ...existing[idx], completed: t.completed, description: t.description }
+      } else {
+        existing.push({
+          id: randomUUID(),
+          title: t.title,
+          completed: t.completed,
+          description: t.description,
+          order: existing.length,
+          iteration,
+        })
+      }
+    }
+
+    this.db
+      .prepare('UPDATE milestones SET tasks = ? WHERE id = ?')
+      .run(JSON.stringify(existing), milestoneId)
+
+    return { ...milestone, tasks: existing }
   }
 }

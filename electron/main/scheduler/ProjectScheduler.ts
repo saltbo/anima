@@ -18,6 +18,8 @@ const log = createLogger('scheduler')
 export interface SchedulerOptions {
   projectId: string
   projectPath: string
+  mcpServerPath: string
+  dbPath: string
   getWindow: () => BrowserWindow | null
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
@@ -31,6 +33,8 @@ export interface SchedulerOptions {
 export class ProjectScheduler {
   private projectId: string
   private projectPath: string
+  private mcpServerPath: string
+  private dbPath: string
   private notifier: Notifier
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
@@ -44,6 +48,8 @@ export class ProjectScheduler {
   constructor(options: SchedulerOptions) {
     this.projectId = options.projectId
     this.projectPath = options.projectPath
+    this.mcpServerPath = options.mcpServerPath
+    this.dbPath = options.dbPath
     this.projectRepo = options.projectRepo
     this.milestoneRepo = options.milestoneRepo
     this.commentRepo = options.commentRepo
@@ -314,6 +320,8 @@ export class ProjectScheduler {
     const executor = new MilestoneExecutor({
       projectId: this.projectId,
       projectPath: this.projectPath,
+      mcpServerPath: this.mcpServerPath,
+      dbPath: this.dbPath,
       notifier: this.notifier,
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,

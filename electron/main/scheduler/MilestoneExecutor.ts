@@ -4,20 +4,19 @@ import type { ConversationAgent } from '../services/types'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from '../services/GitService'
-import { randomUUID } from 'crypto'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { Milestone, Iteration, IterationOutcome } from '../../../src/types/index'
 import type { AgentEvent } from '../../../src/types/agent'
 import { Notifier } from './notifier'
 import { isRateLimitError, parseResetTime } from './rateLimit'
-import { parseTodoWrite, captureDeveloperTodos, captureAcceptorTodos, finalizeAcceptorCriteria, type TodoItem } from './todoCapture'
+import { finalizeAcceptorCriteria } from './todoCapture'
+import { ensureAnimaMcpConfig } from '../mcp/mcpConfig'
 import {
   buildDeveloperSystemPrompt,
   buildAcceptorSystemPrompt,
   buildDeveloperFirstMessage,
-  buildAcceptorMessage,
-  buildDeveloperFixMessage,
-  buildAcceptorFollowUpMessage,
+  buildAcceptorFirstMessage,
+  buildContinueMessage,
 } from './prompts'
 
 const log = createLogger('executor')
@@ -30,6 +29,8 @@ const MAX_ROUNDS_PER_ITERATION = 5
 export interface ExecutorOptions {
   projectId: string
   projectPath: string
+  mcpServerPath: string
+  dbPath: string
   notifier: Notifier
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
@@ -47,16 +48,13 @@ export type ExecutorResult =
   | { outcome: 'aborted' }
   | { outcome: 'error'; message: string }
 
-type BattleResult =
-  | { complete: true }
-  | { complete: false; feedback: string }
-  | { complete: false; rateLimited: true; resetAt: string }
-
 // ── MilestoneExecutor ─────────────────────────────────────────────────────────
 
 export class MilestoneExecutor {
   private projectId: string
   private projectPath: string
+  private mcpServerPath: string
+  private dbPath: string
   private notifier: Notifier
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
@@ -73,6 +71,8 @@ export class MilestoneExecutor {
   constructor(options: ExecutorOptions) {
     this.projectId = options.projectId
     this.projectPath = options.projectPath
+    this.mcpServerPath = options.mcpServerPath
+    this.dbPath = options.dbPath
     this.notifier = options.notifier
     this.projectRepo = options.projectRepo
     this.milestoneRepo = options.milestoneRepo
@@ -85,8 +85,9 @@ export class MilestoneExecutor {
 
   // ── Public API ────────────────────────────────────────────────────────────
 
-  async execute(milestone: Milestone, initialFeedback = ''): Promise<ExecutorResult> {
-    let feedback = initialFeedback
+  async execute(milestone: Milestone, _initialFeedback = ''): Promise<ExecutorResult> {
+    // Ensure .mcp.json is configured for the agent to discover Anima tools
+    ensureAnimaMcpConfig(this.projectPath, this.mcpServerPath, this.dbPath)
 
     for (let attempt = 0; attempt < MAX_ITERATIONS; attempt++) {
       if (this.aborted) return { outcome: 'aborted' }
@@ -102,24 +103,21 @@ export class MilestoneExecutor {
       this.updateIterationState(milestone.id, round, startedAt)
       log.info('starting iteration', { milestone: milestone.id, round, attempt: attempt + 1 })
 
-      const result = await this.runBattle(milestone, round, feedback)
+      const result = await this.runIteration(milestone, round)
 
-      if (result.complete) {
+      if (result.type === 'completed') {
         this.recordIteration(milestone.id, round, 'passed', startedAt)
         await this.completeMilestone(milestone, round)
         return { outcome: 'completed' }
       }
-      if ('rateLimited' in result) {
+      if (result.type === 'rate_limited') {
         this.recordIteration(milestone.id, round, 'rate_limited', startedAt)
-        this.saveAcceptorComment(milestone.id, round, result.feedback)
         return { outcome: 'rate_limited', resetAt: result.resetAt }
       }
 
       const outcome: IterationOutcome = this.aborted ? 'cancelled' : 'rejected'
       this.recordIteration(milestone.id, round, outcome, startedAt)
-      this.saveAcceptorComment(milestone.id, round, result.feedback)
 
-      feedback = result.feedback
       milestone = this.milestoneRepo.getById(milestone.id) ?? milestone
     }
 
@@ -135,122 +133,49 @@ export class MilestoneExecutor {
     this.activeAgentKeys = []
   }
 
-  // ── Battle: bridge two agents ───────────────────────────────────────────
+  // ── Iteration: dev → check → acc → check, with relay rounds ────────────
 
-  private async runBattle(
+  private async runIteration(
     milestone: Milestone,
-    iteration: number,
-    feedback: string
-  ): Promise<BattleResult> {
+    iteration: number
+  ): Promise<{ type: 'completed' } | { type: 'rejected' } | { type: 'rate_limited'; resetAt: string }> {
     const devKey = `${this.projectId}:${milestone.id}-dev-${iteration}`
     const accKey = `${this.projectId}:${milestone.id}-acc-${iteration}`
     this.activeAgentKeys = [devKey, accKey]
     this.capturedSessionIds = {}
     this.capturedUsage = { totalTokens: 0, totalCost: 0, model: undefined }
 
+    const branch = `milestone/${milestone.id}`
+
     try {
-      // 1. Developer works
-      const branch = `milestone/${milestone.id}`
-      const commitLog = await this.gitService.getCommitLog(this.projectPath, branch)
-      const uncommitted = await this.gitService.hasUncommittedChanges(this.projectPath)
+      // Round 1: run developer
+      await this.runRole('developer', devKey, milestone.id, branch, iteration)
+      milestone = this.refresh(milestone)
+      if (this.isComplete(milestone)) return { type: 'completed' }
 
-      const devReport = await this.agent.run(devKey, {
-        projectPath: this.projectPath,
-        systemPrompt: buildDeveloperSystemPrompt(),
-        firstMessage: buildDeveloperFirstMessage({
-          projectPath: this.projectPath,
-          branch,
-          milestoneId: milestone.id,
-          milestoneTitle: milestone.title,
-          milestoneDescription: milestone.description,
-          iterationCount: iteration,
-          commitLog,
-          hasUncommitted: uncommitted,
-          remainingFeedback: feedback,
-        }),
-        onEvent: (event) => {
-          if (event.event === 'system') {
-            log.info('developer system event', { sessionId: event.sessionId, devKey })
-            this.notifier.broadcastAgentEvent('developer', devKey)
-            this.capturedSessionIds.developerSessionId = event.sessionId
-            this.capturedUsage.model = event.model || this.capturedUsage.model
-            const project = this.projectRepo.getById(this.projectId)
-            const cur = project?.currentIteration
-            if (cur) this.projectRepo.patch(this.projectId, { currentIteration: { ...cur, developerSessionId: event.sessionId } })
-          }
-          if (event.event === 'done') {
-            this.accumulateUsage(event)
-          }
-          if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
-            const todos = parseTodoWrite(event.toolInput)
-            const updated = captureDeveloperTodos(milestone, todos, iteration)
-            if (updated) {
-              this.milestoneRepo.save(this.projectId, updated)
-              this.notifier.broadcastMilestoneUpdate(updated)
-            }
-          }
-        },
-      })
-
-      // Refresh milestone after developer phase
-      milestone = this.milestoneRepo.getById(milestone.id) ?? milestone
-
-      // 2. Acceptor reviews
-      const roundTodos: TodoItem[] = []
-      const onAccEvent = (event: AgentEvent, todos: TodoItem[]): void => {
-        if (event.event === 'system') {
-          log.info('acceptor system event', { sessionId: event.sessionId, accKey })
-          this.notifier.broadcastAgentEvent('acceptor', accKey)
-          this.capturedSessionIds.acceptorSessionId = event.sessionId
-          this.capturedUsage.model = event.model || this.capturedUsage.model
-          const project = this.projectRepo.getById(this.projectId)
-          const cur = project?.currentIteration
-          if (cur) this.projectRepo.patch(this.projectId, { currentIteration: { ...cur, acceptorSessionId: event.sessionId } })
-        }
-        if (event.event === 'done') {
-          this.accumulateUsage(event)
-        }
-        if (event.event === 'tool_use' && event.toolName === 'TodoWrite') {
-          const parsed = parseTodoWrite(event.toolInput)
-          todos.splice(0, todos.length, ...parsed)
-          const updated = captureAcceptorTodos(milestone, parsed, iteration)
-          if (updated) {
-            this.milestoneRepo.save(this.projectId, updated)
-            this.notifier.broadcastMilestoneUpdate(updated)
-          }
-        }
-      }
-
-      let accReport = await this.agent.run(accKey, {
-        projectPath: this.projectPath,
-        systemPrompt: buildAcceptorSystemPrompt(),
-        firstMessage: buildAcceptorMessage(milestone, devReport, iteration, this.projectPath),
-        onEvent: (e) => onAccEvent(e, roundTodos),
-      })
+      // Round 1: run acceptor
+      await this.runRole('acceptor', accKey, milestone.id, branch, iteration)
       this.finalizeAC(milestone, iteration)
+      milestone = this.refresh(milestone)
+      if (this.isComplete(milestone)) return { type: 'completed' }
 
-      if (this.allPassed(roundTodos)) return { complete: true }
+      // Relay rounds 2..N
+      for (let relay = 2; relay <= MAX_ROUNDS_PER_ITERATION; relay++) {
+        if (this.aborted) return { type: 'rejected' }
 
-      // 3. Relay loop
-      for (let round = 2; round <= MAX_ROUNDS_PER_ITERATION; round++) {
-        if (this.aborted) return { complete: false, feedback: accReport }
+        await this.continueRole('developer', devKey, milestone.id)
+        milestone = this.refresh(milestone)
+        if (this.isComplete(milestone)) return { type: 'completed' }
 
-        const fixReport = await this.agent.continue(devKey, buildDeveloperFixMessage(accReport))
-
-        const nextTodos: TodoItem[] = []
-        accReport = await this.agent.continue(
-          accKey,
-          buildAcceptorFollowUpMessage(fixReport, round),
-          (e) => onAccEvent(e, nextTodos)
-        )
+        await this.continueRole('acceptor', accKey, milestone.id)
         this.finalizeAC(milestone, iteration)
-
-        if (this.allPassed(nextTodos)) return { complete: true }
+        milestone = this.refresh(milestone)
+        if (this.isComplete(milestone)) return { type: 'completed' }
       }
 
-      return { complete: false, feedback: accReport }
+      return { type: 'rejected' }
     } catch (err) {
-      return this.handleBattleError(err, feedback)
+      return this.handleIterationError(err)
     } finally {
       this.activeAgentKeys = []
       this.agent.stop(devKey)
@@ -258,15 +183,74 @@ export class MilestoneExecutor {
     }
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────
+  // ── Agent interaction ─────────────────────────────────────────────────────
 
-  private allPassed(todos: TodoItem[]): boolean {
-    return todos.length > 0 && todos.every((t) => t.status === 'completed')
+  private async runRole(
+    role: 'developer' | 'acceptor',
+    agentKey: string,
+    milestoneId: string,
+    branch: string,
+    iteration: number
+  ): Promise<void> {
+    const systemPrompt = role === 'developer' ? buildDeveloperSystemPrompt() : buildAcceptorSystemPrompt()
+    const firstMessage = role === 'developer'
+      ? buildDeveloperFirstMessage({ milestoneId, branch, iterationCount: iteration })
+      : buildAcceptorFirstMessage({ milestoneId, iterationCount: iteration })
+
+    await this.agent.run(agentKey, {
+      projectPath: this.projectPath,
+      systemPrompt,
+      firstMessage,
+      onEvent: (event) => this.handleAgentEvent(role, agentKey, event),
+    })
+  }
+
+  private async continueRole(
+    role: 'developer' | 'acceptor',
+    agentKey: string,
+    milestoneId: string
+  ): Promise<void> {
+    const message = buildContinueMessage(role, milestoneId)
+    await this.agent.continue(agentKey, message, (event) =>
+      this.handleAgentEvent(role, agentKey, event)
+    )
+  }
+
+  private handleAgentEvent(role: 'developer' | 'acceptor', agentKey: string, event: AgentEvent): void {
+    if (event.event === 'system') {
+      log.info(`${role} system event`, { sessionId: event.sessionId, agentKey })
+      this.notifier.broadcastAgentEvent(role, agentKey)
+      const sessionKey = role === 'developer' ? 'developerSessionId' : 'acceptorSessionId'
+      this.capturedSessionIds[sessionKey] = event.sessionId
+      this.capturedUsage.model = event.model || this.capturedUsage.model
+
+      const project = this.projectRepo.getById(this.projectId)
+      const cur = project?.currentIteration
+      if (cur) {
+        this.projectRepo.patch(this.projectId, {
+          currentIteration: { ...cur, [sessionKey]: event.sessionId },
+        })
+      }
+    }
+    if (event.event === 'done') {
+      this.accumulateUsage(event)
+    }
+  }
+
+  // ── AC checking ───────────────────────────────────────────────────────────
+
+  private isComplete(milestone: Milestone): boolean {
+    const ac = milestone.acceptanceCriteria
+    return ac.length > 0 && ac.every((a) => a.status === 'passed')
+  }
+
+  private refresh(milestone: Milestone): Milestone {
+    return this.milestoneRepo.getById(milestone.id) ?? milestone
   }
 
   /** Convert in_progress AC items to rejected after acceptor finishes */
   private finalizeAC(milestone: Milestone, iteration: number): void {
-    const latest = this.milestoneRepo.getById(this.projectId, milestone.id)
+    const latest = this.milestoneRepo.getById(milestone.id)
     if (!latest) return
     const updated = finalizeAcceptorCriteria(latest, iteration)
     if (updated) {
@@ -275,21 +259,11 @@ export class MilestoneExecutor {
     }
   }
 
-  /** Store acceptor feedback as a system comment for persistence */
-  private saveAcceptorComment(milestoneId: string, round: number, feedback: string): void {
-    if (!feedback) return
-    const now = nowISO()
-    this.commentRepo.add({
-      id: randomUUID(),
-      milestoneId,
-      body: `**Acceptor (Round ${round}):**\n\n${feedback}`,
-      author: 'system',
-      createdAt: now,
-      updatedAt: now,
-    })
-  }
+  // ── Error handling ────────────────────────────────────────────────────────
 
-  private handleBattleError(err: unknown, fallbackFeedback: string): BattleResult {
+  private handleIterationError(
+    err: unknown
+  ): { type: 'rejected' } | { type: 'rate_limited'; resetAt: string } {
     const msg = err instanceof Error ? err.message : String(err)
     if (isRateLimitError(msg)) {
       const resetAt = parseResetTime(msg)
@@ -298,11 +272,10 @@ export class MilestoneExecutor {
       this.broadcastStatus()
       this.notifier.notifyRateLimited(resetAt)
       this.onRateLimit(resetAt)
-      return { complete: false, rateLimited: true, resetAt }
+      return { type: 'rate_limited', resetAt }
     }
-    log.warn('battle error, moving to next iteration', { error: msg })
-    const errorFeedback = `[Previous iteration ended with an error: ${msg}]${fallbackFeedback ? `\n\n${fallbackFeedback}` : ''}`
-    return { complete: false, feedback: errorFeedback }
+    log.warn('iteration error, moving to next iteration', { error: msg })
+    return { type: 'rejected' }
   }
 
   // ── State transitions ─────────────────────────────────────────────────────

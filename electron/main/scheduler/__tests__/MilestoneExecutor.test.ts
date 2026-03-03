@@ -23,6 +23,10 @@ vi.mock('../../logger', () => ({
   }),
 }))
 
+vi.mock('../../mcp/mcpConfig', () => ({
+  ensureAnimaMcpConfig: vi.fn(),
+}))
+
 // Import after mocks
 const { MilestoneExecutor } = await import('../MilestoneExecutor')
 
@@ -137,11 +141,13 @@ function createExecutor(
   milestone: Milestone,
   overrides: { onRateLimit?: (r: string) => void; onComplete?: () => void } = {}
 ) {
-  const { projectRepo, milestoneRepo, commentRepo, gitService } = createMockRepos(milestone)
+  const { projectRepo, milestoneRepo, commentRepo, gitService, milestoneStore } = createMockRepos(milestone)
   return {
     executor: new MilestoneExecutor({
       projectId: 'proj-1',
       projectPath: '/test/project',
+      mcpServerPath: '/path/to/mcp-server.js',
+      dbPath: '/path/to/anima.db',
       notifier: mockNotifier as any,
       projectRepo: projectRepo as any,
       milestoneRepo: milestoneRepo as any,
@@ -154,33 +160,28 @@ function createExecutor(
     projectRepo,
     milestoneRepo,
     commentRepo,
+    milestoneStore,
   }
 }
 
-/** Helper: make acceptor emit all-passed TodoWrite */
-function accAllPassed(opts: any): string {
-  opts.onEvent({
-    event: 'tool_use',
-    toolName: 'TodoWrite',
-    toolInput: JSON.stringify({
-      todos: [{ id: 'ac1', content: 'Criterion met', status: 'completed' }],
-    }),
-    toolCallId: 'tc-1',
-  })
-  return 'All criteria met.'
+/** Helper: simulate all AC passed in DB after acceptor runs */
+function withAllACPassed(milestoneStore: { current: Milestone }, iteration: number): void {
+  milestoneStore.current = {
+    ...milestoneStore.current,
+    acceptanceCriteria: [
+      { title: 'Criterion met', status: 'passed', iteration },
+    ],
+  }
 }
 
-/** Helper: make acceptor emit incomplete TodoWrite */
-function accIncomplete(opts: any): string {
-  opts.onEvent({
-    event: 'tool_use',
-    toolName: 'TodoWrite',
-    toolInput: JSON.stringify({
-      todos: [{ id: 'ac1', content: 'Login works', status: 'pending' }],
-    }),
-    toolCallId: 'tc-1',
-  })
-  return 'Login button missing validation'
+/** Helper: simulate incomplete AC in DB after acceptor runs */
+function withIncompleteAC(milestoneStore: { current: Milestone }, iteration: number): void {
+  milestoneStore.current = {
+    ...milestoneStore.current,
+    acceptanceCriteria: [
+      { title: 'Login works', status: 'in_progress', iteration },
+    ],
+  }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -191,28 +192,38 @@ describe('MilestoneExecutor', () => {
   })
 
   describe('complete on first iteration', () => {
-    it('returns completed when acceptor passes all todos', async () => {
+    it('returns completed when all AC are passed in DB', async () => {
       const milestone = createMilestone()
-      mockAgentRun.mockImplementation(async (key: string, opts: any) => {
-        if (key.includes('-acc-')) return accAllPassed(opts)
-        return 'Implementation done. Commit: abc1234'
+      const { executor, milestoneStore } = createExecutor(milestone)
+
+      let accCalled = false
+      mockAgentRun.mockImplementation(async (key: string) => {
+        if (key.includes('-acc-')) {
+          accCalled = true
+          // Simulate acceptor updating AC via MCP
+          withAllACPassed(milestoneStore, 1)
+        }
+        return 'done'
       })
 
-      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
+      expect(accCalled).toBe(true)
       expect(mockNotifier.notifyMilestoneAwaitingReview).toHaveBeenCalledWith('m-1')
     })
 
     it('stops both agents after completion', async () => {
       const milestone = createMilestone()
-      mockAgentRun.mockImplementation(async (key: string, opts: any) => {
-        if (key.includes('-acc-')) return accAllPassed(opts)
+      const { executor, milestoneStore } = createExecutor(milestone)
+
+      mockAgentRun.mockImplementation(async (key: string) => {
+        if (key.includes('-acc-')) {
+          withAllACPassed(milestoneStore, 1)
+        }
         return 'done'
       })
 
-      const { executor } = createExecutor(milestone)
       await executor.execute(milestone)
 
       expect(mockAgentStop).toHaveBeenCalledTimes(2)
@@ -225,50 +236,48 @@ describe('MilestoneExecutor', () => {
   describe('multi-round relay within single iteration', () => {
     it('relays messages between dev and acc via continue()', async () => {
       const milestone = createMilestone()
+      const { executor, milestoneStore } = createExecutor(milestone)
 
-      mockAgentRun.mockImplementation(async (key: string, opts: any) => {
-        if (key.includes('-acc-')) return accIncomplete(opts)
-        return 'Implementation done'
-      })
-
-      mockAgentContinue.mockResolvedValueOnce('Fixed validation. Commit: def5678')
-      mockAgentContinue.mockImplementation(async (_key: string, _msg: string, onEvent?: any) => {
-        if (onEvent) {
-          onEvent({
-            event: 'tool_use',
-            toolName: 'TodoWrite',
-            toolInput: JSON.stringify({
-              todos: [{ id: 'ac1', content: 'Login works', status: 'completed' }],
-            }),
-            toolCallId: 'tc-2',
-          })
+      // Round 1: acceptor finds issues
+      mockAgentRun.mockImplementation(async (key: string) => {
+        if (key.includes('-acc-')) {
+          withIncompleteAC(milestoneStore, 1)
         }
-        return 'All good.'
+        return 'done'
       })
 
-      const { executor } = createExecutor(milestone)
+      // Round 2: acceptor passes all
+      mockAgentContinue.mockImplementation(async (key: string) => {
+        if (key.includes('-acc-')) {
+          withAllACPassed(milestoneStore, 1)
+        }
+        return 'done'
+      })
+
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
-      expect(mockAgentContinue).toHaveBeenCalledTimes(2)
+      expect(mockAgentContinue).toHaveBeenCalledTimes(2) // dev continue + acc continue
     })
   })
 
   describe('error handling — no retry, next iteration', () => {
     it('moves to next iteration when developer crashes', async () => {
       const milestone = createMilestone()
+      const { executor, milestoneStore } = createExecutor(milestone)
 
       let devRunCount = 0
-      mockAgentRun.mockImplementation(async (key: string, opts: any) => {
+      mockAgentRun.mockImplementation(async (key: string) => {
         if (key.includes('-dev-')) {
           devRunCount++
           if (devRunCount === 1) throw new Error('Agent crashed')
           return 'Implementation done'
         }
-        return accAllPassed(opts)
+        // acceptor
+        withAllACPassed(milestoneStore, 2)
+        return 'done'
       })
 
-      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
@@ -277,18 +286,18 @@ describe('MilestoneExecutor', () => {
 
     it('moves to next iteration when acceptor crashes', async () => {
       const milestone = createMilestone()
+      const { executor, milestoneStore } = createExecutor(milestone)
 
       let accRunCount = 0
-      mockAgentRun.mockImplementation(async (key: string, opts: any) => {
+      mockAgentRun.mockImplementation(async (key: string) => {
         if (key.includes('-acc-')) {
           accRunCount++
           if (accRunCount === 1) throw new Error('Acceptor crashed')
-          return accAllPassed(opts)
+          withAllACPassed(milestoneStore, 2)
         }
-        return 'Implementation done'
+        return 'done'
       })
 
-      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
@@ -335,6 +344,8 @@ describe('MilestoneExecutor', () => {
       const executor = new MilestoneExecutor({
         projectId: 'proj-1',
         projectPath: '/test/project',
+        mcpServerPath: '/path/to/mcp-server.js',
+        dbPath: '/path/to/anima.db',
         notifier: mockNotifier as any,
         projectRepo: projectRepo as any,
         milestoneRepo: milestoneRepo as any,
@@ -369,13 +380,15 @@ describe('MilestoneExecutor', () => {
   describe('agentKey format', () => {
     it('includes projectId, milestoneId, role, and round in agent keys', async () => {
       const milestone = createMilestone()
+      const { executor, milestoneStore } = createExecutor(milestone)
 
-      mockAgentRun.mockImplementation(async (key: string, opts: any) => {
-        if (key.includes('-acc-')) return accAllPassed(opts)
+      mockAgentRun.mockImplementation(async (key: string) => {
+        if (key.includes('-acc-')) {
+          withAllACPassed(milestoneStore, 1)
+        }
         return 'done'
       })
 
-      const { executor } = createExecutor(milestone)
       await executor.execute(milestone)
 
       const runKeys = mockAgentRun.mock.calls.map((c) => c[0] as string)
@@ -385,7 +398,7 @@ describe('MilestoneExecutor', () => {
   })
 
   describe('agent cleanup on error', () => {
-    it('stops both agents even when battle errors', async () => {
+    it('stops both agents even when iteration errors', async () => {
       const milestone = createMilestone({ iterations: createIterations(19) })
 
       mockAgentRun.mockRejectedValue(new Error('unexpected crash'))
@@ -397,31 +410,23 @@ describe('MilestoneExecutor', () => {
     })
   })
 
-  describe('feedback relay across iterations', () => {
-    it('carries acceptor feedback to next iteration developer message', async () => {
+  describe('isComplete checks DB', () => {
+    it('completes when all AC in DB are passed after developer run', async () => {
       const milestone = createMilestone()
+      const { executor, milestoneStore } = createExecutor(milestone)
 
-      const iterDevMessages: string[] = []
-      let battleCount = 0
-
-      mockAgentRun.mockImplementation(async (key: string, opts: any) => {
+      // Developer updates AC to all passed via MCP
+      mockAgentRun.mockImplementation(async (key: string) => {
         if (key.includes('-dev-')) {
-          iterDevMessages.push(opts.firstMessage)
-          return 'Implementation done'
+          withAllACPassed(milestoneStore, 1)
         }
-        battleCount++
-        if (battleCount === 1) return accIncomplete(opts)
-        return accAllPassed(opts)
+        return 'done'
       })
 
-      mockAgentContinue.mockResolvedValue('Login button missing validation')
-
-      const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
+      // Should complete after developer without needing acceptor
       expect(result.outcome).toBe('completed')
-      expect(iterDevMessages.length).toBe(2)
-      expect(iterDevMessages[1]).toContain('Login button missing validation')
     })
   })
 })

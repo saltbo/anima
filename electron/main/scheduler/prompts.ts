@@ -1,12 +1,10 @@
-import type { Milestone } from '../../../src/types/index'
-
 export function buildDeveloperSystemPrompt(): string {
   return (
     'You are an expert software developer. ' +
     'You implement features precisely as specified in the milestone definition. ' +
-    'Use TodoWrite to plan your work before implementing. ' +
+    'Use the Anima MCP tools to read your milestone and update task progress. ' +
     'Commit your changes with conventional commit messages. ' +
-    'When done, output a concise implementation report listing what was done and the commit hash(es).'
+    'When done, use the add_comment tool to post an implementation report listing what was done and the commit hash(es).'
   )
 }
 
@@ -18,109 +16,74 @@ export function buildAcceptorSystemPrompt(): string {
     'If the project has MCP tools available (e.g. Playwright MCP for web apps), ' +
     'use them to simulate real user interactions: navigate pages, click buttons, fill forms, ' +
     'and verify the actual runtime behavior matches acceptance criteria. ' +
-    'Use TodoWrite to create one todo per acceptance criterion you are checking. ' +
-    'Mark each todo as: completed = criterion fully met, ' +
+    'Use the Anima MCP tools to read the milestone and update acceptance criteria status. ' +
+    'Mark each criterion as: passed = criterion fully met, ' +
     'in_progress = criterion checked but NOT met, ' +
-    'pending = not yet checked.'
+    'pending = not yet checked. ' +
+    'Use add_comment to post your review feedback.'
   )
 }
 
-export interface DeveloperContextInput {
-  projectPath: string
-  branch: string
+export interface DeveloperMessageInput {
   milestoneId: string
-  milestoneTitle: string
-  milestoneDescription: string
+  branch: string
   iterationCount: number
-  commitLog: string
-  hasUncommitted: boolean
-  remainingFeedback: string
 }
 
-export function buildDeveloperFirstMessage(input: DeveloperContextInput): string {
-  const sections: string[] = [
+export function buildDeveloperFirstMessage(input: DeveloperMessageInput): string {
+  return [
     `## Your Context`,
+    `- Milestone ID: ${input.milestoneId}`,
     `- Current branch: ${input.branch}`,
     `- Iteration: ${input.iterationCount}`,
     ``,
-    `## Project Files to Read First`,
-    `- ${input.projectPath}/.anima/soul.md`,
-    `- ${input.projectPath}/.anima/milestones/${input.milestoneId}.md`,
-    ``,
-    `## Milestone: ${input.milestoneTitle}`,
-    input.milestoneDescription,
-    ``,
-    `## Previous Work (git log)`,
-    input.commitLog || '(no commits yet)',
-  ]
-
-  if (input.hasUncommitted) {
-    sections.push(``, `## Note`, `There are uncommitted changes from the previous iteration. Review and handle them.`)
-  }
-
-  if (input.remainingFeedback) {
-    sections.push(``, `## Acceptor Feedback from Previous Round`, input.remainingFeedback)
-  }
-
-  sections.push(
-    ``,
     `## Your Task`,
-    `1. Read the milestone file and analyze what remains to be done`,
-    `2. Use TodoWrite to create your implementation plan for this iteration`,
-    `3. Implement the planned features`,
-    `4. Commit with conventional commit format to branch ${input.branch}`,
-    `5. Send an implementation report: what was done + commit hash(es)`
-  )
-
-  return sections.join('\n')
+    `1. Use \`get_milestone("${input.milestoneId}")\` to read the milestone details and acceptance criteria`,
+    `2. Use \`list_comments("${input.milestoneId}")\` to read any previous feedback from the acceptor`,
+    `3. Analyze what remains to be done based on the milestone and feedback`,
+    `4. Use \`update_tasks\` to plan and track your implementation tasks`,
+    `5. Implement the planned features`,
+    `6. Commit with conventional commit format to branch \`${input.branch}\``,
+    `7. Use \`add_comment\` to post an implementation report: what was done + commit hash(es)`,
+  ].join('\n')
 }
 
-export function buildAcceptorMessage(
-  milestone: Milestone,
-  developerReport: string,
-  iterationCount: number,
-  projectPath: string
-): string {
-  const sections: string[] = [
+export interface AcceptorMessageInput {
+  milestoneId: string
+  iterationCount: number
+}
+
+export function buildAcceptorFirstMessage(input: AcceptorMessageInput): string {
+  return [
     `## Your Context`,
-    `- Milestone: ${milestone.title}`,
-    `- Iteration: ${iterationCount}`,
-    ``,
-    `## Files to Review`,
-    `- ${projectPath}/.anima/soul.md (coding standards)`,
-    `- ${projectPath}/.anima/milestones/${milestone.id}.md (acceptance criteria)`,
-    ``,
-    `## Developer's Implementation Report`,
-    developerReport,
+    `- Milestone ID: ${input.milestoneId}`,
+    `- Iteration: ${input.iterationCount}`,
     ``,
     `## Your Task`,
-    `1. Use TodoWrite to create one todo per acceptance criterion`,
-    `2. Use git show / git diff to verify actual code changes`,
-    `3. Perform functional testing: if MCP tools are available (e.g. Playwright MCP for web projects), use them to simulate real user interactions — navigate, click, fill forms, and verify runtime behavior`,
-    `4. Update each todo: completed = passed, in_progress = checked but NOT met, pending = not yet checked`,
-    `5. For any failing criteria, describe the specific issues in your response`,
-  ]
-  return sections.join('\n')
+    `1. Use \`get_milestone("${input.milestoneId}")\` to read the milestone details and acceptance criteria`,
+    `2. Use \`list_comments("${input.milestoneId}")\` to read the developer's implementation report`,
+    `3. Use git show / git diff to verify actual code changes`,
+    `4. Perform functional testing: if MCP tools are available (e.g. Playwright MCP), use them to simulate real user interactions`,
+    `5. Use \`update_acceptance_criteria\` to set each criterion's status: passed, in_progress (not met), or pending (not checked)`,
+    `6. Use \`add_comment\` to post your review feedback describing any issues found`,
+  ].join('\n')
 }
 
-export function buildDeveloperFixMessage(acceptorFeedback: string): string {
-  return (
-    `## Acceptor Feedback\n\n${acceptorFeedback}\n\n` +
-    `## Your Task\n` +
-    `Fix the issues listed above. ` +
-    `Commit your changes and send a new implementation report.`
-  )
-}
-
-export function buildAcceptorFollowUpMessage(developerReport: string, round: number): string {
-  const sections: string[] = [
-    `## Developer Fix Report (Round ${round})`,
-    developerReport,
-    ``,
-    `## Your Task`,
-    `1. Update your TodoWrite checklist based on the developer's new changes`,
-    `2. Verify the fixes address the issues you previously raised`,
-    `3. For any remaining failures, describe the specific issues in your response`,
-  ]
-  return sections.join('\n')
+export function buildContinueMessage(role: 'developer' | 'acceptor', milestoneId: string): string {
+  if (role === 'developer') {
+    return [
+      `The acceptor has posted new feedback. Please:`,
+      `1. Use \`list_comments("${milestoneId}")\` to read the latest feedback`,
+      `2. Fix the issues raised`,
+      `3. Commit your changes`,
+      `4. Use \`add_comment\` to post an updated implementation report`,
+    ].join('\n')
+  }
+  return [
+    `The developer has posted fixes. Please:`,
+    `1. Use \`list_comments("${milestoneId}")\` to read the developer's latest report`,
+    `2. Re-verify the acceptance criteria against the new changes`,
+    `3. Use \`update_acceptance_criteria\` to update the status of each criterion`,
+    `4. Use \`add_comment\` to post your updated review feedback`,
+  ].join('\n')
 }

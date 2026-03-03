@@ -98,8 +98,11 @@ app.whenReady().then(() => {
     () => schedulerService!
   )
   const setupService = new SetupService(conversationAgent)
+  const mcpServerPath = join(__dirname, 'mcp-server.js')
+  const dbPath = join(app.getPath('userData'), 'anima.db')
   schedulerService = new SchedulerService(
-    projectRepo, milestoneRepo, commentRepo, gitService, conversationAgent, getWindow
+    projectRepo, milestoneRepo, commentRepo, gitService, conversationAgent, getWindow,
+    mcpServerPath, dbPath
   )
 
   // ── Wire up ───────────────────────────────────────────────────────────

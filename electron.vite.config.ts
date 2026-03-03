@@ -9,6 +9,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main/index.ts'),
+          'mcp-server': resolve(__dirname, 'electron/main/mcp/server.ts'),
         },
       },
     },

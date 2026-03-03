@@ -3,165 +3,73 @@ import {
   buildDeveloperSystemPrompt,
   buildAcceptorSystemPrompt,
   buildDeveloperFirstMessage,
-  buildAcceptorMessage,
-  buildDeveloperFixMessage,
-  buildAcceptorFollowUpMessage,
+  buildAcceptorFirstMessage,
+  buildContinueMessage,
 } from '../prompts'
 
 describe('buildDeveloperSystemPrompt', () => {
-  it('returns a non-empty string mentioning TodoWrite', () => {
+  it('references MCP tools instead of TodoWrite', () => {
     const prompt = buildDeveloperSystemPrompt()
-    expect(prompt).toContain('TodoWrite')
+    expect(prompt).toContain('Anima MCP tools')
+    expect(prompt).toContain('add_comment')
     expect(prompt).toContain('developer')
   })
 })
 
 describe('buildAcceptorSystemPrompt', () => {
-  it('returns a string mentioning TodoWrite status semantics', () => {
+  it('references MCP tools and status semantics', () => {
     const prompt = buildAcceptorSystemPrompt()
-    expect(prompt).toContain('completed')
+    expect(prompt).toContain('passed')
     expect(prompt).toContain('in_progress')
     expect(prompt).toContain('functional testing')
+    expect(prompt).toContain('Anima MCP tools')
+    expect(prompt).toContain('acceptance criteria')
   })
 })
 
 describe('buildDeveloperFirstMessage', () => {
-  it('includes branch, iteration count, and milestone info', () => {
+  it('includes milestone ID, branch, and iteration count', () => {
     const msg = buildDeveloperFirstMessage({
-      projectPath: '/test/project',
-      branch: 'milestone/m-1',
       milestoneId: 'm-1',
-      milestoneTitle: 'Add auth',
-      milestoneDescription: 'Implement login/signup',
+      branch: 'milestone/m-1',
       iterationCount: 3,
-      commitLog: 'abc1234 feat: add login form',
-      hasUncommitted: false,
-      remainingFeedback: '',
     })
 
     expect(msg).toContain('milestone/m-1')
     expect(msg).toContain('Iteration: 3')
-    expect(msg).toContain('Add auth')
-    expect(msg).toContain('Implement login/signup')
-    expect(msg).toContain('abc1234 feat: add login form')
-    expect(msg).toContain('.anima/milestones/m-1.md')
+    expect(msg).toContain('m-1')
+    expect(msg).toContain('get_milestone')
+    expect(msg).toContain('list_comments')
   })
+})
 
-  it('shows no commits placeholder when commitLog is empty', () => {
-    const msg = buildDeveloperFirstMessage({
-      projectPath: '/test/project',
-      branch: 'milestone/m-2',
-      milestoneId: 'm-2',
-      milestoneTitle: 'Test',
-      milestoneDescription: 'desc',
-      iterationCount: 1,
-      commitLog: '',
-      hasUncommitted: false,
-      remainingFeedback: '',
-    })
-
-    expect(msg).toContain('(no commits yet)')
-  })
-
-  it('includes uncommitted changes note when present', () => {
-    const msg = buildDeveloperFirstMessage({
-      projectPath: '/test/project',
-      branch: 'milestone/m-3',
-      milestoneId: 'm-3',
-      milestoneTitle: 'Test',
-      milestoneDescription: 'desc',
-      iterationCount: 1,
-      commitLog: '',
-      hasUncommitted: true,
-      remainingFeedback: '',
-    })
-
-    expect(msg).toContain('uncommitted changes')
-  })
-
-  it('includes acceptor feedback when provided', () => {
-    const msg = buildDeveloperFirstMessage({
-      projectPath: '/test/project',
-      branch: 'milestone/m-4',
-      milestoneId: 'm-4',
-      milestoneTitle: 'Test',
-      milestoneDescription: 'desc',
+describe('buildAcceptorFirstMessage', () => {
+  it('includes milestone ID and iteration count', () => {
+    const msg = buildAcceptorFirstMessage({
+      milestoneId: 'm-1',
       iterationCount: 2,
-      commitLog: '',
-      hasUncommitted: false,
-      remainingFeedback: 'Login button is missing validation',
     })
 
-    expect(msg).toContain('Acceptor Feedback from Previous Round')
-    expect(msg).toContain('Login button is missing validation')
-  })
-
-  it('does not include feedback section when empty', () => {
-    const msg = buildDeveloperFirstMessage({
-      projectPath: '/test/project',
-      branch: 'milestone/m-5',
-      milestoneId: 'm-5',
-      milestoneTitle: 'Test',
-      milestoneDescription: 'desc',
-      iterationCount: 1,
-      commitLog: '',
-      hasUncommitted: false,
-      remainingFeedback: '',
-    })
-
-    expect(msg).not.toContain('Acceptor Feedback')
-  })
-})
-
-describe('buildAcceptorMessage', () => {
-  const milestone = {
-    id: 'm-1',
-    title: 'Add auth',
-    description: 'Implement login',
-    status: 'in-progress' as const,
-    acceptanceCriteria: [],
-    tasks: [],
-
-    createdAt: '2026-01-01',
-    iterationCount: 1,
-    iterations: [],
-  }
-
-  it('includes milestone title and developer report', () => {
-    const msg = buildAcceptorMessage(milestone, 'I added login form. Commit: abc1234', 2, '/test/project')
-
-    expect(msg).toContain('Add auth')
+    expect(msg).toContain('m-1')
     expect(msg).toContain('Iteration: 2')
-    expect(msg).toContain('I added login form. Commit: abc1234')
-    expect(msg).toContain('.anima/milestones/m-1.md')
+    expect(msg).toContain('get_milestone')
+    expect(msg).toContain('update_acceptance_criteria')
   })
 })
 
-describe('buildDeveloperFixMessage', () => {
-  it('includes feedback and fix instructions', () => {
-    const msg = buildDeveloperFixMessage('Missing error handling on form submit')
+describe('buildContinueMessage', () => {
+  it('developer continue references list_comments and add_comment', () => {
+    const msg = buildContinueMessage('developer', 'm-1')
 
-    expect(msg).toContain('Acceptor Feedback')
-    expect(msg).toContain('Missing error handling on form submit')
-    expect(msg).toContain('Fix the issues')
-  })
-})
-
-describe('buildAcceptorFollowUpMessage', () => {
-  it('includes developer report and round number', () => {
-    const msg = buildAcceptorFollowUpMessage('Fixed validation. Commit: def5678', 2)
-
-    expect(msg).toContain('Developer Fix Report (Round 2)')
-    expect(msg).toContain('Fixed validation. Commit: def5678')
-    expect(msg).toContain('TodoWrite')
+    expect(msg).toContain('list_comments')
+    expect(msg).toContain('add_comment')
+    expect(msg).toContain('Fix')
   })
 
-  it('does not repeat full context from first round', () => {
-    const msg = buildAcceptorFollowUpMessage('Report', 3)
+  it('acceptor continue references list_comments and update_acceptance_criteria', () => {
+    const msg = buildContinueMessage('acceptor', 'm-1')
 
-    // Should not include the initial context sections
-    expect(msg).not.toContain('Files to Review')
-    expect(msg).not.toContain('soul.md')
-    expect(msg).toContain('Round 3')
+    expect(msg).toContain('list_comments')
+    expect(msg).toContain('update_acceptance_criteria')
   })
 })
