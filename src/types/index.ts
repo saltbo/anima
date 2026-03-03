@@ -108,3 +108,19 @@ export interface MilestoneGitInfo {
   commitCount: number
   diffStats: { filesChanged: number; insertions: number; deletions: number }
 }
+
+// ── Milestone state machine ──────────────────────────────────────────────────
+
+export type MilestoneAction =
+  | 'mark_ready'
+  | 'approve'
+  | 'cancel'
+  | 'accept'
+  | 'request_changes'
+  | 'rollback'
+  | 'reopen'
+
+export interface TransitionPayload {
+  action: MilestoneAction
+  comment?: { id: string; body: string }
+}

@@ -3,12 +3,14 @@ import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
 import { nowISO } from '../lib/time'
-import type { Milestone, MilestoneTask, InboxItem } from '../../../src/types/index'
+import type { Milestone, MilestoneTask, InboxItem, TransitionPayload } from '../../../src/types/index'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { InboxRepository } from '../repositories/InboxRepository'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { ConversationAgent, TaskAgent } from './types'
+import { validateTransition } from './milestoneTransitions'
+import type { SchedulerService } from './SchedulerService'
 
 // Capability boundary: agent reads anything, writes only to its designated milestone file.
 const MILESTONE_PLANNING_ROLE =
@@ -94,6 +96,8 @@ function milestoneDraftMdPath(projectPath: string, id: string): string {
 }
 
 export class MilestoneService {
+  private getSchedulerService: () => SchedulerService
+
   constructor(
     private milestoneRepo: MilestoneRepository,
     private inboxRepo: InboxRepository,
@@ -101,8 +105,11 @@ export class MilestoneService {
     private commentRepo: CommentRepository,
     private conversationAgent: ConversationAgent,
     private taskAgent: TaskAgent,
-    private getWindow: () => BrowserWindow | null
-  ) {}
+    private getWindow: () => BrowserWindow | null,
+    getSchedulerService: () => SchedulerService
+  ) {
+    this.getSchedulerService = getSchedulerService
+  }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +118,13 @@ export class MilestoneService {
   }
 
   saveMilestone(projectId: string, milestone: Milestone): void {
-    this.milestoneRepo.save(projectId, milestone)
+    const existing = this.milestoneRepo.getById(milestone.id)
+    if (existing) {
+      // Preserve status — status changes must go through transition()
+      this.milestoneRepo.save(projectId, { ...milestone, status: existing.status })
+    } else {
+      this.milestoneRepo.save(projectId, milestone)
+    }
   }
 
   deleteMilestone(projectId: string, id: string): void {
@@ -141,6 +154,28 @@ export class MilestoneService {
     const projectPath = this.resolvePath(projectId)
     if (!projectPath) return
     fs.writeFileSync(milestoneMdPath(projectPath, id), content, 'utf8')
+  }
+
+  // ── State transitions ───────────────────────────────────────────────────────
+
+  async transition(projectId: string, milestoneId: string, payload: TransitionPayload): Promise<void> {
+    const milestone = this.milestoneRepo.getById(milestoneId)
+    if (!milestone) throw new Error(`Milestone not found: ${milestoneId}`)
+
+    const rule = validateTransition(milestone.status, payload.action)
+    if (!rule) {
+      throw new Error(`Invalid transition: ${milestone.status} → ${payload.action}`)
+    }
+
+    if (rule.needsScheduler) {
+      await this.getSchedulerService().transitionMilestone(projectId, milestoneId, payload)
+    } else {
+      this.milestoneRepo.save(projectId, { ...milestone, status: rule.to })
+      this.getWindow()?.webContents.send('milestones:updated', {
+        projectId,
+        milestone: { ...milestone, status: rule.to },
+      })
+    }
   }
 
   // ── Agent orchestration ───────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import type { Project, InboxItem, Milestone, MilestoneTask, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo } from './index'
+import type { Project, InboxItem, Milestone, MilestoneTask, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload } from './index'
 import type { AgentEvent } from './agent'
 
 export type AgentRole = 'developer' | 'acceptor'
@@ -70,10 +70,7 @@ declare global {
       wakeProject: (projectId: string) => Promise<void>
       updateWakeSchedule: (projectId: string, schedule: WakeSchedule) => Promise<void>
       updateAutoMerge: (projectId: string, autoMerge: boolean) => Promise<void>
-      cancelMilestone: (projectId: string, milestoneId: string) => Promise<void>
-      acceptMilestone: (projectId: string, milestoneId: string) => Promise<void>
-      rollbackMilestone: (projectId: string, milestoneId: string) => Promise<void>
-      requestChanges: (projectId: string, milestoneId: string, comment: { id: string; body: string }) => Promise<void>
+      transitionMilestone: (projectId: string, milestoneId: string, payload: TransitionPayload) => Promise<void>
       getMilestoneGitStatus: (projectId: string, milestoneId: string) => Promise<MilestoneGitInfo | null>
       getMilestoneComments: (milestoneId: string) => Promise<MilestoneComment[]>
       addMilestoneComment: (comment: MilestoneComment) => Promise<void>

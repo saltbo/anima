@@ -22,7 +22,7 @@ import { useProjects } from '@/store/projects'
 import { AgentChat } from '@/components/AgentChat'
 import { timeAgo, formatElapsed, formatTime, nowISO } from '@/lib/time'
 import type { ProjectIterationStatus } from '@/types/electron.d'
-import type { Milestone, InboxItem, ProjectStatus, Iteration, IterationOutcome, MilestoneComment, MilestoneGitInfo } from '@/types/index'
+import type { Milestone, InboxItem, ProjectStatus, Iteration, IterationOutcome, MilestoneComment, MilestoneGitInfo, MilestoneAction } from '@/types/index'
 
 const TYPE_STYLES: Record<string, string> = {
   idea: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
@@ -314,16 +314,9 @@ export function MilestoneDetail() {
 
   const handleMarkReady = async () => {
     if (!project || !milestone) return
-    const updated: Milestone = { ...milestone, status: 'ready' }
-    await window.electronAPI.saveMilestone(project.id, updated)
-    setMilestone(updated)
-  }
-
-  const handleMarkCompleted = async () => {
-    if (!project || !milestone) return
-    const updated: Milestone = { ...milestone, status: 'completed', completedAt: nowISO() }
-    await window.electronAPI.saveMilestone(project.id, updated)
-    setMilestone(updated)
+    const action: MilestoneAction = milestone.status === 'reviewed' ? 'approve' : 'mark_ready'
+    await window.electronAPI.transitionMilestone(project.id, milestone.id, { action })
+    setMilestone({ ...milestone, status: 'ready' })
   }
 
   const handleSaveMarkdown = async () => {
@@ -341,16 +334,15 @@ export function MilestoneDetail() {
 
   const handleCancel = async () => {
     if (!project || !milestone) return
-    await window.electronAPI.cancelMilestone(project.id, milestone.id)
+    await window.electronAPI.transitionMilestone(project.id, milestone.id, { action: 'cancel' })
     setMilestone({ ...milestone, status: 'cancelled' })
     setCancelOpen(false)
   }
 
-  const handleEditCancelled = async () => {
+  const handleReopen = async () => {
     if (!project || !milestone) return
-    const updated: Milestone = { ...milestone, status: 'draft' }
-    await window.electronAPI.saveMilestone(project.id, updated)
-    setMilestone(updated)
+    await window.electronAPI.transitionMilestone(project.id, milestone.id, { action: 'reopen' })
+    setMilestone({ ...milestone, status: 'draft' })
   }
 
   const handleWake = () => {
@@ -359,18 +351,18 @@ export function MilestoneDetail() {
 
   const handleCancelIteration = () => {
     if (!id || !mid || !project) return
-    window.electronAPI.cancelMilestone(id, mid)
+    window.electronAPI.transitionMilestone(id, mid, { action: 'cancel' })
   }
 
   const handleAcceptMerge = async () => {
     if (!project || !milestone) return
-    await window.electronAPI.acceptMilestone(project.id, milestone.id)
+    await window.electronAPI.transitionMilestone(project.id, milestone.id, { action: 'accept' })
     setMilestone({ ...milestone, status: 'completed', completedAt: nowISO() })
   }
 
   const handleRollback = async () => {
     if (!project || !milestone) return
-    await window.electronAPI.rollbackMilestone(project.id, milestone.id)
+    await window.electronAPI.transitionMilestone(project.id, milestone.id, { action: 'rollback' })
     setMilestone({ ...milestone, status: 'ready', iterationCount: 0 })
     setRollbackOpen(false)
   }
@@ -378,7 +370,10 @@ export function MilestoneDetail() {
   const handleRequestChanges = async () => {
     if (!project || !milestone || !requestChangesText.trim()) return
     const commentId = crypto.randomUUID()
-    await window.electronAPI.requestChanges(project.id, milestone.id, { id: commentId, body: requestChangesText.trim() })
+    await window.electronAPI.transitionMilestone(project.id, milestone.id, {
+      action: 'request_changes',
+      comment: { id: commentId, body: requestChangesText.trim() },
+    })
     setComments([...comments, {
       id: commentId,
       milestoneId: milestone.id,
@@ -476,11 +471,6 @@ export function MilestoneDetail() {
               Approve <ArrowRight size={12} />
             </Button>
           )}
-          {allDone && milestone.status !== 'completed' && (
-            <Button size="sm" className="h-7 text-xs gap-1 cursor-pointer" onClick={handleMarkCompleted}>
-              Mark Completed <ArrowRight size={12} />
-            </Button>
-          )}
           {isAwaitingReview && (
             <>
               <Button size="sm" className="h-7 text-xs gap-1.5 cursor-pointer bg-green-600 hover:bg-green-700 text-white" onClick={handleAcceptMerge}>
@@ -505,9 +495,9 @@ export function MilestoneDetail() {
           )}
           {isCancelled && (
             <>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleEditCancelled}>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={handleReopen}>
                 <Pencil size={12} />
-                Edit
+                Reopen
               </Button>
               {milestone.baseCommit && (
                 <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 cursor-pointer text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => setRollbackOpen(true)}>

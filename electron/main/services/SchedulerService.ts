@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { ProjectScheduler } from '../scheduler/ProjectScheduler'
-import type { Project, WakeSchedule, MilestoneGitInfo } from '../../../src/types/index'
+import type { Project, WakeSchedule, MilestoneGitInfo, TransitionPayload } from '../../../src/types/index'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
@@ -67,20 +67,13 @@ export class SchedulerService {
     this.schedulers.get(projectId)?.updateSchedule(schedule)
   }
 
-  cancelMilestone(projectId: string, milestoneId: string): void {
-    this.schedulers.get(projectId)?.cancelMilestone(milestoneId)
-  }
-
-  async acceptMilestone(projectId: string, milestoneId: string): Promise<void> {
-    await this.schedulers.get(projectId)?.acceptMilestone(milestoneId)
-  }
-
-  async rollbackMilestone(projectId: string, milestoneId: string): Promise<void> {
-    await this.schedulers.get(projectId)?.rollbackMilestone(milestoneId)
-  }
-
-  requestChanges(projectId: string, milestoneId: string, comment: { id: string; body: string }): void {
-    this.schedulers.get(projectId)?.requestChanges(milestoneId, comment)
+  async transitionMilestone(projectId: string, milestoneId: string, payload: TransitionPayload): Promise<void> {
+    const scheduler = this.schedulers.get(projectId)
+    if (!scheduler) {
+      log.warn('no scheduler for project', { project: projectId })
+      return
+    }
+    await scheduler.handleTransition(milestoneId, payload)
   }
 
   async getMilestoneGitStatus(projectId: string, milestoneId: string): Promise<MilestoneGitInfo | null> {

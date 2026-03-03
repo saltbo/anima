@@ -1,6 +1,6 @@
 import type { ServiceContext } from './index'
 import { safeHandle } from './safeHandle'
-import type { Milestone, MilestoneTask } from '../../../src/types/index'
+import type { Milestone, MilestoneTask, TransitionPayload } from '../../../src/types/index'
 
 export function registerMilestonesIPC(ctx: ServiceContext): void {
   const { milestoneService } = ctx
@@ -31,5 +31,9 @@ export function registerMilestonesIPC(ctx: ServiceContext): void {
 
   safeHandle('milestones:startPlanning', (_, id: string, projectId: string, inboxItemIds: string[], title: string, description: string) => {
     milestoneService.startPlanningSession(id, projectId, inboxItemIds, title, description)
+  })
+
+  safeHandle('milestones:transition', async (_, projectId: string, milestoneId: string, payload: TransitionPayload) => {
+    await milestoneService.transition(projectId, milestoneId, payload)
   })
 }

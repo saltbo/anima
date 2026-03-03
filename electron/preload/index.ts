@@ -104,14 +104,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('project:updateSchedule', projectId, schedule),
   updateAutoMerge: (projectId: string, autoMerge: boolean) =>
     ipcRenderer.invoke('project:updateAutoMerge', projectId, autoMerge),
-  cancelMilestone: (projectId: string, milestoneId: string) =>
-    ipcRenderer.invoke('milestone:cancel', projectId, milestoneId),
-  acceptMilestone: (projectId: string, milestoneId: string) =>
-    ipcRenderer.invoke('milestone:accept', projectId, milestoneId),
-  rollbackMilestone: (projectId: string, milestoneId: string) =>
-    ipcRenderer.invoke('milestone:rollback', projectId, milestoneId),
-  requestChanges: (projectId: string, milestoneId: string, comment: { id: string; body: string }) =>
-    ipcRenderer.invoke('milestone:requestChanges', projectId, milestoneId, comment),
+  transitionMilestone: (projectId: string, milestoneId: string, payload: { action: string; comment?: { id: string; body: string } }) =>
+    ipcRenderer.invoke('milestones:transition', projectId, milestoneId, payload),
   getMilestoneGitStatus: (projectId: string, milestoneId: string) =>
     ipcRenderer.invoke('milestone:gitStatus', projectId, milestoneId),
   getMilestoneComments: (milestoneId: string) =>

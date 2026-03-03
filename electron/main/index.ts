@@ -94,7 +94,8 @@ app.whenReady().then(() => {
   const inboxService = new InboxService(inboxRepo)
   const milestoneService = new MilestoneService(
     milestoneRepo, inboxRepo, projectRepo, commentRepo,
-    conversationAgent, taskAgent, getWindow
+    conversationAgent, taskAgent, getWindow,
+    () => schedulerService!
   )
   const setupService = new SetupService(conversationAgent)
   schedulerService = new SchedulerService(

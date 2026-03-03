@@ -6,7 +6,7 @@ import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { GitService } from '../services/GitService'
-import type { Milestone, WakeSchedule } from '../../../src/types/index'
+import type { Milestone, WakeSchedule, TransitionPayload } from '../../../src/types/index'
 import { Notifier } from './notifier'
 import { calculateNextWake } from './wakeScheduler'
 import { MilestoneExecutor } from './MilestoneExecutor'
@@ -76,7 +76,29 @@ export class ProjectScheduler {
     this.scheduleCheck(0)
   }
 
-  cancelMilestone(milestoneId: string): void {
+  // ── Transition dispatcher ───────────────────────────────────────────────
+
+  async handleTransition(milestoneId: string, payload: TransitionPayload): Promise<void> {
+    switch (payload.action) {
+      case 'cancel':
+        this.cancelMilestone(milestoneId)
+        break
+      case 'accept':
+        await this.acceptMilestone(milestoneId)
+        break
+      case 'rollback':
+        await this.rollbackMilestone(milestoneId)
+        break
+      case 'request_changes':
+        if (!payload.comment) throw new Error('request_changes requires a comment')
+        this.requestChanges(milestoneId, payload.comment)
+        break
+      default:
+        throw new Error(`Unsupported scheduler action: ${payload.action}`)
+    }
+  }
+
+  private cancelMilestone(milestoneId: string): void {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone) return
 
@@ -106,7 +128,7 @@ export class ProjectScheduler {
     this.scheduleNextWake(schedule)
   }
 
-  async acceptMilestone(milestoneId: string): Promise<void> {
+  private async acceptMilestone(milestoneId: string): Promise<void> {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone || milestone.status !== 'awaiting_review') {
       log.warn('cannot accept milestone in status', { status: milestone?.status })
@@ -131,7 +153,7 @@ export class ProjectScheduler {
     log.info('milestone accepted and merged', { milestone: milestoneId })
   }
 
-  async rollbackMilestone(milestoneId: string): Promise<void> {
+  private async rollbackMilestone(milestoneId: string): Promise<void> {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone || (milestone.status !== 'awaiting_review' && milestone.status !== 'cancelled')) {
       log.warn('cannot rollback milestone in status', { status: milestone?.status })
@@ -157,9 +179,13 @@ export class ProjectScheduler {
     log.info('milestone rolled back', { milestone: milestoneId })
   }
 
-  requestChanges(milestoneId: string, comment: { id: string; body: string }): void {
+  private requestChanges(milestoneId: string, comment: { id: string; body: string }): void {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone) return
+    if (milestone.status !== 'awaiting_review') {
+      log.warn('cannot request changes in status', { status: milestone.status })
+      return
+    }
 
     const now = nowISO()
     this.commentRepo.add({

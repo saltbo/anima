@@ -47,7 +47,7 @@ export function installBrowserStub() {
 
     wakeProject: async () => {},
     updateWakeSchedule: async () => {},
-    cancelMilestone: async () => {},
+    transitionMilestone: async () => {},
 
     onProjectStatusChanged: () => () => {},
     onProjectAgentEvent: () => () => {},

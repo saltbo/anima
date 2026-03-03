@@ -13,22 +13,6 @@ export function registerSchedulerIPC(ctx: ServiceContext): void {
     schedulerService.updateSchedule(projectId, schedule)
   })
 
-  safeHandle('milestone:cancel', (_, projectId: string, milestoneId: string) => {
-    schedulerService.cancelMilestone(projectId, milestoneId)
-  })
-
-  safeHandle('milestone:accept', async (_, projectId: string, milestoneId: string) => {
-    await schedulerService.acceptMilestone(projectId, milestoneId)
-  })
-
-  safeHandle('milestone:rollback', async (_, projectId: string, milestoneId: string) => {
-    await schedulerService.rollbackMilestone(projectId, milestoneId)
-  })
-
-  safeHandle('milestone:requestChanges', (_, projectId: string, milestoneId: string, comment: { id: string; body: string }) => {
-    schedulerService.requestChanges(projectId, milestoneId, comment)
-  })
-
   safeHandle('milestone:gitStatus', async (_, projectId: string, milestoneId: string) => {
     return schedulerService.getMilestoneGitStatus(projectId, milestoneId)
   })
