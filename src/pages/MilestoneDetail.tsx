@@ -688,6 +688,7 @@ export function MilestoneDetail() {
                       <li key={i} className="flex items-start gap-2.5 px-2.5 py-1.5">
                         {ac.status === 'passed' && <CheckCircle2 size={13} className="text-green-500 mt-0.5 shrink-0" />}
                         {ac.status === 'rejected' && <XCircle size={13} className="text-red-500 mt-0.5 shrink-0" />}
+                        {ac.status === 'in_progress' && <Loader2 size={13} className="text-yellow-500 mt-0.5 shrink-0 animate-spin" />}
                         {ac.status === 'pending' && <Circle size={13} className="text-muted-foreground mt-0.5 shrink-0" />}
                         <p className={`text-xs leading-snug ${ac.status === 'pending' ? 'text-foreground' : 'text-muted-foreground'} ${ac.status === 'rejected' ? 'line-through' : ''}`}>
                           {ac.title}

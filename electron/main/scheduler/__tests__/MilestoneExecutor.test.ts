@@ -124,14 +124,20 @@ function createMockRepos(milestone: Milestone) {
     getDiffStats: vi.fn().mockResolvedValue({ filesChanged: 0, insertions: 0, deletions: 0 }),
   }
 
-  return { projectRepo, milestoneRepo, gitService, milestoneStore }
+  const commentRepo = {
+    getByMilestoneId: vi.fn(() => []),
+    add: vi.fn(),
+    delete: vi.fn(),
+  }
+
+  return { projectRepo, milestoneRepo, commentRepo, gitService, milestoneStore }
 }
 
 function createExecutor(
   milestone: Milestone,
   overrides: { onRateLimit?: (r: string) => void; onComplete?: () => void } = {}
 ) {
-  const { projectRepo, milestoneRepo, gitService } = createMockRepos(milestone)
+  const { projectRepo, milestoneRepo, commentRepo, gitService } = createMockRepos(milestone)
   return {
     executor: new MilestoneExecutor({
       projectId: 'proj-1',
@@ -139,6 +145,7 @@ function createExecutor(
       notifier: mockNotifier as any,
       projectRepo: projectRepo as any,
       milestoneRepo: milestoneRepo as any,
+      commentRepo: commentRepo as any,
       gitService: gitService as any,
       conversationAgent: mockConversationAgent as any,
       onRateLimit: overrides.onRateLimit ?? vi.fn(),
@@ -146,10 +153,11 @@ function createExecutor(
     }),
     projectRepo,
     milestoneRepo,
+    commentRepo,
   }
 }
 
-/** Helper: make acceptor emit all-passed TodoWrite and return MILESTONE_COMPLETE */
+/** Helper: make acceptor emit all-passed TodoWrite */
 function accAllPassed(opts: any): string {
   opts.onEvent({
     event: 'tool_use',
@@ -159,7 +167,7 @@ function accAllPassed(opts: any): string {
     }),
     toolCallId: 'tc-1',
   })
-  return 'All criteria met. MILESTONE_COMPLETE'
+  return 'All criteria met.'
 }
 
 /** Helper: make acceptor emit incomplete TodoWrite */
@@ -172,7 +180,7 @@ function accIncomplete(opts: any): string {
     }),
     toolCallId: 'tc-1',
   })
-  return 'MILESTONE_INCOMPLETE: Login button missing validation'
+  return 'Login button missing validation'
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -235,7 +243,7 @@ describe('MilestoneExecutor', () => {
             toolCallId: 'tc-2',
           })
         }
-        return 'All good. MILESTONE_COMPLETE'
+        return 'All good.'
       })
 
       const { executor } = createExecutor(milestone)
@@ -322,7 +330,7 @@ describe('MilestoneExecutor', () => {
   describe('abort', () => {
     it('returns aborted when abort() is called between iterations', async () => {
       const milestone = createMilestone()
-      const { projectRepo, milestoneRepo, gitService } = createMockRepos(milestone)
+      const { projectRepo, milestoneRepo, commentRepo, gitService } = createMockRepos(milestone)
 
       const executor = new MilestoneExecutor({
         projectId: 'proj-1',
@@ -330,6 +338,7 @@ describe('MilestoneExecutor', () => {
         notifier: mockNotifier as any,
         projectRepo: projectRepo as any,
         milestoneRepo: milestoneRepo as any,
+        commentRepo: commentRepo as any,
         gitService: gitService as any,
         conversationAgent: mockConversationAgent as any,
         onRateLimit: vi.fn(),
@@ -405,14 +414,14 @@ describe('MilestoneExecutor', () => {
         return accAllPassed(opts)
       })
 
-      mockAgentContinue.mockResolvedValue('MILESTONE_INCOMPLETE: still broken')
+      mockAgentContinue.mockResolvedValue('Login button missing validation')
 
       const { executor } = createExecutor(milestone)
       const result = await executor.execute(milestone)
 
       expect(result.outcome).toBe('completed')
       expect(iterDevMessages.length).toBe(2)
-      expect(iterDevMessages[1]).toContain('MILESTONE_INCOMPLETE')
+      expect(iterDevMessages[1]).toContain('Login button missing validation')
     })
   })
 })

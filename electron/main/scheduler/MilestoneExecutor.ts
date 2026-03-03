@@ -4,11 +4,13 @@ import type { ConversationAgent } from '../services/types'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { GitService } from '../services/GitService'
+import { randomUUID } from 'crypto'
+import type { CommentRepository } from '../repositories/CommentRepository'
 import type { Milestone, Iteration, IterationOutcome } from '../../../src/types/index'
 import type { AgentEvent } from '../../../src/types/agent'
 import { Notifier } from './notifier'
 import { isRateLimitError, parseResetTime } from './rateLimit'
-import { parseTodoWrite, captureDeveloperTodos, captureAcceptorTodos, type TodoItem } from './todoCapture'
+import { parseTodoWrite, captureDeveloperTodos, captureAcceptorTodos, finalizeAcceptorCriteria, type TodoItem } from './todoCapture'
 import {
   buildDeveloperSystemPrompt,
   buildAcceptorSystemPrompt,
@@ -31,6 +33,7 @@ export interface ExecutorOptions {
   notifier: Notifier
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
+  commentRepo: CommentRepository
   gitService: GitService
   conversationAgent: ConversationAgent
   onRateLimit: (resetAt: string) => void
@@ -57,6 +60,7 @@ export class MilestoneExecutor {
   private notifier: Notifier
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
+  private commentRepo: CommentRepository
   private gitService: GitService
   private agent: ConversationAgent
   private onRateLimit: (resetAt: string) => void
@@ -72,6 +76,7 @@ export class MilestoneExecutor {
     this.notifier = options.notifier
     this.projectRepo = options.projectRepo
     this.milestoneRepo = options.milestoneRepo
+    this.commentRepo = options.commentRepo
     this.gitService = options.gitService
     this.agent = options.conversationAgent
     this.onRateLimit = options.onRateLimit
@@ -106,11 +111,13 @@ export class MilestoneExecutor {
       }
       if ('rateLimited' in result) {
         this.recordIteration(milestone.id, round, 'rate_limited', startedAt)
+        this.saveAcceptorComment(milestone.id, round, result.feedback)
         return { outcome: 'rate_limited', resetAt: result.resetAt }
       }
 
       const outcome: IterationOutcome = this.aborted ? 'cancelled' : 'rejected'
       this.recordIteration(milestone.id, round, outcome, startedAt)
+      this.saveAcceptorComment(milestone.id, round, result.feedback)
 
       feedback = result.feedback
       milestone = this.milestoneRepo.getById(milestone.id) ?? milestone
@@ -220,6 +227,7 @@ export class MilestoneExecutor {
         firstMessage: buildAcceptorMessage(milestone, devReport, iteration, this.projectPath),
         onEvent: (e) => onAccEvent(e, roundTodos),
       })
+      this.finalizeAC(milestone, iteration)
 
       if (this.allPassed(roundTodos)) return { complete: true }
 
@@ -235,6 +243,7 @@ export class MilestoneExecutor {
           buildAcceptorFollowUpMessage(fixReport, round),
           (e) => onAccEvent(e, nextTodos)
         )
+        this.finalizeAC(milestone, iteration)
 
         if (this.allPassed(nextTodos)) return { complete: true }
       }
@@ -253,6 +262,31 @@ export class MilestoneExecutor {
 
   private allPassed(todos: TodoItem[]): boolean {
     return todos.length > 0 && todos.every((t) => t.status === 'completed')
+  }
+
+  /** Convert in_progress AC items to rejected after acceptor finishes */
+  private finalizeAC(milestone: Milestone, iteration: number): void {
+    const latest = this.milestoneRepo.getById(this.projectId, milestone.id)
+    if (!latest) return
+    const updated = finalizeAcceptorCriteria(latest, iteration)
+    if (updated) {
+      this.milestoneRepo.save(this.projectId, updated)
+      this.notifier.broadcastMilestoneUpdate(updated)
+    }
+  }
+
+  /** Store acceptor feedback as a system comment for persistence */
+  private saveAcceptorComment(milestoneId: string, round: number, feedback: string): void {
+    if (!feedback) return
+    const now = nowISO()
+    this.commentRepo.add({
+      id: randomUUID(),
+      milestoneId,
+      body: `**Acceptor (Round ${round}):**\n\n${feedback}`,
+      author: 'system',
+      createdAt: now,
+      updatedAt: now,
+    })
   }
 
   private handleBattleError(err: unknown, fallbackFeedback: string): BattleResult {

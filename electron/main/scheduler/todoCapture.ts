@@ -52,16 +52,33 @@ export function mergeTodosIntoAC(
   for (const todo of todos) {
     const existing = result.find((ac) => ac.title === todo.content && ac.iteration === iteration)
     if (existing) {
-      existing.status = todo.status === 'completed' ? 'passed' : 'pending'
+      existing.status = todo.status === 'completed' ? 'passed' : todo.status === 'in_progress' ? 'in_progress' : 'pending'
     } else {
       result.push({
         title: todo.content,
-        status: todo.status === 'completed' ? 'passed' : todo.status === 'pending' ? 'pending' : 'rejected',
+        status: todo.status === 'completed' ? 'passed' : todo.status === 'in_progress' ? 'in_progress' : 'pending',
         iteration,
       })
     }
   }
   return result
+}
+
+/** Convert in_progress AC items to rejected after acceptor finishes */
+export function finalizeAcceptorCriteria(
+  milestone: Milestone,
+  iteration: number
+): Milestone | null {
+  const hasInProgress = milestone.acceptanceCriteria.some(
+    (ac) => ac.iteration === iteration && ac.status === 'in_progress'
+  )
+  if (!hasInProgress) return null
+  const updated = milestone.acceptanceCriteria.map((ac) =>
+    ac.iteration === iteration && ac.status === 'in_progress'
+      ? { ...ac, status: 'rejected' as const }
+      : ac
+  )
+  return { ...milestone, acceptanceCriteria: updated }
 }
 
 /** Check if a milestone has changed after merging todos */

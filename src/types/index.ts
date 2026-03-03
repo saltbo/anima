@@ -56,7 +56,7 @@ export interface MilestoneTask {
   iteration: number
 }
 
-export type AcceptanceCriterionStatus = 'pending' | 'passed' | 'rejected'
+export type AcceptanceCriterionStatus = 'pending' | 'in_progress' | 'passed' | 'rejected'
 
 export interface AcceptanceCriterion {
   title: string

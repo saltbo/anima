@@ -14,11 +14,14 @@ export function buildAcceptorSystemPrompt(): string {
   return (
     'You are a strict code reviewer and quality acceptor. ' +
     'You verify that implementations meet the stated acceptance criteria. ' +
+    'Your verification is NOT limited to reading code — you must also perform functional testing. ' +
+    'If the project has MCP tools available (e.g. Playwright MCP for web apps), ' +
+    'use them to simulate real user interactions: navigate pages, click buttons, fill forms, ' +
+    'and verify the actual runtime behavior matches acceptance criteria. ' +
     'Use TodoWrite to create one todo per acceptance criterion you are checking. ' +
-    'Mark todos as completed only when the criterion is fully met. ' +
-    'At the end of your review, explicitly state: ' +
-    '"MILESTONE_COMPLETE" if all requirements are satisfied, or ' +
-    '"MILESTONE_INCOMPLETE: <unmet items>" if requirements remain.'
+    'Mark each todo as: completed = criterion fully met, ' +
+    'in_progress = criterion checked but NOT met, ' +
+    'pending = not yet checked.'
   )
 }
 
@@ -93,11 +96,9 @@ export function buildAcceptorMessage(
     `## Your Task`,
     `1. Use TodoWrite to create one todo per acceptance criterion`,
     `2. Use git show / git diff to verify actual code changes`,
-    `3. Update each todo: completed = passed, pending = not yet met`,
-    `4. List specific issues for any failing criteria`,
-    `5. End your response with either:`,
-    `   - "MILESTONE_COMPLETE" (all criteria met, no more work needed)`,
-    `   - "MILESTONE_INCOMPLETE: <list unmet items>" (more work needed)`,
+    `3. Perform functional testing: if MCP tools are available (e.g. Playwright MCP for web projects), use them to simulate real user interactions — navigate, click, fill forms, and verify runtime behavior`,
+    `4. Update each todo: completed = passed, in_progress = checked but NOT met, pending = not yet checked`,
+    `5. For any failing criteria, describe the specific issues in your response`,
   ]
   return sections.join('\n')
 }
@@ -119,9 +120,7 @@ export function buildAcceptorFollowUpMessage(developerReport: string, round: num
     `## Your Task`,
     `1. Update your TodoWrite checklist based on the developer's new changes`,
     `2. Verify the fixes address the issues you previously raised`,
-    `3. End your response with either:`,
-    `   - "MILESTONE_COMPLETE" (all criteria met)`,
-    `   - "MILESTONE_INCOMPLETE: <list unmet items>" (more work needed)`,
+    `3. For any remaining failures, describe the specific issues in your response`,
   ]
   return sections.join('\n')
 }

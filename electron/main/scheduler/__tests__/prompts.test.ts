@@ -17,10 +17,11 @@ describe('buildDeveloperSystemPrompt', () => {
 })
 
 describe('buildAcceptorSystemPrompt', () => {
-  it('returns a string mentioning MILESTONE_COMPLETE', () => {
+  it('returns a string mentioning TodoWrite status semantics', () => {
     const prompt = buildAcceptorSystemPrompt()
-    expect(prompt).toContain('MILESTONE_COMPLETE')
-    expect(prompt).toContain('MILESTONE_INCOMPLETE')
+    expect(prompt).toContain('completed')
+    expect(prompt).toContain('in_progress')
+    expect(prompt).toContain('functional testing')
   })
 })
 
@@ -152,8 +153,7 @@ describe('buildAcceptorFollowUpMessage', () => {
 
     expect(msg).toContain('Developer Fix Report (Round 2)')
     expect(msg).toContain('Fixed validation. Commit: def5678')
-    expect(msg).toContain('MILESTONE_COMPLETE')
-    expect(msg).toContain('MILESTONE_INCOMPLETE')
+    expect(msg).toContain('TodoWrite')
   })
 
   it('does not repeat full context from first round', () => {

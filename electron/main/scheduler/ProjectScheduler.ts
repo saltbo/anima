@@ -317,6 +317,7 @@ export class ProjectScheduler {
       notifier: this.notifier,
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
+      commentRepo: this.commentRepo,
       gitService: this.gitService,
       conversationAgent: this.conversationAgent,
       onRateLimit: (resetAt) => {
