@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
+import { nowISO } from '../lib/time'
 import type { Milestone, MilestoneTask, InboxItem } from '../../../src/types/index'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { InboxRepository } from '../repositories/InboxRepository'
@@ -163,7 +164,7 @@ export class MilestoneService {
       status: 'draft',
       acceptanceCriteria: [],
       tasks: [],
-      createdAt: new Date().toISOString(),
+      createdAt: nowISO(),
       iterationCount: 0,
       iterations: [],
     })

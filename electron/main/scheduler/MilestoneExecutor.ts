@@ -1,4 +1,5 @@
 import { createLogger } from '../logger'
+import { nowISO } from '../lib/time'
 import type { ConversationAgent } from '../services/types'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
@@ -91,7 +92,7 @@ export class MilestoneExecutor {
         return { outcome: 'max_iterations' }
       }
 
-      const startedAt = new Date().toISOString()
+      const startedAt = nowISO()
       this.updateIterationState(milestone.id, round, startedAt)
       log.info('starting iteration', { milestone: milestone.id, round, attempt: attempt + 1 })
 
@@ -285,7 +286,7 @@ export class MilestoneExecutor {
       this.milestoneRepo.save(this.projectId, {
         ...m,
         status: 'completed',
-        completedAt: new Date().toISOString(),
+        completedAt: nowISO(),
         iterationCount: round,
       })
     }
@@ -316,7 +317,7 @@ export class MilestoneExecutor {
       acceptorSessionId: this.capturedSessionIds.acceptorSessionId,
       outcome,
       startedAt,
-      completedAt: new Date().toISOString(),
+      completedAt: nowISO(),
     }
     this.milestoneRepo.addIteration(record)
     const m = this.milestoneRepo.getById(milestoneId)

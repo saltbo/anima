@@ -4,21 +4,7 @@ import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity, ChevronRigh
 import { Button } from '@/components/ui/button'
 import { useProjects } from '@/store/projects'
 import { cn, statusBgColor, statusColor, statusLabel } from '@/lib/utils'
-
-function formatDuration(addedAt: string): string {
-  const ms = Date.now() - new Date(addedAt).getTime()
-  const hours = Math.floor(ms / 3600000)
-  const days = Math.floor(hours / 24)
-  if (days > 0) return `${days}d`
-  if (hours > 0) return `${hours}h`
-  return `${Math.floor(ms / 60000)}m`
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n > 0 ? String(n) : '—'
-}
+import { formatElapsed, formatTokens, formatTime } from '@/lib/time'
 
 function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
@@ -85,7 +71,7 @@ export function ProjectDashboard() {
           )}
           {project.status === 'sleeping' && project.nextWakeTime && (
             <span>Next check at <span className="text-foreground font-medium">
-              {new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {formatTime(project.nextWakeTime)}
             </span></span>
           )}
           {project.status === 'sleeping' && !project.nextWakeTime && (
@@ -104,7 +90,7 @@ export function ProjectDashboard() {
 
       {/* 4 stat cards */}
       <div className="grid grid-cols-4 gap-3">
-        <StatCard icon={Clock} label="Alive" value={formatDuration(project.addedAt)} />
+        <StatCard icon={Clock} label="Alive" value={formatElapsed(project.addedAt)} />
         <StatCard icon={Zap} label="Tokens" value={formatTokens(project.totalTokens)} />
         <StatCard
           icon={DollarSign}

@@ -4,6 +4,7 @@ import { Plus, Flag, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
+import { timeAgo } from '@/lib/time'
 import type { Milestone, MilestoneStatus } from '@/types/index'
 
 const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'reviewed', 'reviewing', 'ready', 'draft', 'cancelled', 'completed']
@@ -16,14 +17,6 @@ const GROUP_LABELS: Record<MilestoneStatus, string> = {
   'draft': 'Drafts',
   'cancelled': 'Cancelled',
   'completed': 'Completed',
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const d = Math.floor(diff / 86400000)
-  if (d === 0) return 'today'
-  if (d === 1) return '1 day ago'
-  return `${d} days ago`
 }
 
 export function Milestones() {

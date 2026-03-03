@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import dayjs from 'dayjs'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Project, Milestone, WakeSchedule } from '../../../../src/types/index'
 
@@ -198,7 +199,7 @@ describe('ProjectScheduler', () => {
 
     it('reschedules when rate_limited and reset time is in future', async () => {
       const repos = createMockRepos()
-      const resetAt = new Date(Date.now() + 60000).toISOString()
+      const resetAt = dayjs().add(60000, 'millisecond').toISOString()
       repos.projectRepo._setProject({
         ...DEFAULT_PROJECT,
         status: 'rate_limited',

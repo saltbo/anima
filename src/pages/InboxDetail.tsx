@@ -14,6 +14,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { useProjects } from '@/store/projects'
+import { timeAgo } from '@/lib/time'
 import type { InboxItem, InboxItemType, InboxItemPriority } from '@/types/index'
 
 const TYPE_STYLES: Record<InboxItemType, string> = {
@@ -23,13 +24,6 @@ const TYPE_STYLES: Record<InboxItemType, string> = {
 }
 const PRIORITY_LABEL: Record<InboxItemPriority, string> = { high: '↑ High', medium: '— Medium', low: '↓ Low' }
 const PRIORITY_COLOR: Record<InboxItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
-
-function timeAgo(iso: string): string {
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-  if (d === 0) return 'today'
-  if (d === 1) return '1 day ago'
-  return `${d} days ago`
-}
 
 export function InboxDetail() {
   const { id, itemId } = useParams<{ id: string; itemId: string }>()

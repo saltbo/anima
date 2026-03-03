@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { describe, it, expect } from 'vitest'
 import { isRateLimitError, parseResetTime, RATE_LIMIT_FALLBACK_MS } from '../rateLimit'
 
@@ -42,18 +43,18 @@ describe('parseResetTime', () => {
   })
 
   it('falls back to now + RATE_LIMIT_FALLBACK_MS when no timestamp found', () => {
-    const now = new Date('2026-03-01T12:00:00Z').getTime()
+    const now = dayjs('2026-03-01T12:00:00Z').valueOf()
     const result = parseResetTime('Rate limit exceeded', now)
-    const expected = new Date(now + RATE_LIMIT_FALLBACK_MS).toISOString()
+    const expected = dayjs(now + RATE_LIMIT_FALLBACK_MS).toISOString()
     expect(result).toBe(expected)
   })
 
   it('uses current time as default for now parameter', () => {
-    const before = Date.now()
+    const before = dayjs().valueOf()
     const result = parseResetTime('No timestamp here')
-    const after = Date.now()
+    const after = dayjs().valueOf()
 
-    const resetTime = new Date(result).getTime()
+    const resetTime = dayjs(result).valueOf()
     // Should be approximately now + 60 minutes
     expect(resetTime).toBeGreaterThanOrEqual(before + RATE_LIMIT_FALLBACK_MS)
     expect(resetTime).toBeLessThanOrEqual(after + RATE_LIMIT_FALLBACK_MS)

@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { Tray, Menu, app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { createTrayIcons, type TrayIconStatus } from './icons'
@@ -31,7 +32,7 @@ function statusText(project: Project): string {
   switch (project.status) {
     case 'sleeping':
       return project.nextWakeTime
-        ? `Sleeping · next: ${new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+        ? `Sleeping · next: ${dayjs(project.nextWakeTime).format('HH:mm')}`
         : 'Sleeping'
     case 'checking': return 'Checking…'
     case 'awake':

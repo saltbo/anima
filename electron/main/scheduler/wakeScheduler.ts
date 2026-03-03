@@ -1,3 +1,5 @@
+import dayjs from 'dayjs'
+import { msToISO } from '../lib/time'
 import type { WakeSchedule } from '../../../src/types/index'
 
 export interface WakeDelay {
@@ -9,34 +11,33 @@ export interface WakeDelay {
  * Calculate the next wake delay based on the schedule configuration.
  * Returns null if the schedule is manual or has no valid configuration.
  */
-export function calculateNextWake(schedule: WakeSchedule, now = Date.now()): WakeDelay | null {
+export function calculateNextWake(schedule: WakeSchedule, now = dayjs().valueOf()): WakeDelay | null {
   if (schedule.mode === 'manual') return null
 
   if (schedule.mode === 'interval' && schedule.intervalMinutes) {
     const delayMs = schedule.intervalMinutes * 60 * 1000
     return {
       delayMs,
-      nextWakeTime: new Date(now + delayMs).toISOString(),
+      nextWakeTime: msToISO(now + delayMs),
     }
   }
 
   if (schedule.mode === 'times' && schedule.times.length > 0) {
-    const nowDate = new Date(now)
+    const nowD = dayjs(now)
     let minDiff = Infinity
 
     for (const t of schedule.times) {
       const [h, m] = t.split(':').map(Number)
-      const next = new Date(nowDate)
-      next.setHours(h, m, 0, 0)
-      if (next.getTime() <= now) next.setDate(next.getDate() + 1)
-      const diff = next.getTime() - now
+      let next = nowD.hour(h).minute(m).second(0).millisecond(0)
+      if (next.valueOf() <= now) next = next.add(1, 'day')
+      const diff = next.valueOf() - now
       if (diff < minDiff) minDiff = diff
     }
 
     if (minDiff < Infinity) {
       return {
         delayMs: minDiff,
-        nextWakeTime: new Date(now + minDiff).toISOString(),
+        nextWakeTime: msToISO(now + minDiff),
       }
     }
   }

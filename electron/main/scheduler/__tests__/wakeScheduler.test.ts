@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { describe, it, expect } from 'vitest'
 import { calculateNextWake } from '../wakeScheduler'
 import type { WakeSchedule } from '../../../../src/types/index'
@@ -13,12 +14,12 @@ describe('calculateNextWake', () => {
   describe('interval mode', () => {
     it('returns delay based on intervalMinutes', () => {
       const schedule: WakeSchedule = { mode: 'interval', intervalMinutes: 30, times: [] }
-      const now = new Date('2026-03-01T12:00:00Z').getTime()
+      const now = dayjs('2026-03-01T12:00:00Z').valueOf()
       const result = calculateNextWake(schedule, now)
 
       expect(result).not.toBeNull()
       expect(result!.delayMs).toBe(30 * 60 * 1000)
-      expect(result!.nextWakeTime).toBe(new Date(now + 30 * 60 * 1000).toISOString())
+      expect(result!.nextWakeTime).toBe(dayjs(now + 30 * 60 * 1000).toISOString())
     })
 
     it('returns null when intervalMinutes is null', () => {
@@ -36,9 +37,7 @@ describe('calculateNextWake', () => {
     it('returns delay to the nearest future time', () => {
       const schedule: WakeSchedule = { mode: 'times', intervalMinutes: null, times: ['14:00', '18:00'] }
       // Set "now" to 13:00 local time
-      const now = new Date()
-      now.setHours(13, 0, 0, 0)
-      const nowMs = now.getTime()
+      const nowMs = dayjs().hour(13).minute(0).second(0).millisecond(0).valueOf()
 
       const result = calculateNextWake(schedule, nowMs)
 
@@ -50,9 +49,7 @@ describe('calculateNextWake', () => {
     it('wraps to next day when all times have passed', () => {
       const schedule: WakeSchedule = { mode: 'times', intervalMinutes: null, times: ['09:00'] }
       // Set "now" to 22:00 local time
-      const now = new Date()
-      now.setHours(22, 0, 0, 0)
-      const nowMs = now.getTime()
+      const nowMs = dayjs().hour(22).minute(0).second(0).millisecond(0).valueOf()
 
       const result = calculateNextWake(schedule, nowMs)
 
@@ -63,9 +60,7 @@ describe('calculateNextWake', () => {
 
     it('picks the closest time among multiple options', () => {
       const schedule: WakeSchedule = { mode: 'times', intervalMinutes: null, times: ['15:00', '14:00', '16:00'] }
-      const now = new Date()
-      now.setHours(13, 30, 0, 0)
-      const nowMs = now.getTime()
+      const nowMs = dayjs().hour(13).minute(30).second(0).millisecond(0).valueOf()
 
       const result = calculateNextWake(schedule, nowMs)
 

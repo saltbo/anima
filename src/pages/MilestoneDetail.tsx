@@ -19,18 +19,9 @@ import {
 import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
 import { AgentChat } from '@/components/AgentChat'
+import { timeAgo, formatElapsed, formatTime, nowISO } from '@/lib/time'
 import type { ProjectIterationStatus } from '@/types/electron.d'
 import type { Milestone, InboxItem, ProjectStatus, Iteration, IterationOutcome } from '@/types/index'
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const d = Math.floor(diff / 86400000)
-  if (d === 0) return 'today'
-  if (d === 1) return '1 day ago'
-  return `${d} days ago`
-}
 
 const TYPE_STYLES: Record<string, string> = {
   idea: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
@@ -62,7 +53,7 @@ function iterationStatusLabel(s: ProjectIterationStatus): string {
     case 'paused': return 'Paused — awaiting human review'
     case 'rate_limited':
       return s.rateLimitResetAt
-        ? `Rate limited · Resumes ${new Date(s.rateLimitResetAt).toLocaleTimeString()}`
+        ? `Rate limited · Resumes ${formatTime(s.rateLimitResetAt)}`
         : 'Rate limited'
     default: return s.status
   }
@@ -86,17 +77,6 @@ function OutcomeBadge({ outcome }: { outcome?: IterationOutcome }) {
 }
 
 
-function formatDuration(startedAt?: string, completedAt?: string): string {
-  if (!startedAt) return '—'
-  const start = new Date(startedAt).getTime()
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now()
-  const diffMs = end - start
-  const mins = Math.floor(diffMs / 60000)
-  if (mins < 1) return '<1m'
-  if (mins < 60) return `${mins}m`
-  const hrs = Math.floor(mins / 60)
-  return `${hrs}h ${mins % 60}m`
-}
 
 function outcomeLabel(outcome?: IterationOutcome): string {
   switch (outcome) {
@@ -325,7 +305,7 @@ export function MilestoneDetail() {
 
   const handleMarkCompleted = async () => {
     if (!project || !milestone) return
-    const updated: Milestone = { ...milestone, status: 'completed', completedAt: new Date().toISOString() }
+    const updated: Milestone = { ...milestone, status: 'completed', completedAt: nowISO() }
     await window.electronAPI.saveMilestone(project.id, updated)
     setMilestone(updated)
   }
@@ -693,7 +673,7 @@ export function MilestoneDetail() {
                       <span className="font-medium">#{entry.iteration.round}</span>
                       {entry.live && <span className="text-[10px] text-green-400 ml-auto">Live</span>}
                       {!entry.live && (
-                        <span className="text-[10px] text-muted-foreground ml-auto">{formatDuration(entry.iteration.startedAt, entry.iteration.completedAt)}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">{formatElapsed(entry.iteration.startedAt, entry.iteration.completedAt)}</span>
                       )}
                     </button>
                   )
@@ -727,7 +707,7 @@ export function MilestoneDetail() {
                       {(isLive ? currentIter : selectedIteration) && (
                         <>
                           <span className="font-semibold text-foreground">Round {(isLive ? currentIter : selectedIteration)!.round}</span>
-                          <span>{formatDuration(
+                          <span>{formatElapsed(
                             (isLive ? currentIter : selectedIteration)!.startedAt,
                             (isLive ? currentIter : selectedIteration)!.completedAt,
                           )}</span>

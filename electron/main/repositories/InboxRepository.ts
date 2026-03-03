@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
+import { nowISO } from '../lib/time'
 import type { InboxItem, InboxItemPriority, InboxItemStatus, InboxItemType } from '../../../src/types/index'
 
 interface InboxRow {
@@ -47,7 +48,7 @@ export class InboxRepository {
       ...item,
       id: randomUUID(),
       status: 'pending',
-      createdAt: new Date().toISOString(),
+      createdAt: nowISO(),
     }
     this.db
       .prepare(

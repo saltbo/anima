@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import path from 'path'
+import { nowISO } from '../lib/time'
 import type { Project, ProjectStatus, Iteration, WakeSchedule } from '../../../src/types/index'
 
 interface ProjectRow {
@@ -54,7 +55,7 @@ export class ProjectRepository {
   add(projectPath: string): Project {
     const id = randomUUID()
     const name = path.basename(projectPath)
-    const addedAt = new Date().toISOString()
+    const addedAt = nowISO()
     const defaultSchedule = JSON.stringify({ mode: 'manual', intervalMinutes: null, times: [] })
 
     this.db.prepare(

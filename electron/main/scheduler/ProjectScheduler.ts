@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { createLogger } from '../logger'
+import { msUntil } from '../lib/time'
 import type { ConversationAgent } from '../services/types'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
@@ -156,7 +157,7 @@ export class ProjectScheduler {
     if (!project) return
 
     if (project.status === 'rate_limited' && project.rateLimitResetAt) {
-      const resetMs = new Date(project.rateLimitResetAt).getTime() - Date.now()
+      const resetMs = msUntil(project.rateLimitResetAt)
       if (resetMs > 0) {
         this.scheduleCheck(resetMs)
         return
@@ -212,7 +213,7 @@ export class ProjectScheduler {
       gitService: this.gitService,
       conversationAgent: this.conversationAgent,
       onRateLimit: (resetAt) => {
-        const msUntilReset = Math.max(0, new Date(resetAt).getTime() - Date.now())
+        const msUntilReset = msUntil(resetAt)
         this.scheduleCheck(msUntilReset)
       },
       onComplete: () => {

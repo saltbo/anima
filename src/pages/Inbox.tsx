@@ -14,6 +14,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { useProjects } from '@/store/projects'
+import { timeAgo } from '@/lib/time'
 import type { InboxItem, InboxItemType, InboxItemPriority } from '@/types/index'
 
 const TYPE_STYLES: Record<InboxItemType, string> = {
@@ -35,13 +36,6 @@ const STATUS_STYLE: Record<string, string> = {
 
 type SortKey = 'priority' | 'date'
 type TypeFilter = InboxItemType | 'all'
-
-function timeAgo(iso: string): string {
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-  if (d === 0) return 'today'
-  if (d === 1) return '1d ago'
-  return `${d}d ago`
-}
 
 const EMPTY_FORM = { type: 'idea' as InboxItemType, title: '', description: '', priority: 'medium' as InboxItemPriority }
 
@@ -143,9 +137,9 @@ export function Inbox() {
     .sort((a, b) => {
       if (sortBy === 'priority') {
         const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
-        return pd !== 0 ? pd : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        return pd !== 0 ? pd : b.createdAt.localeCompare(a.createdAt)
       }
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      return b.createdAt.localeCompare(a.createdAt)
     })
 
   const handleAdd = async () => {

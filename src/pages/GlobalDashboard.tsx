@@ -2,24 +2,9 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, FolderOpen, Clock, Zap, DollarSign } from 'lucide-react'
 import { useProjects } from '@/store/projects'
 import { cn, statusBgColor, statusLabel } from '@/lib/utils'
+import { formatElapsed, formatTokens, formatTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import type { Project } from '@/types'
-
-function formatDuration(addedAt: string): string {
-  const ms = Date.now() - new Date(addedAt).getTime()
-  const mins = Math.floor(ms / 60000)
-  const hours = Math.floor(mins / 60)
-  const days = Math.floor(hours / 24)
-  if (days > 0) return `${days}d`
-  if (hours > 0) return `${hours}h`
-  return `${mins}m`
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return String(n)
-}
 
 function ProjectCard({ project }: { project: Project }) {
   const navigate = useNavigate()
@@ -66,7 +51,7 @@ function ProjectCard({ project }: { project: Project }) {
               <span className="text-foreground/40">Next check</span>
               {' '}
               <span className="text-foreground/80">
-                {new Date(project.nextWakeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {formatTime(project.nextWakeTime)}
               </span>
             </div>
           )}
@@ -80,7 +65,7 @@ function ProjectCard({ project }: { project: Project }) {
       <div className="px-4 py-2.5 border-t border-border/60 bg-muted/30 flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Clock size={10} className="shrink-0" />
-          {formatDuration(project.addedAt)}
+          {formatElapsed(project.addedAt)}
         </span>
         <span className="flex items-center gap-1">
           <Zap size={10} className="shrink-0" />
