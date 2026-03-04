@@ -41,6 +41,7 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
   type TimelineEntry =
     | { type: 'comment'; comment: MilestoneComment; time: string }
     | { type: 'iteration'; iteration: Iteration; time: string }
+    | { type: 'acceptor_passed'; iteration: Iteration; time: string }
 
   const entries: TimelineEntry[] = []
 
@@ -54,6 +55,10 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
     if (iter.startedAt) {
       entries.push({ type: 'iteration', iteration: iter, time: iter.startedAt })
     }
+    // Add "Acceptor review passed" as a separate chronological entry
+    if (iter.outcome === 'passed' && iter.completedAt) {
+      entries.push({ type: 'acceptor_passed', iteration: iter, time: iter.completedAt })
+    }
   })
 
   // Sort chronologically
@@ -61,7 +66,7 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
 
   if (entries.length === 0) {
     return (
-      <div className="py-12 flex items-center justify-center px-8">
+      <div className="py-12 flex items-center justify-center pr-6">
         <p className="text-sm text-muted-foreground">No activity yet.</p>
       </div>
     )
@@ -77,16 +82,11 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
     }
   }
 
-  // Check if there's a trailing "Acceptor review passed" event after the loop
-  const hasTrailingAcceptorEvent =
-    iterations.length > 0 && iterations[iterations.length - 1]?.outcome === 'passed'
-
   return (
-    <div className="px-8 py-5">
+    <div className="pr-6 py-5">
       {entries.map((entry, idx) => {
         const isLast = idx === entries.length - 1
-        // Show line if not last, OR if last but there's a trailing acceptor event
-        const showLine = !isLast || hasTrailingAcceptorEvent
+        const showLine = !isLast
 
         if (entry.type === 'comment') {
           const c = entry.comment
@@ -165,24 +165,27 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
           )
         }
 
+        if (entry.type === 'acceptor_passed') {
+          const iter = entry.iteration
+          return (
+            <TimelineEvent
+              key={`e-${idx}`}
+              icon={<CircleCheck size={14} className="text-green-600" />}
+              iconBg="bg-green-100"
+              showLine={showLine}
+              className="pt-3 pb-1"
+            >
+              <TimelineEventHeader
+                author="Acceptor"
+                action="review passed — milestone awaiting human review"
+                time={iter.completedAt ? timeAgo(iter.completedAt) : ''}
+              />
+            </TimelineEvent>
+          )
+        }
+
         return null
       })}
-
-      {/* Final acceptor review event (if last iteration passed) */}
-      {iterations.length > 0 && iterations[iterations.length - 1]?.outcome === 'passed' && (
-        <TimelineEvent
-          icon={<CircleCheck size={14} className="text-green-600" />}
-          iconBg="bg-green-100"
-          showLine={false}
-          className="pt-3 pb-1"
-        >
-          <TimelineEventHeader
-            author="Acceptor"
-            action="review passed — milestone awaiting human review"
-            time={iterations[iterations.length - 1]?.completedAt ? timeAgo(iterations[iterations.length - 1].completedAt!) : ''}
-          />
-        </TimelineEvent>
-      )}
     </div>
   )
 }

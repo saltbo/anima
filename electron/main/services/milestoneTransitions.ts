@@ -6,6 +6,7 @@ export type MilestoneAction =
   | 'mark_ready'
   | 'approve'
   | 'cancel'
+  | 'close'
   | 'accept'
   | 'request_changes'
   | 'rollback'
@@ -26,6 +27,12 @@ export const TRANSITION_TABLE: readonly TransitionRule[] = [
   { action: 'approve',          from: 'reviewed',        to: 'ready',     needsScheduler: false },
   { action: 'cancel',           from: 'ready',           to: 'cancelled', needsScheduler: true  },
   { action: 'cancel',           from: 'in-progress',     to: 'cancelled', needsScheduler: true  },
+  { action: 'close',            from: 'draft',           to: 'cancelled', needsScheduler: false },
+  { action: 'close',            from: 'reviewing',       to: 'cancelled', needsScheduler: false },
+  { action: 'close',            from: 'reviewed',        to: 'cancelled', needsScheduler: false },
+  { action: 'close',            from: 'ready',           to: 'cancelled', needsScheduler: true  },
+  { action: 'close',            from: 'in-progress',     to: 'cancelled', needsScheduler: true  },
+  { action: 'close',            from: 'awaiting_review', to: 'cancelled', needsScheduler: true  },
   { action: 'accept',           from: 'awaiting_review', to: 'completed', needsScheduler: true  },
   { action: 'request_changes',  from: 'awaiting_review', to: 'ready',     needsScheduler: true  },
   { action: 'rollback',         from: 'awaiting_review', to: 'ready',     needsScheduler: true  },

@@ -242,7 +242,7 @@ export function MilestoneDetailSidebar({ milestone, gitInfo, iterations }: Miles
   const showGit = gitInfo && (milestone.status === 'in-progress' || milestone.status === 'awaiting_review')
 
   return (
-    <div className="w-80 shrink-0 border-l border-border overflow-y-auto">
+    <div className="w-80 shrink-0 border-l border-border">
       <StatusSection milestone={milestone} />
       {showGit && <GitSection gitInfo={gitInfo} />}
       <TasksSection milestone={milestone} />

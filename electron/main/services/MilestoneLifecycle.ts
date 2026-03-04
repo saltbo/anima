@@ -112,6 +112,22 @@ export class MilestoneLifecycle {
     log.info('milestone cancelled', { milestone: milestoneId })
   }
 
+  close(projectId: string, milestoneId: string): void {
+    const milestone = this.milestoneRepo.getById(milestoneId)
+    if (!milestone) return
+
+    if (milestone.status === 'completed' || milestone.status === 'cancelled') {
+      log.warn('cannot close milestone in status', { status: milestone.status })
+      return
+    }
+
+    this.milestoneRepo.save(projectId, { ...milestone, status: 'cancelled' })
+    this.projectRepo.patch(projectId, { status: 'sleeping', currentIteration: null })
+    this.broadcastStatus(projectId)
+    this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'cancelled' })
+    log.info('milestone closed', { milestone: milestoneId })
+  }
+
   private broadcastStatus(projectId: string): void {
     const project = this.projectRepo.getById(projectId)
     if (project) this.notifier.broadcastStatus(project)

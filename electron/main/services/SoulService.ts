@@ -104,6 +104,12 @@ export class SoulService {
         lifecycle.cancel(projectId, milestoneId)
         break
       }
+      case 'close': {
+        const soul = this.souls.get(projectId)
+        soul?.abort()
+        lifecycle.close(projectId, milestoneId)
+        break
+      }
       case 'accept':
         await lifecycle.accept(projectId, milestoneId)
         this.souls.get(projectId)?.wake()

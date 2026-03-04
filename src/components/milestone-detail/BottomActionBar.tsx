@@ -14,19 +14,24 @@ interface BottomActionBarProps {
   onCommentSubmit: () => void
   onAcceptMerge: () => void
   onRollback: () => void
+  onCloseWithComment?: () => void
 }
+
+// Terminal statuses where close is not available
+const TERMINAL_STATUSES: MilestoneStatus[] = ['completed', 'cancelled']
 
 export function BottomActionBar({
   status,
   completedTaskCount, totalTaskCount,
   passedACCount, totalACCount, iterationCount,
   commentText, onCommentChange, onCommentSubmit,
-  onAcceptMerge, onRollback,
+  onAcceptMerge, onRollback, onCloseWithComment,
 }: BottomActionBarProps) {
   const isAwaitingReview = status === 'awaiting_review'
+  const canClose = !TERMINAL_STATUSES.includes(status)
 
   return (
-    <div className="px-8 pt-4 pb-5 border-t border-border bg-card space-y-3.5 shrink-0">
+    <div className="pr-6 pt-4 pb-5 border-t border-border bg-card space-y-3.5 shrink-0">
       {isAwaitingReview && (
         <MergeDecisionCard
           completedTaskCount={completedTaskCount}
@@ -42,6 +47,8 @@ export function BottomActionBar({
         value={commentText}
         onChange={onCommentChange}
         onSubmit={onCommentSubmit}
+        canClose={canClose}
+        onClose={onCloseWithComment}
       />
     </div>
   )

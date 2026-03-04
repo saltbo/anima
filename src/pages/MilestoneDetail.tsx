@@ -53,6 +53,7 @@ export function MilestoneDetail() {
     handleDelete, handleCancel,
     handleAcceptMerge, handleRollback,
     handleRequestChanges, handleAddComment,
+    handleCloseWithComment,
   } = useMilestoneDetail()
 
   // Session drawer state
@@ -82,42 +83,45 @@ export function MilestoneDetail() {
   const isInProgress = milestone.status === 'in-progress'
 
   return (
-    <div className="h-full flex overflow-hidden bg-background">
-      {/* ── Main Content Column ──────────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-y-auto">
-        <MilestoneDetailHeader milestone={milestone} />
+    <div className="h-full bg-background">
+      <div className="flex min-h-0">
+        {/* ── Main Content Column ──────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+          <MilestoneDetailHeader milestone={milestone} />
 
-        <ReviewBanner status={milestone.status} gitInfo={gitInfo} />
+          <ReviewBanner status={milestone.status} gitInfo={gitInfo} />
 
-        <DescriptionSection description={milestone.description} />
+          <DescriptionSection description={milestone.description} />
 
-        <Timeline
-          comments={comments}
+          <Timeline
+            comments={comments}
+            iterations={iterations}
+            onViewSession={handleViewSession}
+          />
+
+          <BottomActionBar
+            status={milestone.status}
+            completedTaskCount={completedTaskCount}
+            totalTaskCount={totalTaskCount}
+            passedACCount={passedACCount}
+            totalACCount={totalACCount}
+            iterationCount={iterations.length}
+            commentText={commentText}
+            onCommentChange={setCommentText}
+            onCommentSubmit={handleAddComment}
+            onAcceptMerge={handleAcceptMerge}
+            onRollback={() => setRollbackOpen(true)}
+            onCloseWithComment={handleCloseWithComment}
+          />
+        </div>
+
+        {/* ── Right Sidebar ────────────────────────────────────── */}
+        <MilestoneDetailSidebar
+          milestone={milestone}
+          gitInfo={gitInfo}
           iterations={iterations}
-          onViewSession={handleViewSession}
-        />
-
-        <BottomActionBar
-          status={milestone.status}
-          completedTaskCount={completedTaskCount}
-          totalTaskCount={totalTaskCount}
-          passedACCount={passedACCount}
-          totalACCount={totalACCount}
-          iterationCount={iterations.length}
-          commentText={commentText}
-          onCommentChange={setCommentText}
-          onCommentSubmit={handleAddComment}
-          onAcceptMerge={handleAcceptMerge}
-          onRollback={() => setRollbackOpen(true)}
         />
       </div>
-
-      {/* ── Right Sidebar ────────────────────────────────────── */}
-      <MilestoneDetailSidebar
-        milestone={milestone}
-        gitInfo={gitInfo}
-        iterations={iterations}
-      />
 
       {/* ── Dialogs ──────────────────────────────────────────── */}
       <DeleteDialog

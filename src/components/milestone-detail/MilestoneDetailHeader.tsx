@@ -12,7 +12,7 @@ export function MilestoneDetailHeader({ milestone, onEdit }: MilestoneDetailHead
   const isReviewing = milestone.status === 'reviewing'
 
   return (
-    <div className="flex flex-col gap-2.5 px-8 pt-5 pb-4 border-b border-border shrink-0">
+    <div className="flex flex-col gap-2.5 pr-6 pt-5 pb-4 border-b border-border shrink-0">
       {/* Top row: status badge + created time */}
       <div className="flex items-center gap-3">
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide ${milestoneStatusBadgeClass(milestone.status)}`}>

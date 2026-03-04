@@ -117,7 +117,7 @@ export function MainLayout() {
           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         />
         <Breadcrumb />
-        <div className="flex-1 overflow-auto px-6">
+        <div className="flex-1 overflow-auto pl-6">
           <Outlet />
         </div>
       </div>

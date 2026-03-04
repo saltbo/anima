@@ -187,6 +187,28 @@ export function useMilestoneDetail() {
     setCommentText('')
   }, [project, milestone, commentText])
 
+  const handleCloseWithComment = useCallback(async () => {
+    if (!project || !milestone) return
+    // Save comment first if there is one
+    if (commentText.trim()) {
+      const commentId = crypto.randomUUID()
+      const newComment: MilestoneComment = {
+        id: commentId,
+        milestoneId: milestone.id,
+        body: commentText.trim(),
+        author: 'human',
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      }
+      await window.electronAPI.addMilestoneComment(newComment)
+      setComments((prev) => [...prev, newComment])
+      setCommentText('')
+    }
+    // Then close the milestone
+    await window.electronAPI.transitionMilestone(project.id, milestone.id, { action: 'close' })
+    setMilestone({ ...milestone, status: 'cancelled' })
+  }, [project, milestone, commentText])
+
   // ── Derived state ──────────────────────────────────────────────────────
   const currentIter = status.currentIteration
   const isCurrentMilestone = currentIter?.milestoneId === mid
@@ -224,5 +246,6 @@ export function useMilestoneDetail() {
     handleMarkReady, handleSaveMarkdown, handleDelete,
     handleCancel, handleReopen, handleAcceptMerge,
     handleRollback, handleRequestChanges, handleAddComment,
+    handleCloseWithComment,
   }
 }

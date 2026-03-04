@@ -115,6 +115,7 @@ export type MilestoneAction =
   | 'mark_ready'
   | 'approve'
   | 'cancel'
+  | 'close'
   | 'accept'
   | 'request_changes'
   | 'rollback'
