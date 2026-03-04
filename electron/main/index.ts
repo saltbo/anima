@@ -17,6 +17,7 @@ import { GitService } from './services/GitService'
 import { AgentRunner } from './agents/AgentRunner'
 import { createTray } from './app/tray'
 import { setupIPC } from './ipc/index'
+import { setMcpConfigDir } from './mcp/mcpConfig'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
@@ -81,6 +82,9 @@ app.whenReady().then(() => {
   // ── Database ──────────────────────────────────────────────────────────
   const db = getDb()
   initSchema(db)
+
+  // ── MCP Config ──────────────────────────────────────────────────────
+  setMcpConfigDir(app.getPath('userData'))
 
   // ── Repositories ──────────────────────────────────────────────────────
   const projectRepo = new ProjectRepository(db)

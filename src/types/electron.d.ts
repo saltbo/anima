@@ -3,6 +3,12 @@ import type { AgentEvent } from './agent'
 
 export type AgentRole = 'developer' | 'acceptor'
 
+export interface McpServerEntry {
+  command: string
+  args: string[]
+  env?: Record<string, string>
+}
+
 /** Signals which agent is now active — UI reads content from session file. */
 export interface ProjectAgentEvent {
   projectId: string
@@ -75,6 +81,12 @@ declare global {
       onProjectAgentEvent: (callback: (data: ProjectAgentEvent) => void) => () => void
       onIterationPaused: (callback: (data: { projectId: string; milestoneId: string; reason: string }) => void) => () => void
       onRateLimited: (callback: (data: { projectId: string; resetAt: string }) => void) => () => void
+
+      // ── MCP Servers ─────────────────────────────────────────────────────
+      getMcpServers: () => Promise<Record<string, McpServerEntry>>
+      addMcpServer: (name: string, entry: McpServerEntry) => Promise<void>
+      updateMcpServer: (name: string, entry: McpServerEntry) => Promise<void>
+      removeMcpServer: (name: string) => Promise<void>
     }
   }
 }

@@ -127,4 +127,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('agent:rateLimited', handler)
     return () => ipcRenderer.removeListener('agent:rateLimited', handler)
   },
+
+  // ── MCP Servers ───────────────────────────────────────────────────────────
+  getMcpServers: () => ipcRenderer.invoke('mcp:list'),
+  addMcpServer: (name: string, entry: unknown) => ipcRenderer.invoke('mcp:add', name, entry),
+  updateMcpServer: (name: string, entry: unknown) => ipcRenderer.invoke('mcp:update', name, entry),
+  removeMcpServer: (name: string) => ipcRenderer.invoke('mcp:remove', name),
 })

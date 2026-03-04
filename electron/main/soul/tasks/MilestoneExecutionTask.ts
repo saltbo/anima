@@ -10,7 +10,7 @@ import type { Milestone, IterationOutcome } from '../../../../src/types/index'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
-import { ensureAnimaMcpConfig } from '../../mcp/mcpConfig'
+import { ensureMcpConfigFile } from '../../mcp/mcpConfig'
 import {
   buildDeveloperSystemPrompt,
   buildAcceptorSystemPrompt,
@@ -77,8 +77,8 @@ export class MilestoneExecutionTask implements SoulTask {
       milestone = await this.prepare(milestone)
     }
 
-    // Ensure .mcp.json configured
-    ensureAnimaMcpConfig(this.projectPath, this.mcpServerPath, this.dbPath)
+    // Write centralized MCP config
+    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.dbPath)
 
     const branch = `milestone/${milestone.id}`
     let devSessionId = randomUUID()
@@ -93,7 +93,7 @@ export class MilestoneExecutionTask implements SoulTask {
 
       try {
         // ── Developer ──
-        const devResult = await this.runDeveloper(devSessionId, milestone.id, branch, round, signal)
+        const devResult = await this.runDeveloper(devSessionId, milestone.id, branch, round, signal, mcpConfigPath)
         devSessionId = devResult.sessionId
 
         milestone = this.refresh(milestone)
@@ -106,7 +106,7 @@ export class MilestoneExecutionTask implements SoulTask {
         if (signal.aborted) return
 
         // ── Acceptor ──
-        const accResult = await this.runAcceptor(accSessionId, milestone.id, round, signal)
+        const accResult = await this.runAcceptor(accSessionId, milestone.id, round, signal, mcpConfigPath)
         accSessionId = accResult.sessionId
 
         milestone = this.refresh(milestone)
@@ -146,7 +146,8 @@ export class MilestoneExecutionTask implements SoulTask {
     milestoneId: string,
     branch: string,
     round: number,
-    signal: AbortSignal
+    signal: AbortSignal,
+    mcpConfigPath: string
   ): Promise<RunResult> {
     this.notifier.broadcastAgentEvent('developer', sessionId)
 
@@ -155,6 +156,7 @@ export class MilestoneExecutionTask implements SoulTask {
         projectPath: this.projectPath,
         sessionId,
         message: buildDeveloperResumeMessage(milestoneId),
+        mcpConfigPath,
         signal,
       })
     }
@@ -164,6 +166,7 @@ export class MilestoneExecutionTask implements SoulTask {
       sessionId,
       systemPrompt: buildDeveloperSystemPrompt(),
       message: buildDeveloperFirstMessage(milestoneId, branch),
+      mcpConfigPath,
       signal,
     })
   }
@@ -172,7 +175,8 @@ export class MilestoneExecutionTask implements SoulTask {
     sessionId: string,
     milestoneId: string,
     round: number,
-    signal: AbortSignal
+    signal: AbortSignal,
+    mcpConfigPath: string
   ): Promise<RunResult> {
     this.notifier.broadcastAgentEvent('acceptor', sessionId)
 
@@ -181,6 +185,7 @@ export class MilestoneExecutionTask implements SoulTask {
         projectPath: this.projectPath,
         sessionId,
         message: buildAcceptorResumeMessage(milestoneId),
+        mcpConfigPath,
         signal,
       })
     }
@@ -190,6 +195,7 @@ export class MilestoneExecutionTask implements SoulTask {
       sessionId,
       systemPrompt: buildAcceptorSystemPrompt(),
       message: buildAcceptorFirstMessage(milestoneId),
+      mcpConfigPath,
       signal,
     })
   }

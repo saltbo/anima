@@ -11,7 +11,7 @@ import type { BacklogRepository } from '../../repositories/BacklogRepository'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
-import { ensureAnimaMcpConfig } from '../../mcp/mcpConfig'
+import { ensureMcpConfigFile } from '../../mcp/mcpConfig'
 import { buildPlannerSystemPrompt, buildPlannerFirstMessage } from '../prompts'
 
 const log = createLogger('milestone-planning')
@@ -66,8 +66,8 @@ export class MilestonePlanningTask implements SoulTask {
   async execute(_decision: Decision, signal: AbortSignal): Promise<void> {
     log.info('starting milestone planning', { project: this.projectId })
 
-    // Ensure .mcp.json configured with projectId for backlog access
-    ensureAnimaMcpConfig(this.projectPath, this.mcpServerPath, this.dbPath, this.projectId)
+    // Write centralized MCP config with projectId for backlog access
+    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.dbPath, this.projectId)
 
     try {
       // ── Step 1: Run planning agent ──────────────────────────────────────
@@ -79,6 +79,7 @@ export class MilestonePlanningTask implements SoulTask {
         sessionId: planSessionId,
         systemPrompt: buildPlannerSystemPrompt(),
         message: buildPlannerFirstMessage(),
+        mcpConfigPath,
         signal,
       })
 
@@ -107,7 +108,7 @@ export class MilestonePlanningTask implements SoulTask {
       this.milestoneRepo.save(this.projectId, { ...draftMilestone, status: 'reviewing' })
       this.notifier.broadcastMilestoneUpdate({ ...draftMilestone, status: 'reviewing' })
 
-      const reviewResult = await this.runReview(draftMilestone.id, signal)
+      const reviewResult = await this.runReview(draftMilestone.id, signal, mcpConfigPath)
 
       if (signal.aborted) return
 
@@ -154,7 +155,7 @@ export class MilestonePlanningTask implements SoulTask {
     }
   }
 
-  private async runReview(milestoneId: string, signal: AbortSignal): Promise<string> {
+  private async runReview(milestoneId: string, signal: AbortSignal, mcpConfigPath: string): Promise<string> {
     const mdFile = `${this.projectPath}/.anima/milestones/${milestoneId}.md`
 
     const reviewMessage = `Review the milestone at \`${mdFile}\`.
@@ -177,6 +178,7 @@ Walk through your analysis step by step, then give a clear verdict with specific
         sessionId,
         systemPrompt: MILESTONE_REVIEW_ROLE,
         message: reviewMessage,
+        mcpConfigPath,
         signal,
         onEvent: (event) => {
           if (event.event === 'done') reviewResult = event.result ?? ''

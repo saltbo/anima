@@ -14,6 +14,7 @@ export interface RunOptions {
   sessionId: string
   systemPrompt: string
   message: string
+  mcpConfigPath?: string
   onEvent?: (event: AgentEvent) => void
   signal?: AbortSignal
 }
@@ -22,6 +23,7 @@ export interface ResumeOptions {
   projectPath: string
   sessionId: string
   message: string
+  mcpConfigPath?: string
   onEvent?: (event: AgentEvent) => void
   signal?: AbortSignal
 }
@@ -43,12 +45,12 @@ export interface RunResult {
 export class AgentRunner {
   async run(options: RunOptions): Promise<RunResult> {
     const args = ['--session-id', options.sessionId, '--system-prompt', options.systemPrompt]
-    return this.execute(options.projectPath, options.sessionId, args, options.message, options.onEvent, options.signal)
+    return this.execute(options.projectPath, options.sessionId, args, options.message, options.onEvent, options.signal, options.mcpConfigPath)
   }
 
   async resume(options: ResumeOptions): Promise<RunResult> {
     const args = ['--resume', options.sessionId]
-    return this.execute(options.projectPath, options.sessionId, args, options.message, options.onEvent, options.signal)
+    return this.execute(options.projectPath, options.sessionId, args, options.message, options.onEvent, options.signal, options.mcpConfigPath)
   }
 
   private async execute(
@@ -57,7 +59,8 @@ export class AgentRunner {
     extraArgs: string[],
     message: string,
     onEvent?: (event: AgentEvent) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    mcpConfigPath?: string
   ): Promise<RunResult> {
     const cliPath = resolveCliPath('claude')
     if (!cliPath) {
@@ -80,6 +83,7 @@ export class AgentRunner {
       '--input-format', 'stream-json',
       '--output-format', 'stream-json',
       '--dangerously-skip-permissions',
+      ...(mcpConfigPath ? ['--mcp-config', mcpConfigPath, '--strict-mcp-config'] : []),
       ...extraArgs,
     ]
 

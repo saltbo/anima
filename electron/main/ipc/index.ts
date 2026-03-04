@@ -12,6 +12,7 @@ import { registerAgentIPC } from './agent'
 import { registerBacklogIPC } from './backlog'
 import { registerMilestonesIPC } from './milestones'
 import { registerSchedulerIPC } from './scheduler'
+import { registerMcpIPC } from './mcp'
 
 export type { IpcError } from './safeHandle'
 
@@ -32,4 +33,5 @@ export function setupIPC(getWindow: () => BrowserWindow | null, ctx: ServiceCont
   registerBacklogIPC(ctx)
   registerMilestonesIPC(ctx)
   registerSchedulerIPC(ctx)
+  registerMcpIPC(ctx)
 }

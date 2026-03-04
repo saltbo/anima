@@ -56,6 +56,7 @@ import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
+import { setMcpConfigDir } from '../mcp/mcpConfig'
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  IN-MEMORY REPOSITORIES (replace SQLite for testing)
@@ -397,6 +398,7 @@ function createHarness(): Harness {
   const agentRunner = new MockAgentRunner()
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anima-e2e-'))
+  setMcpConfigDir(tmpDir)
 
   const soulService = new SoulService(
     projectRepo as unknown as ProjectRepository,
