@@ -62,18 +62,18 @@ describe('mcpConfig', () => {
 
   describe('buildMcpConfig', () => {
     it('includes anima entry with correct structure', () => {
-      const config = buildMcpConfig('/path/to/mcp-server.js', '/path/to/anima.db')
+      const config = buildMcpConfig('/path/to/mcp-server.js', '/path/to/anima.sock')
       expect(config.mcpServers.anima).toEqual({
         command: 'node',
         args: ['/path/to/mcp-server.js'],
-        env: { ANIMA_DB_PATH: '/path/to/anima.db' },
+        env: { ANIMA_BRIDGE_SOCKET: '/path/to/anima.sock' },
       })
     })
 
     it('includes projectId in env when provided', () => {
-      const config = buildMcpConfig('/path/to/mcp-server.js', '/path/to/anima.db', 'proj-123')
+      const config = buildMcpConfig('/path/to/mcp-server.js', '/path/to/anima.sock', 'proj-123')
       expect(config.mcpServers.anima.env).toEqual({
-        ANIMA_DB_PATH: '/path/to/anima.db',
+        ANIMA_BRIDGE_SOCKET: '/path/to/anima.sock',
         ANIMA_PROJECT_ID: 'proj-123',
       })
     })

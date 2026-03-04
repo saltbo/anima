@@ -28,7 +28,7 @@ export class SoulService {
     private agentRunner: AgentRunner,
     private getWindow: () => BrowserWindow | null,
     private mcpServerPath: string,
-    private dbPath: string
+    private bridgeSocketPath: string
   ) {}
 
   startAll(): void {
@@ -66,7 +66,7 @@ export class SoulService {
       agentRunner: this.agentRunner,
       notifier,
       mcpServerPath: this.mcpServerPath,
-      dbPath: this.dbPath,
+      bridgeSocketPath: this.bridgeSocketPath,
     })
     soul.register('execute-milestone', executionTask)
 
@@ -81,7 +81,7 @@ export class SoulService {
       agentRunner: this.agentRunner,
       notifier,
       mcpServerPath: this.mcpServerPath,
-      dbPath: this.dbPath,
+      bridgeSocketPath: this.bridgeSocketPath,
     })
     soul.register('plan-milestone', planningTask)
 

@@ -36,7 +36,7 @@ export interface MilestoneExecutionTaskOptions {
   agentRunner: AgentRunner
   notifier: Notifier
   mcpServerPath: string
-  dbPath: string
+  bridgeSocketPath: string
 }
 
 type MilestoneExecutionDecision = Decision & { task: 'execute-milestone' }
@@ -53,7 +53,7 @@ export class MilestoneExecutionTask implements SoulTask {
   private agentRunner: AgentRunner
   private notifier: Notifier
   private mcpServerPath: string
-  private dbPath: string
+  private bridgeSocketPath: string
 
   constructor(opts: MilestoneExecutionTaskOptions) {
     this.projectId = opts.projectId
@@ -65,7 +65,7 @@ export class MilestoneExecutionTask implements SoulTask {
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier
     this.mcpServerPath = opts.mcpServerPath
-    this.dbPath = opts.dbPath
+    this.bridgeSocketPath = opts.bridgeSocketPath
   }
 
   async execute(decision: Decision, signal: AbortSignal): Promise<void> {
@@ -78,7 +78,7 @@ export class MilestoneExecutionTask implements SoulTask {
     }
 
     // Write centralized MCP config
-    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.dbPath)
+    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.bridgeSocketPath)
 
     const branch = `milestone/${milestone.id}`
     let devSessionId = randomUUID()

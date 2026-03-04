@@ -33,7 +33,7 @@ export interface MilestonePlanningTaskOptions {
   agentRunner: AgentRunner
   notifier: Notifier
   mcpServerPath: string
-  dbPath: string
+  bridgeSocketPath: string
 }
 
 // ── MilestonePlanningTask ───────────────────────────────────────────────────
@@ -48,7 +48,7 @@ export class MilestonePlanningTask implements SoulTask {
   private agentRunner: AgentRunner
   private notifier: Notifier
   private mcpServerPath: string
-  private dbPath: string
+  private bridgeSocketPath: string
 
   constructor(opts: MilestonePlanningTaskOptions) {
     this.projectId = opts.projectId
@@ -60,14 +60,14 @@ export class MilestonePlanningTask implements SoulTask {
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier
     this.mcpServerPath = opts.mcpServerPath
-    this.dbPath = opts.dbPath
+    this.bridgeSocketPath = opts.bridgeSocketPath
   }
 
   async execute(_decision: Decision, signal: AbortSignal): Promise<void> {
     log.info('starting milestone planning', { project: this.projectId })
 
     // Write centralized MCP config with projectId for backlog access
-    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.dbPath, this.projectId)
+    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.bridgeSocketPath, this.projectId)
 
     try {
       // ── Step 1: Run planning agent ──────────────────────────────────────

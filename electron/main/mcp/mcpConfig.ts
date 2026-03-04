@@ -58,8 +58,8 @@ export function saveMcpConfig(config: McpConfig): void {
  * Build a full MCP config with the anima entry always present,
  * plus any user-installed servers from the persisted config.
  */
-export function buildMcpConfig(mcpServerPath: string, dbPath: string, projectId?: string): McpConfig {
-  const env: Record<string, string> = { ANIMA_DB_PATH: dbPath }
+export function buildMcpConfig(mcpServerPath: string, bridgeSocketPath: string, projectId?: string): McpConfig {
+  const env: Record<string, string> = { ANIMA_BRIDGE_SOCKET: bridgeSocketPath }
   if (projectId) env.ANIMA_PROJECT_ID = projectId
 
   const existing = loadMcpConfig()
@@ -84,8 +84,8 @@ export function buildMcpConfig(mcpServerPath: string, dbPath: string, projectId?
  * Write the centralized MCP config file and return its path.
  * This is the main entry point for task callers.
  */
-export function ensureMcpConfigFile(mcpServerPath: string, dbPath: string, projectId?: string): string {
-  const config = buildMcpConfig(mcpServerPath, dbPath, projectId)
+export function ensureMcpConfigFile(mcpServerPath: string, bridgeSocketPath: string, projectId?: string): string {
+  const config = buildMcpConfig(mcpServerPath, bridgeSocketPath, projectId)
   const configPath = getMcpConfigPath()
   const dir = path.dirname(configPath)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })

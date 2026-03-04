@@ -3,32 +3,68 @@
  * Anima MCP Server — standalone process spawned by Claude Code CLI.
  * Provides tools for agents to read/write milestone data.
  *
- * This is an adapter layer (like IPC handlers). It delegates all business
- * logic to the same Repository classes used by the Electron main process.
- * The only difference: it creates its own DB connection from ANIMA_DB_PATH.
+ * Connects to the Electron main process via a Unix domain socket
+ * (ANIMA_BRIDGE_SOCKET) using JSON-RPC. No native modules required.
  */
 
+import * as net from 'net'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
-import { MilestoneRepository } from '../repositories/MilestoneRepository'
-import { CommentRepository } from '../repositories/CommentRepository'
-import { BacklogRepository } from '../repositories/BacklogRepository'
-import type { AcceptanceCriterionStatus } from '../../../src/types/index'
 
-// ── DB connection ────────────────────────────────────────────────────────────
+// ── Socket Client ─────────────────────────────────────────────────────────────
 
-function openDb(): Database.Database {
-  const dbPath = process.env.ANIMA_DB_PATH
-  if (!dbPath) {
-    throw new Error('ANIMA_DB_PATH environment variable is required')
+class SocketClient {
+  private socketPath: string
+  private nextId = 1
+
+  constructor(socketPath: string) {
+    this.socketPath = socketPath
   }
-  const db = new Database(dbPath)
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-  return db
+
+  async call(method: string, params: unknown[] = []): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const id = this.nextId++
+      const conn = net.createConnection(this.socketPath)
+      let buffer = ''
+
+      conn.on('connect', () => {
+        const req = JSON.stringify({ id, method, params }) + '\n'
+        conn.write(req)
+      })
+
+      conn.on('data', (chunk) => {
+        buffer += chunk.toString()
+        const newlineIdx = buffer.indexOf('\n')
+        if (newlineIdx !== -1) {
+          const line = buffer.slice(0, newlineIdx).trim()
+          conn.end()
+          try {
+            const resp = JSON.parse(line) as { id: number; result?: unknown; error?: { message: string } }
+            if (resp.error) {
+              reject(new Error(resp.error.message))
+            } else {
+              resolve(resp.result)
+            }
+          } catch (e) {
+            reject(new Error(`Invalid response: ${line}`))
+          }
+        }
+      })
+
+      conn.on('error', (err) => {
+        reject(new Error(`Socket connection error: ${err.message}`))
+      })
+
+      conn.on('timeout', () => {
+        conn.end()
+        reject(new Error('Socket connection timeout'))
+      })
+
+      conn.setTimeout(30000)
+    })
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -48,9 +84,7 @@ const server = new McpServer({
   version: '1.0.0',
 })
 
-let milestoneRepo: MilestoneRepository
-let commentRepo: CommentRepository
-let backlogRepo: BacklogRepository
+let client: SocketClient
 
 // ── Tools ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +93,7 @@ server.tool(
   'Get milestone details including title, description, acceptance criteria, tasks, and iterations',
   { milestone_id: z.string().describe('The milestone ID') },
   async ({ milestone_id }) => {
-    const milestone = milestoneRepo.getById(milestone_id)
+    const milestone = await client.call('milestones:getById', [milestone_id])
     if (!milestone) {
       return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
     }
@@ -72,7 +106,7 @@ server.tool(
   'List all comments for a milestone, ordered by creation time',
   { milestone_id: z.string().describe('The milestone ID') },
   async ({ milestone_id }) => {
-    const comments = commentRepo.getByMilestoneId(milestone_id)
+    const comments = await client.call('milestone:comments', [milestone_id])
     return { content: [{ type: 'text' as const, text: JSON.stringify(comments, null, 2) }] }
   }
 )
@@ -87,14 +121,14 @@ server.tool(
   async ({ milestone_id, body }) => {
     const now = nowISO()
     const id = randomUUID()
-    commentRepo.add({
+    await client.call('milestone:addComment', [{
       id,
       milestoneId: milestone_id,
       body,
       author: 'system',
       createdAt: now,
       updatedAt: now,
-    })
+    }])
     return { content: [{ type: 'text' as const, text: `Comment added (id: ${id})` }] }
   }
 )
@@ -112,11 +146,7 @@ server.tool(
     iteration: z.number().describe('Current iteration number'),
   },
   async ({ milestone_id, criteria, iteration }) => {
-    const updated = milestoneRepo.mergeAcceptanceCriteria(
-      milestone_id,
-      criteria as Array<{ title: string; status: AcceptanceCriterionStatus; description?: string }>,
-      iteration
-    )
+    const updated = await client.call('milestones:mergeAcceptanceCriteria', [milestone_id, criteria, iteration])
     if (!updated) {
       return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
     }
@@ -137,7 +167,7 @@ server.tool(
     iteration: z.number().describe('Current iteration number'),
   },
   async ({ milestone_id, tasks, iteration }) => {
-    const updated = milestoneRepo.mergeTasks(milestone_id, tasks, iteration)
+    const updated = await client.call('milestones:mergeTasks', [milestone_id, tasks, iteration])
     if (!updated) {
       return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
     }
@@ -156,7 +186,7 @@ server.tool(
     if (!projectId) {
       return { content: [{ type: 'text' as const, text: 'ANIMA_PROJECT_ID not set — cannot list backlog items' }], isError: true }
     }
-    const items = backlogRepo.getByProjectId(projectId)
+    const items = await client.call('backlog:list', [projectId]) as Array<{ status: string }>
     const todoItems = items.filter((i) => i.status === 'todo')
     return { content: [{ type: 'text' as const, text: JSON.stringify(todoItems, null, 2) }] }
   }
@@ -181,7 +211,7 @@ server.tool(
     const now = nowISO()
 
     // Save milestone record
-    milestoneRepo.save(projectId, {
+    await client.call('milestones:save', [projectId, {
       id: milestoneId,
       title,
       description,
@@ -193,22 +223,22 @@ server.tool(
       iterations: [],
       totalTokens: 0,
       totalCost: 0,
-    })
+    }])
 
     // Link backlog items to milestone
     for (const itemId of backlog_item_ids) {
-      backlogRepo.update(itemId, { milestoneId, status: 'in_progress' })
+      await client.call('backlog:update', [projectId, itemId, { milestoneId, status: 'in_progress' }])
     }
 
     // Store milestone content as a comment for reference
-    commentRepo.add({
+    await client.call('milestone:addComment', [{
       id: randomUUID(),
       milestoneId,
       body: milestone_content,
       author: 'system',
       createdAt: now,
       updatedAt: now,
-    })
+    }])
 
     return {
       content: [{
@@ -222,14 +252,16 @@ server.tool(
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const db = openDb()
-  milestoneRepo = new MilestoneRepository(db)
-  commentRepo = new CommentRepository(db)
-  backlogRepo = new BacklogRepository(db)
+  const socketPath = process.env.ANIMA_BRIDGE_SOCKET
+  if (!socketPath) {
+    throw new Error('ANIMA_BRIDGE_SOCKET environment variable is required')
+  }
+
+  client = new SocketClient(socketPath)
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  console.error('Anima MCP Server running on stdio')
+  console.error('Anima MCP Server running on stdio (bridge mode)')
 }
 
 main().catch((error) => {
