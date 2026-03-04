@@ -75,6 +75,7 @@ export interface Milestone {
   totalTokens: number
   totalCost: number
   baseCommit?: string
+  assignees: string[]
 }
 
 export type WakeScheduleMode = 'manual' | 'interval' | 'times'
@@ -89,7 +90,7 @@ export interface MilestoneComment {
   id: string
   milestoneId: string
   body: string
-  author: 'human' | 'system'
+  author: string
   path?: string
   line?: number
   startLine?: number

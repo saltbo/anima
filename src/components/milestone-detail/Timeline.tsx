@@ -7,6 +7,19 @@ import { ReviewCommentCard } from './ReviewCommentCard'
 import { IterationAgentCard } from './IterationAgentCard'
 import type { Iteration, MilestoneComment, IterationOutcome } from '@/types/index'
 
+// ── Agent display names ─────────────────────────────────────────────────────
+
+const AGENT_DISPLAY_NAMES: Record<string, string> = {
+  planner: 'Planner',
+  developer: 'Developer',
+  reviewer: 'Reviewer',
+}
+
+function getAuthorDisplay(author: string): { name: string; isHuman: boolean } {
+  if (author === 'human') return { name: 'You', isHuman: true }
+  return { name: AGENT_DISPLAY_NAMES[author] ?? author, isHuman: false }
+}
+
 interface TimelineProps {
   comments: MilestoneComment[]
   iterations: Iteration[]
@@ -90,7 +103,7 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
 
         if (entry.type === 'comment') {
           const c = entry.comment
-          const isSystem = c.author === 'system'
+          const { name: authorName, isHuman } = getAuthorDisplay(c.author)
           return (
             <TimelineEvent
               key={`e-${idx}`}
@@ -100,11 +113,11 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
               className="pt-5 pb-1"
             >
               <TimelineEventHeader
-                author={isSystem ? 'Reviewer' : 'You'}
-                action={isSystem ? 'posted a milestone review' : 'posted a comment'}
+                author={authorName}
+                action={isHuman ? 'posted a comment' : 'posted a milestone review'}
                 time={timeAgo(c.createdAt)}
               />
-              {isSystem ? (
+              {!isHuman ? (
                 <ReviewCommentCard comment={c} />
               ) : (
                 <div className="mt-2 rounded-lg border border-border bg-background/50 px-3.5 py-3" data-color-mode={resolvedTheme}>

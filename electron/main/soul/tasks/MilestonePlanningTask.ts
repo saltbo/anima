@@ -128,7 +128,7 @@ export class MilestonePlanningTask implements SoulTask {
           id: randomUUID(),
           milestoneId: draftMilestone.id,
           body: reviewResult,
-          author: 'system',
+          author: 'reviewer',
           createdAt: now,
           updatedAt: now,
         })

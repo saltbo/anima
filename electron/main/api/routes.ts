@@ -126,6 +126,7 @@ export function createRoutes(
 
     // ── Milestone repo (used by MCP server via socket) ────────────────────
     'milestones:getById': (id: string) => milestoneRepo.getById(id),
+    'milestones:getProjectId': (milestoneId: string) => milestoneRepo.getProjectIdForMilestone(milestoneId),
 
     // ── Checks ────────────────────────────────────────────────────────────
     'checks:list': (milestoneId: string) => checkRepo.getByMilestoneId(milestoneId),
@@ -146,7 +147,7 @@ export function createRoutes(
     'milestone:gitStatus': async (projectId: string, milestoneId: string) =>
       soulService.getMilestoneGitStatus(projectId, milestoneId),
     'milestone:comments': (milestoneId: string) => commentRepo.getByMilestoneId(milestoneId),
-    'milestone:addComment': (comment: { id: string; milestoneId: string; body: string; author: 'human' | 'system'; createdAt: string; updatedAt: string }) =>
+    'milestone:addComment': (comment: { id: string; milestoneId: string; body: string; author: string; createdAt: string; updatedAt: string }) =>
       commentRepo.add(comment),
 
     // ── MCP Servers ───────────────────────────────────────────────────────

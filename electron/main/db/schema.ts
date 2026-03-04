@@ -216,6 +216,15 @@ function migrateMilestoneChecksTable(db: Database.Database): void {
   `)
 }
 
+function migrateMilestoneAssigneesColumn(db: Database.Database): void {
+  const cols = db.pragma('table_info(milestones)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (colNames.has('assignees')) return
+
+  log.info('migrating milestones table: adding assignees column')
+  db.exec(`ALTER TABLE milestones ADD COLUMN assignees TEXT NOT NULL DEFAULT '[]';`)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
@@ -227,4 +236,5 @@ export function initSchema(db: Database.Database): void {
   migrateMilestoneCommentsTable(db)
   migrateInboxToBacklog(db)
   migrateBacklogStatusToKanban(db)
+  migrateMilestoneAssigneesColumn(db)
 }

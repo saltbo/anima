@@ -20,7 +20,7 @@ function rowToComment(row: CommentRow): MilestoneComment {
     id: row.id,
     milestoneId: row.milestone_id,
     body: row.body,
-    author: row.author as 'human' | 'system',
+    author: row.author,
     path: row.path ?? undefined,
     line: row.line ?? undefined,
     startLine: row.start_line ?? undefined,

@@ -12,6 +12,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
+import { getAllAgents } from '../agents/registry'
 
 // ── Socket Client ─────────────────────────────────────────────────────────────
 
@@ -113,15 +114,16 @@ server.tool(
   {
     milestone_id: z.string().describe('The milestone ID'),
     body: z.string().describe('The comment body (markdown supported)'),
+    author: z.string().describe('Your agent ID (e.g. "developer", "reviewer", "planner")'),
   },
-  async ({ milestone_id, body }) => {
+  async ({ milestone_id, body, author }) => {
     const now = nowISO()
     const id = randomUUID()
     await client.call('milestone:addComment', [{
       id,
       milestoneId: milestone_id,
       body,
-      author: 'system',
+      author,
       createdAt: now,
       updatedAt: now,
     }])
@@ -250,6 +252,7 @@ server.tool(
       iterations: [],
       totalTokens: 0,
       totalCost: 0,
+      assignees: getAllAgents().map((a) => a.id),
     }])
 
     // Link backlog items and create checks
@@ -275,7 +278,7 @@ server.tool(
       id: randomUUID(),
       milestoneId,
       body: milestone_content,
-      author: 'system',
+      author: 'planner',
       createdAt: now,
       updatedAt: now,
     }])
@@ -286,6 +289,42 @@ server.tool(
         text: JSON.stringify({ milestoneId, title, linkedBacklogItems: backlog_items.length, checks: totalChecks }, null, 2),
       }],
     }
+  }
+)
+
+// ── Agent tools ─────────────────────────────────────────────────────────────
+
+server.tool(
+  'list_agents',
+  'List all available agent definitions (id, name, description)',
+  {},
+  async () => {
+    const agents = getAllAgents().map(({ id, name, description }) => ({ id, name, description }))
+    return { content: [{ type: 'text' as const, text: JSON.stringify(agents, null, 2) }] }
+  }
+)
+
+server.tool(
+  'assign_agent',
+  'Assign an agent to a milestone by adding its ID to the assignees list',
+  {
+    milestone_id: z.string().describe('The milestone ID'),
+    agent_id: z.string().describe('The agent ID to assign'),
+  },
+  async ({ milestone_id, agent_id }) => {
+    const milestone = await client.call('milestones:getById', [milestone_id]) as { assignees?: string[] } | null
+    if (!milestone) {
+      return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
+    }
+    const assignees = milestone.assignees ?? []
+    if (!assignees.includes(agent_id)) {
+      assignees.push(agent_id)
+    }
+    await client.call('milestones:save', [
+      await client.call('milestones:getProjectId', [milestone_id]),
+      { ...milestone, assignees },
+    ])
+    return { content: [{ type: 'text' as const, text: `Agent ${agent_id} assigned to milestone ${milestone_id}` }] }
   }
 )
 

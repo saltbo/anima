@@ -24,6 +24,7 @@ function createMockMilestoneRepo() {
     iterations: [],
     totalTokens: 0,
     totalCost: 0,
+    assignees: [],
   }
 
   return {

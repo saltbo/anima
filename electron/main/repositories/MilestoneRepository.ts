@@ -21,6 +21,7 @@ interface MilestoneRow {
   completed_at: string | null
   iteration_count: number
   base_commit: string | null
+  assignees: string
 }
 
 interface IterationRow {
@@ -80,6 +81,7 @@ function rowToMilestone(
     totalTokens: iterations.reduce((sum, i) => sum + (i.totalTokens ?? 0), 0),
     totalCost: iterations.reduce((sum, i) => sum + (i.totalCost ?? 0), 0),
     baseCommit: row.base_commit ?? undefined,
+    assignees: JSON.parse(row.assignees || '[]'),
   }
 }
 
@@ -182,15 +184,16 @@ export class MilestoneRepository {
     this.db
       .prepare(
         `INSERT INTO milestones
-         (id, project_id, title, description, status, created_at, completed_at, iteration_count, base_commit)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (id, project_id, title, description, status, created_at, completed_at, iteration_count, base_commit, assignees)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            title = excluded.title,
            description = excluded.description,
            status = excluded.status,
            completed_at = excluded.completed_at,
            iteration_count = excluded.iteration_count,
-           base_commit = excluded.base_commit`
+           base_commit = excluded.base_commit,
+           assignees = excluded.assignees`
       )
       .run(
         milestone.id,
@@ -201,7 +204,8 @@ export class MilestoneRepository {
         milestone.createdAt,
         milestone.completedAt ?? null,
         milestone.iterationCount,
-        milestone.baseCommit ?? null
+        milestone.baseCommit ?? null,
+        JSON.stringify(milestone.assignees ?? [])
       )
   }
 

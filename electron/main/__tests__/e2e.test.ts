@@ -382,6 +382,7 @@ function makeMs(overrides: Partial<Milestone> = {}): Milestone {
     iterations: [],
     totalTokens: 0,
     totalCost: 0,
+    assignees: [],
     ...overrides,
   }
 }

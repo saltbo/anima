@@ -164,6 +164,7 @@ function makeMilestone(overrides: Partial<Milestone> = {}): Milestone {
     totalTokens: 500,
     totalCost: 0.05,
     baseCommit: 'abc123',
+    assignees: [],
     ...overrides,
   }
 }
