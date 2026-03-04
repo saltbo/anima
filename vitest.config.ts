@@ -3,7 +3,10 @@ import { resolve } from 'path'
 
 export default defineConfig({
   test: {
-    include: ['electron/**/__tests__/**/*.test.ts'],
+    include: [
+      'electron/**/__tests__/**/*.test.ts',
+      'src/**/__tests__/**/*.test.{ts,tsx}',
+    ],
     globals: true,
   },
   resolve: {
