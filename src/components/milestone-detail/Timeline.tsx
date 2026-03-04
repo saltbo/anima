@@ -3,7 +3,6 @@ import MDEditor from '@uiw/react-md-editor'
 import { useTheme } from '@/store/theme'
 import { timeAgo, formatElapsed } from '@/lib/time'
 import { TimelineEvent, TimelineEventHeader } from './TimelineEvent'
-import { ReviewCommentCard } from './ReviewCommentCard'
 import { IterationAgentCard } from './IterationAgentCard'
 import type { Iteration, MilestoneComment, IterationOutcome } from '@/types/index'
 
@@ -15,9 +14,9 @@ const AGENT_DISPLAY_NAMES: Record<string, string> = {
   reviewer: 'Reviewer',
 }
 
-function getAuthorDisplay(author: string): { name: string; isHuman: boolean } {
-  if (author === 'human') return { name: 'You', isHuman: true }
-  return { name: AGENT_DISPLAY_NAMES[author] ?? author, isHuman: false }
+function getAuthorDisplay(author: string): string {
+  if (author === 'human') return 'You'
+  return AGENT_DISPLAY_NAMES[author] ?? author
 }
 
 interface TimelineProps {
@@ -103,7 +102,7 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
 
         if (entry.type === 'comment') {
           const c = entry.comment
-          const { name: authorName, isHuman } = getAuthorDisplay(c.author)
+          const authorName = getAuthorDisplay(c.author)
           return (
             <TimelineEvent
               key={`e-${idx}`}
@@ -114,16 +113,12 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
             >
               <TimelineEventHeader
                 author={authorName}
-                action={isHuman ? 'posted a comment' : 'posted a milestone review'}
+                action="posted a comment"
                 time={timeAgo(c.createdAt)}
               />
-              {!isHuman ? (
-                <ReviewCommentCard comment={c} />
-              ) : (
-                <div className="mt-2 rounded-lg border border-border bg-background/50 px-3.5 py-3" data-color-mode={resolvedTheme}>
-                  <MDEditor.Markdown source={c.body} className="!bg-transparent !text-[13px]" />
-                </div>
-              )}
+              <div className="mt-2 rounded-lg border border-border bg-background/50 px-3.5 py-3" data-color-mode={resolvedTheme}>
+                <MDEditor.Markdown source={c.body} className="!bg-transparent !text-[13px]" />
+              </div>
             </TimelineEvent>
           )
         }

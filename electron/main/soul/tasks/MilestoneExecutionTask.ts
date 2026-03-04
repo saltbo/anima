@@ -4,7 +4,6 @@ import { nowISO } from '../../lib/time'
 import type { AgentRunner, RunResult } from '../../agents/AgentRunner'
 import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
-import type { CommentRepository } from '../../repositories/CommentRepository'
 import type { GitService } from '../../services/GitService'
 import type { Milestone, IterationOutcome } from '../../../../src/types/index'
 import type { SoulTask, Decision } from '../types'
@@ -31,7 +30,6 @@ export interface MilestoneExecutionTaskOptions {
   projectPath: string
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
-  commentRepo: CommentRepository
   gitService: GitService
   agentRunner: AgentRunner
   notifier: Notifier
@@ -46,7 +44,6 @@ export class MilestoneExecutionTask implements SoulTask {
   private projectPath: string
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
-  private commentRepo: CommentRepository
   private gitService: GitService
   private agentRunner: AgentRunner
   private notifier: Notifier
@@ -56,7 +53,6 @@ export class MilestoneExecutionTask implements SoulTask {
     this.projectPath = opts.projectPath
     this.projectRepo = opts.projectRepo
     this.milestoneRepo = opts.milestoneRepo
-    this.commentRepo = opts.commentRepo
     this.gitService = opts.gitService
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier

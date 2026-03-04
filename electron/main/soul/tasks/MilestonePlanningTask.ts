@@ -2,11 +2,10 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
 import { createLogger } from '../../logger'
-import { nowISO } from '../../lib/time'
+
 import type { AgentRunner } from '../../agents/AgentRunner'
 import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
-import type { CommentRepository } from '../../repositories/CommentRepository'
 import type { BacklogRepository } from '../../repositories/BacklogRepository'
 import type { MilestoneItemRepository } from '../../repositories/MilestoneItemRepository'
 import type { SoulTask, Decision } from '../types'
@@ -29,7 +28,6 @@ export interface MilestonePlanningTaskOptions {
   projectPath: string
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
-  commentRepo: CommentRepository
   backlogRepo: BacklogRepository
   milestoneItemRepo: MilestoneItemRepository
   agentRunner: AgentRunner
@@ -43,7 +41,6 @@ export class MilestonePlanningTask implements SoulTask {
   private projectPath: string
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
-  private commentRepo: CommentRepository
   private backlogRepo: BacklogRepository
   private milestoneItemRepo: MilestoneItemRepository
   private agentRunner: AgentRunner
@@ -54,7 +51,6 @@ export class MilestonePlanningTask implements SoulTask {
     this.projectPath = opts.projectPath
     this.projectRepo = opts.projectRepo
     this.milestoneRepo = opts.milestoneRepo
-    this.commentRepo = opts.commentRepo
     this.backlogRepo = opts.backlogRepo
     this.milestoneItemRepo = opts.milestoneItemRepo
     this.agentRunner = opts.agentRunner
@@ -105,7 +101,7 @@ export class MilestonePlanningTask implements SoulTask {
       this.milestoneRepo.save(this.projectId, { ...draftMilestone, status: 'reviewing' })
       this.notifier.broadcastMilestoneUpdate({ ...draftMilestone, status: 'reviewing' })
 
-      const reviewResult = await this.runReview(draftMilestone.id, signal, mcpConfigPath)
+      await this.runReview(draftMilestone.id, signal, mcpConfigPath)
 
       if (signal.aborted) return
 
@@ -125,18 +121,6 @@ export class MilestonePlanningTask implements SoulTask {
         }
       }
 
-      // Save review result as comment
-      if (reviewResult) {
-        const now = nowISO()
-        this.commentRepo.add({
-          id: randomUUID(),
-          milestoneId: draftMilestone.id,
-          body: reviewResult,
-          author: 'reviewer',
-          createdAt: now,
-          updatedAt: now,
-        })
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
 
@@ -152,7 +136,7 @@ export class MilestonePlanningTask implements SoulTask {
     }
   }
 
-  private async runReview(milestoneId: string, signal: AbortSignal, mcpConfigPath: string): Promise<string> {
+  private async runReview(milestoneId: string, signal: AbortSignal, mcpConfigPath: string): Promise<void> {
     const mdFile = `${this.projectPath}/.anima/milestones/${milestoneId}.md`
 
     const reviewMessage = `Review the milestone at \`${mdFile}\`.
@@ -166,8 +150,6 @@ Evaluate against five criteria:
 
 Walk through your analysis step by step, then give a clear verdict with specific recommendations.`
 
-    let reviewResult = ''
-
     try {
       const sessionId = randomUUID()
       await this.agentRunner.run({
@@ -177,15 +159,10 @@ Walk through your analysis step by step, then give a clear verdict with specific
         message: reviewMessage,
         mcpConfigPath,
         signal,
-        onEvent: (event) => {
-          if (event.event === 'done') reviewResult = event.result ?? ''
-        },
       })
     } catch {
       // review session ended
     }
-
-    return reviewResult
   }
 
   private writeMilestoneMarkdown(milestoneId: string, title: string, description: string): void {
