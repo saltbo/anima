@@ -275,6 +275,19 @@ function migrateDropBacklogMilestoneId(db: Database.Database): void {
   `)
 }
 
+function migrateMilestoneStatusV3(db: Database.Database): void {
+  const oldRows = db.prepare("SELECT COUNT(*) as cnt FROM milestones WHERE status IN ('reviewing', 'reviewed', 'in-progress', 'awaiting_review')").get() as { cnt: number }
+  if (oldRows.cnt === 0) return
+
+  log.info('migrating milestone statuses: reviewing→planning, reviewed→planned, in-progress→in_progress, awaiting_review→in_review')
+  db.exec(`
+    UPDATE milestones SET status = 'planning' WHERE status = 'reviewing';
+    UPDATE milestones SET status = 'planned' WHERE status = 'reviewed';
+    UPDATE milestones SET status = 'in_progress' WHERE status = 'in-progress';
+    UPDATE milestones SET status = 'in_review' WHERE status = 'awaiting_review';
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
@@ -289,4 +302,5 @@ export function initSchema(db: Database.Database): void {
   migrateMilestoneAssigneesColumn(db)
   migrateMilestoneItemsTable(db)
   migrateDropBacklogMilestoneId(db)
+  migrateMilestoneStatusV3(db)
 }

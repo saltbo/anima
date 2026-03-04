@@ -146,7 +146,7 @@ function makeMilestone(overrides: Partial<Milestone> = {}): Milestone {
     id: 'ms-1',
     title: 'Test Milestone',
     description: 'Test description',
-    status: 'awaiting_review',
+    status: 'in_review',
     checks: [
       { id: 'chk-1', itemId: 'item-1', title: 'Feature A works', status: 'passed', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
       { id: 'chk-2', itemId: 'item-1', title: 'Feature B works', status: 'pending', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
@@ -459,7 +459,7 @@ describe('useMilestoneDetail', () => {
     it('handleMarkReady calls transitionMilestone and updates status optimistically', async () => {
       mockLoaderData = {
         meta: { title: 'Test' },
-        milestone: makeMilestone({ status: 'reviewed' }),
+        milestone: makeMilestone({ status: 'planned' }),
         backlogItems: [],
         markdown: '',
         comments: [],
@@ -634,7 +634,7 @@ describe('useMilestoneDetail', () => {
       })
 
       expect(mockAPI.transitionMilestone).not.toHaveBeenCalled()
-      expect(result.current.milestone!.status).toBe('awaiting_review')
+      expect(result.current.milestone!.status).toBe('in_review')
     })
 
     it('handleAddComment adds comment and clears input', async () => {
@@ -696,7 +696,7 @@ describe('useMilestoneDetail', () => {
       )
       // Then transition to close
       expect(mockAPI.transitionMilestone).toHaveBeenCalledWith('proj-1', 'ms-1', { action: 'close' })
-      expect(result.current.milestone!.status).toBe('cancelled')
+      expect(result.current.milestone!.status).toBe('closed')
       expect(result.current.comments).toHaveLength(1)
     })
 
@@ -716,7 +716,7 @@ describe('useMilestoneDetail', () => {
 
       expect(mockAPI.addMilestoneComment).not.toHaveBeenCalled()
       expect(mockAPI.transitionMilestone).toHaveBeenCalledWith('proj-1', 'ms-1', { action: 'close' })
-      expect(result.current.milestone!.status).toBe('cancelled')
+      expect(result.current.milestone!.status).toBe('closed')
     })
 
     it('handleSaveMarkdown calls writeMilestoneMarkdown', async () => {
@@ -785,7 +785,7 @@ describe('useMilestoneDetail', () => {
       })
 
       // Our milestone unchanged
-      expect(result.current.milestone!.status).toBe('awaiting_review')
+      expect(result.current.milestone!.status).toBe('in_review')
     })
 
     it('onProjectAgentEvent sets activeAgent', async () => {
@@ -838,13 +838,13 @@ describe('useMilestoneDetail', () => {
   // ── Git info loading ──────────────────────────────────────────────────
 
   describe('git info', () => {
-    it('loads git info for in-progress milestone', async () => {
+    it('loads git info for in_progress milestone', async () => {
       const gitInfo = { branch: 'milestone/ms-1', commitCount: 3, diffStats: { filesChanged: 5, insertions: 100, deletions: 20 } }
       ;(mockAPI.getMilestoneGitStatus as ReturnType<typeof vi.fn>).mockResolvedValue(gitInfo)
 
       mockLoaderData = {
         meta: { title: 'Test' },
-        milestone: makeMilestone({ status: 'in-progress' }),
+        milestone: makeMilestone({ status: 'in_progress' }),
         backlogItems: [],
         markdown: '',
         comments: [],

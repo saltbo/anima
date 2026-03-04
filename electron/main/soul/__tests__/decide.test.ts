@@ -68,7 +68,7 @@ describe('think()', () => {
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
-  it('returns idle when no milestones are ready or in-progress', () => {
+  it('returns idle when no milestones are ready or in_progress', () => {
     const ctx: SoulContext = {
       project: makeProject(),
       milestones: [
@@ -111,8 +111,8 @@ describe('think()', () => {
     expect(think(ctx)).toEqual({ task: 'execute-milestone', milestone })
   })
 
-  it('prefers in-progress over ready milestone', () => {
-    const inProgress = makeMilestone({ id: 'm1', status: 'in-progress' })
+  it('prefers in_progress over ready milestone', () => {
+    const inProgress = makeMilestone({ id: 'm1', status: 'in_progress' })
     const ready = makeMilestone({ id: 'm2', status: 'ready' })
     const ctx: SoulContext = {
       project: makeProject(),
@@ -128,7 +128,7 @@ describe('think()', () => {
       milestones: [
         makeMilestone({ id: 'm1', status: 'completed' }),
         makeMilestone({ id: 'm2', status: 'cancelled' }),
-        makeMilestone({ id: 'm3', status: 'awaiting_review' }),
+        makeMilestone({ id: 'm3', status: 'in_review' }),
       ],
       backlogItems: [],
     }
@@ -199,10 +199,10 @@ describe('think()', () => {
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
-  it('returns idle when todo backlog items exist but reviewing milestone is pending', () => {
+  it('returns idle when todo backlog items exist but planning milestone is pending', () => {
     const ctx: SoulContext = {
       project: makeProject(),
-      milestones: [makeMilestone({ status: 'reviewing' })],
+      milestones: [makeMilestone({ status: 'planning' })],
       backlogItems: [makeBacklogItem()],
     }
     expect(think(ctx)).toEqual({ task: 'idle' })

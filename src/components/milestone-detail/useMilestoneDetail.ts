@@ -47,7 +47,7 @@ export function useMilestoneDetail() {
   // ── Load git info ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!project || !milestone) return
-    if (milestone.status !== 'in-progress' && milestone.status !== 'awaiting_review') return
+    if (milestone.status !== 'in_progress' && milestone.status !== 'in_review') return
     window.electronAPI.getMilestoneGitStatus(project.id, milestone.id).then(setGitInfo)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, milestone?.id, milestone?.status])
@@ -206,7 +206,7 @@ export function useMilestoneDetail() {
     }
     // Then close the milestone
     await window.electronAPI.transitionMilestone(project.id, milestone.id, { action: 'close' })
-    setMilestone({ ...milestone, status: 'cancelled' })
+    setMilestone({ ...milestone, status: 'closed' })
   }, [project, milestone, commentText])
 
   // ── Derived state ──────────────────────────────────────────────────────

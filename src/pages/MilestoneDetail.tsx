@@ -53,7 +53,7 @@ export function MilestoneDetail() {
     handleDelete, handleCancel,
     handleAcceptMerge, handleRollback,
     handleRequestChanges, handleAddComment,
-    handleCloseWithComment,
+    handleCloseWithComment, handleMarkReady,
   } = useMilestoneDetail()
 
   // Session drawer state
@@ -80,7 +80,7 @@ export function MilestoneDetail() {
     )
   }
 
-  const isInProgress = milestone.status === 'in-progress'
+  const isInProgress = milestone.status === 'in_progress'
 
   return (
     <div className="h-full bg-background">
@@ -112,6 +112,7 @@ export function MilestoneDetail() {
             onAcceptMerge={handleAcceptMerge}
             onRollback={() => setRollbackOpen(true)}
             onCloseWithComment={handleCloseWithComment}
+            onApprove={handleMarkReady}
           />
         </div>
 

@@ -18,7 +18,7 @@
  *  6.  MilestoneExecutionTask — multi-round (reject→pass)
  *  7.  MilestoneExecutionTask — rate limit handling
  *  8.  MilestoneExecutionTask — auto-merge
- *  9.  MilestonePlanningTask — draft→review→reviewed
+ *  9.  MilestonePlanningTask — draft→planning→planned
  *  10. MilestonePlanningTask — auto-approve
  *  11. Milestone state transitions validation
  *  12. MilestoneLifecycle — accept/rollback/requestChanges/cancel
@@ -558,7 +558,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
     it('records and retrieves iterations', () => {
       const project = h.projectRepo.add('/tmp/iter')
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-iter', status: 'in-progress' }))
+      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-iter', status: 'in_progress' }))
 
       h.milestoneRepo.addIteration({
         milestoneId: 'ms-iter', round: 1, outcome: 'rejected',
@@ -600,9 +600,9 @@ describe('E2E: Full Milestone Lifecycle', () => {
       expect(think({ project: null, milestones: [], backlogItems: [] })).toEqual({ task: 'idle' })
     })
 
-    it('picks in-progress over ready', () => {
+    it('picks in_progress over ready', () => {
       const project = h.projectRepo.add('/tmp/decide')
-      const ip = makeMs({ id: 'ms-ip', status: 'in-progress' })
+      const ip = makeMs({ id: 'ms-ip', status: 'in_progress' })
       const ready = makeMs({ id: 'ms-r', status: 'ready' })
       expect(think({ project, milestones: [ready, ip], backlogItems: [] })).toEqual({
         task: 'execute-milestone', milestone: ip,
@@ -641,7 +641,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       })
     }
 
-    it('ready → in-progress → awaiting_review (1-round pass)', async () => {
+    it('ready → in_progress → in_review (1-round pass)', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
         id: 'ms-exec', status: 'ready',
@@ -663,7 +663,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       await task.execute({ task: 'execute-milestone', milestone: ms }, new AbortController().signal)
 
       const updated = h.milestoneRepo.getById('ms-exec')!
-      expect(updated.status).toBe('awaiting_review')
+      expect(updated.status).toBe('in_review')
       expect(updated.iterationCount).toBe(1)
       expect(updated.iterations).toHaveLength(1)
       expect(updated.iterations[0].outcome).toBe('passed')
@@ -700,7 +700,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       await task.execute({ task: 'execute-milestone', milestone: ms }, new AbortController().signal)
 
       const updated = h.milestoneRepo.getById('ms-multi')!
-      expect(updated.status).toBe('awaiting_review')
+      expect(updated.status).toBe('in_review')
       expect(updated.iterationCount).toBe(2)
       expect(updated.iterations).toHaveLength(2)
       expect(updated.iterations[0].outcome).toBe('rejected')
@@ -782,7 +782,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       })
     }
 
-    it('planning agent → draft → review → reviewed (manual approval)', async () => {
+    it('planning agent → draft → planning → planned (manual approval)', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       for (let i = 0; i < 5; i++) {
         h.backlogRepo.add(project.id, { type: 'feature', title: `Feature ${i}`, priority: 'medium' })
@@ -803,7 +803,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       await task.execute({ task: 'plan-milestone' }, new AbortController().signal)
 
       const ms = h.milestoneRepo.getById('ms-planned')!
-      expect(ms.status).toBe('reviewed')
+      expect(ms.status).toBe('planned')
 
       // Milestone markdown written
       const mdPath = path.join(project.path, '.anima', 'milestones', 'ms-planned.md')
@@ -838,12 +838,12 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
   describe('State transitions', () => {
     it('validates allowed transitions', () => {
-      expect(validateTransition('reviewed', 'approve')).toBeTruthy()
-      expect(validateTransition('awaiting_review', 'accept')).toBeTruthy()
-      expect(validateTransition('awaiting_review', 'rollback')).toBeTruthy()
-      expect(validateTransition('awaiting_review', 'request_changes')).toBeTruthy()
+      expect(validateTransition('planned', 'approve')).toBeTruthy()
+      expect(validateTransition('in_review', 'accept')).toBeTruthy()
+      expect(validateTransition('in_review', 'rollback')).toBeTruthy()
+      expect(validateTransition('in_review', 'request_changes')).toBeTruthy()
       expect(validateTransition('ready', 'cancel')).toBeTruthy()
-      expect(validateTransition('cancelled', 'reopen')).toBeTruthy()
+      expect(validateTransition('closed', 'reopen')).toBeTruthy()
     })
 
     it('rejects invalid transitions', () => {
@@ -853,10 +853,10 @@ describe('E2E: Full Milestone Lifecycle', () => {
     })
 
     it('lists available actions per status', () => {
-      expect(availableActions('awaiting_review')).toEqual(
+      expect(availableActions('in_review')).toEqual(
         expect.arrayContaining(['accept', 'request_changes', 'rollback', 'close'])
       )
-      expect(availableActions('completed')).toEqual([])
+      expect(availableActions('completed')).toEqual(['close'])
     })
   })
 
@@ -876,7 +876,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
     it('accept merges and marks completed + backlog done', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
-        id: 'ms-lc', status: 'awaiting_review', baseCommit: 'abc1234',
+        id: 'ms-lc', status: 'in_review', baseCommit: 'abc1234',
         checks: [makeCheck({ title: 'A', status: 'passed', iteration: 1 })],
       }))
       const item = h.backlogRepo.add(project.id, { type: 'feature', title: 'Linked', priority: 'high' })
@@ -894,7 +894,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
     it('rollback resets branch and sets status to ready', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
-        id: 'ms-rb', status: 'awaiting_review', baseCommit: 'abc1234', iterationCount: 3,
+        id: 'ms-rb', status: 'in_review', baseCommit: 'abc1234', iterationCount: 3,
       }))
 
       await createLifecycle(project.id).rollback(project.id, 'ms-rb')
@@ -907,7 +907,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
     it('request_changes adds comment and sets ready', () => {
       const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-rc', status: 'awaiting_review' }))
+      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-rc', status: 'in_review' }))
 
       createLifecycle(project.id).requestChanges(project.id, 'ms-rc', {
         id: 'c1', body: 'Fix edge case',
@@ -935,10 +935,10 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
     it('rollback without baseCommit is a no-op', async () => {
       const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-nobase', status: 'awaiting_review' }))
+      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-nobase', status: 'in_review' }))
 
       await createLifecycle(project.id).rollback(project.id, 'ms-nobase')
-      expect(h.milestoneRepo.getById('ms-nobase')!.status).toBe('awaiting_review')
+      expect(h.milestoneRepo.getById('ms-nobase')!.status).toBe('in_review')
     })
   })
 
@@ -965,14 +965,14 @@ describe('E2E: Full Milestone Lifecycle', () => {
       h.soulService.add(project)
       await vi.advanceTimersByTimeAsync(100)
 
-      expect(h.milestoneRepo.getById('ms-soul')!.status).toBe('awaiting_review')
+      expect(h.milestoneRepo.getById('ms-soul')!.status).toBe('in_review')
       expect(h.projectRepo.getById(project.id)!.status).toBe('idle')
     })
 
     it('transition accept merges and wakes for next work', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
-        id: 'ms-accept', status: 'awaiting_review', baseCommit: 'def456',
+        id: 'ms-accept', status: 'in_review', baseCommit: 'def456',
         checks: [makeCheck({ title: 'A', status: 'passed', iteration: 1 })],
       }))
       h.soulService.add(project)
@@ -998,7 +998,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
     it('transition request_changes re-wakes soul', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
-        id: 'ms-rq', status: 'awaiting_review', baseCommit: 'ghi789',
+        id: 'ms-rq', status: 'in_review', baseCommit: 'ghi789',
       }))
 
       h.soulService.add(project)
@@ -1024,9 +1024,9 @@ describe('E2E: Full Milestone Lifecycle', () => {
   // ── 10. MilestoneService ────────────────────────────────────────────────
 
   describe('MilestoneService', () => {
-    it('approve transitions reviewed → ready', async () => {
+    it('approve transitions planned → ready', async () => {
       const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-approve', status: 'reviewed' }))
+      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-approve', status: 'planned' }))
 
       await h.milestoneService.transition(project.id, 'ms-approve', { action: 'approve' })
       expect(h.milestoneRepo.getById('ms-approve')!.status).toBe('ready')
@@ -1041,9 +1041,9 @@ describe('E2E: Full Milestone Lifecycle', () => {
       ).rejects.toThrow('Invalid transition')
     })
 
-    it('reopen transitions cancelled → draft', async () => {
+    it('reopen transitions closed → draft', async () => {
       const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-reopen', status: 'cancelled' }))
+      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-reopen', status: 'closed' }))
 
       await h.milestoneService.transition(project.id, 'ms-reopen', { action: 'reopen' })
       expect(h.milestoneRepo.getById('ms-reopen')!.status).toBe('draft')
@@ -1051,18 +1051,18 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
     it('preserves status on save (prevents bypass)', () => {
       const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-preserve', status: 'in-progress' }))
+      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-preserve', status: 'in_progress' }))
 
       h.milestoneService.saveMilestone(project.id, makeMs({ id: 'ms-preserve', status: 'completed' }))
-      expect(h.milestoneRepo.getById('ms-preserve')!.status).toBe('in-progress')
+      expect(h.milestoneRepo.getById('ms-preserve')!.status).toBe('in_progress')
     })
 
-    it('blocks deletion of in-progress milestones', () => {
+    it('blocks deletion of in_progress milestones', () => {
       const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-block', status: 'in-progress' }))
+      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-block', status: 'in_progress' }))
 
       expect(() => h.milestoneService.deleteMilestone(project.id, 'ms-block')).toThrow(
-        'Cannot delete milestone in status: in-progress',
+        'Cannot delete milestone in status: in_progress',
       )
     })
   })
@@ -1178,7 +1178,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         new AbortController().signal,
       )
 
-      expect(h.milestoneRepo.getById('ms-e2e')!.status).toBe('awaiting_review')
+      expect(h.milestoneRepo.getById('ms-e2e')!.status).toBe('in_review')
 
       // Step 7: Human accepts
       h.soulService.add(h.projectRepo.getById(project.id)!)

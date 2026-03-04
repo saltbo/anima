@@ -49,38 +49,41 @@ export function statusBgColor(status: ProjectStatus): string {
 export function milestoneStatusLabel(status: MilestoneStatus): string {
   switch (status) {
     case 'draft': return 'Draft'
-    case 'reviewing': return 'Reviewing…'
-    case 'reviewed': return 'Reviewed'
+    case 'planning': return 'Planning…'
+    case 'planned': return 'Planned'
     case 'ready': return 'Ready'
-    case 'in-progress': return 'In Progress'
-    case 'awaiting_review': return 'Awaiting Review'
+    case 'in_progress': return 'In Progress'
+    case 'in_review': return 'In Review'
     case 'completed': return 'Completed'
     case 'cancelled': return 'Cancelled'
+    case 'closed': return 'Closed'
   }
 }
 
 export function milestoneStatusBadgeClass(status: MilestoneStatus): string {
   switch (status) {
     case 'draft': return 'bg-muted text-muted-foreground'
-    case 'reviewing': return 'bg-yellow-500/10 text-yellow-600'
-    case 'reviewed': return 'bg-blue-500/10 text-blue-600'
+    case 'planning': return 'bg-yellow-500/10 text-yellow-600'
+    case 'planned': return 'bg-blue-500/10 text-blue-600'
     case 'ready': return 'bg-primary/10 text-primary'
-    case 'in-progress': return 'bg-purple-500/10 text-purple-600'
-    case 'awaiting_review': return 'bg-amber-500/10 text-amber-600'
+    case 'in_progress': return 'bg-purple-500/10 text-purple-600'
+    case 'in_review': return 'bg-amber-500/10 text-amber-600'
     case 'completed': return 'bg-green-500/10 text-green-600'
     case 'cancelled': return 'bg-red-500/10 text-red-600'
+    case 'closed': return 'bg-muted text-muted-foreground'
   }
 }
 
 export function milestoneStatusDotClass(status: MilestoneStatus): string {
   switch (status) {
     case 'draft': return 'bg-muted-foreground'
-    case 'reviewing': return 'bg-yellow-500'
-    case 'reviewed': return 'bg-blue-500'
+    case 'planning': return 'bg-yellow-500'
+    case 'planned': return 'bg-blue-500'
     case 'ready': return 'bg-primary'
-    case 'in-progress': return 'bg-purple-500'
-    case 'awaiting_review': return 'bg-amber-500'
+    case 'in_progress': return 'bg-purple-500'
+    case 'in_review': return 'bg-amber-500'
     case 'completed': return 'bg-green-500'
     case 'cancelled': return 'bg-red-500'
+    case 'closed': return 'bg-muted-foreground'
   }
 }

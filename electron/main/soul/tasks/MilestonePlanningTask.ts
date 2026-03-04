@@ -98,8 +98,8 @@ export class MilestonePlanningTask implements SoulTask {
       // ── Step 3: Start review ──────────────────────────────────────────
       if (signal.aborted) return
 
-      this.milestoneRepo.save(this.projectId, { ...draftMilestone, status: 'reviewing' })
-      this.notifier.broadcastMilestoneUpdate({ ...draftMilestone, status: 'reviewing' })
+      this.milestoneRepo.save(this.projectId, { ...draftMilestone, status: 'planning' })
+      this.notifier.broadcastMilestoneUpdate({ ...draftMilestone, status: 'planning' })
 
       await this.runReview(draftMilestone.id, signal, mcpConfigPath)
 
@@ -115,8 +115,8 @@ export class MilestonePlanningTask implements SoulTask {
           this.notifier.broadcastMilestoneUpdate({ ...refreshed, status: 'ready' })
           log.info('auto-approved milestone', { milestoneId: draftMilestone.id })
         } else {
-          this.milestoneRepo.save(this.projectId, { ...refreshed, status: 'reviewed' })
-          this.notifier.broadcastMilestoneUpdate({ ...refreshed, status: 'reviewed' })
+          this.milestoneRepo.save(this.projectId, { ...refreshed, status: 'planned' })
+          this.notifier.broadcastMilestoneUpdate({ ...refreshed, status: 'planned' })
           log.info('milestone reviewed, awaiting user approval', { milestoneId: draftMilestone.id })
         }
       }

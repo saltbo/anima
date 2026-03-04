@@ -9,7 +9,7 @@ interface MilestoneDetailHeaderProps {
 }
 
 export function MilestoneDetailHeader({ milestone, onEdit }: MilestoneDetailHeaderProps) {
-  const isReviewing = milestone.status === 'reviewing'
+  const isReviewing = milestone.status === 'planning'
 
   return (
     <div className="flex flex-col gap-2.5 pr-6 pt-5 pb-4 border-b border-border shrink-0">

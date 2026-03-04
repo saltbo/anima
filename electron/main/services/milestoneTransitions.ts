@@ -21,21 +21,25 @@ export interface TransitionRule {
 }
 
 export const TRANSITION_TABLE: readonly TransitionRule[] = [
-  // User-initiated via milestones:transition IPC
-  { action: 'approve',          from: 'reviewed',        to: 'ready',     needsScheduler: false },
+  // Planning phase
+  { action: 'approve',          from: 'planned',         to: 'ready',     needsScheduler: false },
+  // Execution phase
   { action: 'cancel',           from: 'ready',           to: 'cancelled', needsScheduler: true  },
-  { action: 'cancel',           from: 'in-progress',     to: 'cancelled', needsScheduler: true  },
-  { action: 'close',            from: 'draft',           to: 'cancelled', needsScheduler: false },
-  { action: 'close',            from: 'reviewing',       to: 'cancelled', needsScheduler: false },
-  { action: 'close',            from: 'reviewed',        to: 'cancelled', needsScheduler: false },
-  { action: 'close',            from: 'ready',           to: 'cancelled', needsScheduler: true  },
-  { action: 'close',            from: 'in-progress',     to: 'cancelled', needsScheduler: true  },
-  { action: 'close',            from: 'awaiting_review', to: 'cancelled', needsScheduler: true  },
-  { action: 'accept',           from: 'awaiting_review', to: 'completed', needsScheduler: true  },
-  { action: 'request_changes',  from: 'awaiting_review', to: 'ready',     needsScheduler: true  },
-  { action: 'rollback',         from: 'awaiting_review', to: 'ready',     needsScheduler: true  },
+  { action: 'cancel',           from: 'in_progress',     to: 'cancelled', needsScheduler: true  },
+  { action: 'accept',           from: 'in_review',       to: 'completed', needsScheduler: true  },
+  { action: 'request_changes',  from: 'in_review',       to: 'ready',     needsScheduler: true  },
+  { action: 'rollback',         from: 'in_review',       to: 'ready',     needsScheduler: true  },
   { action: 'rollback',         from: 'cancelled',       to: 'ready',     needsScheduler: true  },
-  { action: 'reopen',           from: 'cancelled',       to: 'draft',     needsScheduler: false },
+  // Close (→ closed)
+  { action: 'close',            from: 'draft',           to: 'closed',    needsScheduler: false },
+  { action: 'close',            from: 'planning',        to: 'closed',    needsScheduler: false },
+  { action: 'close',            from: 'planned',         to: 'closed',    needsScheduler: false },
+  { action: 'close',            from: 'ready',           to: 'closed',    needsScheduler: true  },
+  { action: 'close',            from: 'in_review',       to: 'closed',    needsScheduler: true  },
+  { action: 'close',            from: 'cancelled',       to: 'closed',    needsScheduler: false },
+  { action: 'close',            from: 'completed',       to: 'closed',    needsScheduler: false },
+  // Reopen
+  { action: 'reopen',           from: 'closed',          to: 'draft',     needsScheduler: false },
 ]
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ export class MilestoneLifecycle {
 
   async accept(projectId: string, milestoneId: string): Promise<void> {
     const milestone = this.milestoneRepo.getById(milestoneId)
-    if (!milestone || milestone.status !== 'awaiting_review') {
+    if (!milestone || milestone.status !== 'in_review') {
       log.warn('cannot accept milestone in status', { status: milestone?.status })
       return
     }
@@ -51,7 +51,7 @@ export class MilestoneLifecycle {
 
   async rollback(projectId: string, milestoneId: string): Promise<void> {
     const milestone = this.milestoneRepo.getById(milestoneId)
-    if (!milestone || (milestone.status !== 'awaiting_review' && milestone.status !== 'cancelled')) {
+    if (!milestone || (milestone.status !== 'in_review' && milestone.status !== 'cancelled')) {
       log.warn('cannot rollback milestone in status', { status: milestone?.status })
       return
     }
@@ -81,7 +81,7 @@ export class MilestoneLifecycle {
   requestChanges(projectId: string, milestoneId: string, comment: { id: string; body: string }): void {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone) return
-    if (milestone.status !== 'awaiting_review') {
+    if (milestone.status !== 'in_review') {
       log.warn('cannot request changes in status', { status: milestone.status })
       return
     }
@@ -105,7 +105,7 @@ export class MilestoneLifecycle {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone) return
 
-    if (milestone.status !== 'ready' && milestone.status !== 'in-progress') {
+    if (milestone.status !== 'ready' && milestone.status !== 'in_progress') {
       log.warn('cannot cancel milestone in status', { status: milestone.status })
       return
     }
@@ -122,16 +122,16 @@ export class MilestoneLifecycle {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone) return
 
-    if (milestone.status === 'completed' || milestone.status === 'cancelled') {
+    if (milestone.status === 'completed' || milestone.status === 'closed') {
       log.warn('cannot close milestone in status', { status: milestone.status })
       return
     }
 
-    this.milestoneRepo.save(projectId, { ...milestone, status: 'cancelled' })
+    this.milestoneRepo.save(projectId, { ...milestone, status: 'closed' })
     this.releaseBacklogItems(milestoneId)
     this.projectRepo.patch(projectId, { status: 'sleeping', currentIteration: null })
     this.broadcastStatus(projectId)
-    this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'cancelled' })
+    this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'closed' })
     log.info('milestone closed', { milestone: milestoneId })
   }
 

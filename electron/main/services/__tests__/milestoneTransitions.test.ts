@@ -8,20 +8,21 @@ describe('milestoneTransitions', () => {
     // ── Legal transitions ──────────────────────────────────────────────────
 
     it.each([
-      ['reviewed', 'approve', 'ready'],
+      ['planned', 'approve', 'ready'],
       ['ready', 'cancel', 'cancelled'],
-      ['in-progress', 'cancel', 'cancelled'],
-      ['draft', 'close', 'cancelled'],
-      ['reviewing', 'close', 'cancelled'],
-      ['reviewed', 'close', 'cancelled'],
-      ['ready', 'close', 'cancelled'],
-      ['in-progress', 'close', 'cancelled'],
-      ['awaiting_review', 'close', 'cancelled'],
-      ['awaiting_review', 'accept', 'completed'],
-      ['awaiting_review', 'request_changes', 'ready'],
-      ['awaiting_review', 'rollback', 'ready'],
+      ['in_progress', 'cancel', 'cancelled'],
+      ['in_review', 'accept', 'completed'],
+      ['in_review', 'request_changes', 'ready'],
+      ['in_review', 'rollback', 'ready'],
       ['cancelled', 'rollback', 'ready'],
-      ['cancelled', 'reopen', 'draft'],
+      ['draft', 'close', 'closed'],
+      ['planning', 'close', 'closed'],
+      ['planned', 'close', 'closed'],
+      ['ready', 'close', 'closed'],
+      ['in_review', 'close', 'closed'],
+      ['cancelled', 'close', 'closed'],
+      ['completed', 'close', 'closed'],
+      ['closed', 'reopen', 'draft'],
     ] as [MilestoneStatus, MilestoneAction, MilestoneStatus][])(
       '%s + %s → %s',
       (from, action, to) => {
@@ -36,37 +37,42 @@ describe('milestoneTransitions', () => {
     // ── Illegal transitions ────────────────────────────────────────────────
 
     it.each([
-      ['draft', 'completed'],
       ['draft', 'cancel'],
       ['draft', 'accept'],
       ['draft', 'rollback'],
       ['draft', 'reopen'],
       ['draft', 'approve'],
       ['draft', 'request_changes'],
+      ['planning', 'cancel'],
+      ['planning', 'approve'],
+      ['planning', 'accept'],
+      ['planned', 'cancel'],
       ['ready', 'accept'],
       ['ready', 'rollback'],
       ['ready', 'reopen'],
       ['ready', 'approve'],
       ['ready', 'request_changes'],
-      ['in-progress', 'accept'],
-      ['in-progress', 'rollback'],
-      ['in-progress', 'reopen'],
+      ['in_progress', 'accept'],
+      ['in_progress', 'rollback'],
+      ['in_progress', 'reopen'],
+      ['in_progress', 'close'],
+      ['in_review', 'cancel'],
+      ['in_review', 'reopen'],
       ['completed', 'cancel'],
-      ['completed', 'close'],
       ['completed', 'accept'],
       ['completed', 'rollback'],
       ['completed', 'reopen'],
       ['completed', 'approve'],
       ['completed', 'request_changes'],
-      ['reviewing', 'cancel'],
-      ['reviewed', 'cancel'],
-      ['awaiting_review', 'cancel'],
-      ['awaiting_review', 'reopen'],
       ['cancelled', 'cancel'],
-      ['cancelled', 'close'],
       ['cancelled', 'accept'],
       ['cancelled', 'approve'],
       ['cancelled', 'request_changes'],
+      ['closed', 'cancel'],
+      ['closed', 'close'],
+      ['closed', 'accept'],
+      ['closed', 'approve'],
+      ['closed', 'rollback'],
     ] as [MilestoneStatus, MilestoneAction][])(
       '%s + %s → null (illegal)',
       (from, action) => {
@@ -80,43 +86,47 @@ describe('milestoneTransitions', () => {
       expect(availableActions('draft')).toEqual(['close'])
     })
 
-    it('returns [close] for reviewing', () => {
-      expect(availableActions('reviewing')).toEqual(['close'])
+    it('returns [close] for planning', () => {
+      expect(availableActions('planning')).toEqual(['close'])
     })
 
-    it('returns [approve, close] for reviewed', () => {
-      expect(availableActions('reviewed')).toEqual(['approve', 'close'])
+    it('returns [approve, close] for planned', () => {
+      expect(availableActions('planned')).toEqual(['approve', 'close'])
     })
 
     it('returns [cancel, close] for ready', () => {
       expect(availableActions('ready')).toEqual(['cancel', 'close'])
     })
 
-    it('returns [cancel, close] for in-progress', () => {
-      expect(availableActions('in-progress')).toEqual(['cancel', 'close'])
+    it('returns [cancel] for in_progress', () => {
+      expect(availableActions('in_progress')).toEqual(['cancel'])
     })
 
-    it('returns [close, accept, request_changes, rollback] for awaiting_review', () => {
-      expect(availableActions('awaiting_review')).toEqual(['close', 'accept', 'request_changes', 'rollback'])
+    it('returns [accept, request_changes, rollback, close] for in_review', () => {
+      expect(availableActions('in_review')).toEqual(['accept', 'request_changes', 'rollback', 'close'])
     })
 
-    it('returns [rollback, reopen] for cancelled', () => {
-      expect(availableActions('cancelled')).toEqual(['rollback', 'reopen'])
+    it('returns [rollback, close] for cancelled', () => {
+      expect(availableActions('cancelled')).toEqual(['rollback', 'close'])
     })
 
-    it('returns [] for completed', () => {
-      expect(availableActions('completed')).toEqual([])
+    it('returns [close] for completed', () => {
+      expect(availableActions('completed')).toEqual(['close'])
+    })
+
+    it('returns [reopen] for closed', () => {
+      expect(availableActions('closed')).toEqual(['reopen'])
     })
   })
 
   describe('needsScheduler flags', () => {
-    it('non-scheduler transitions: approve, reopen, close (from draft/reviewing/reviewed)', () => {
+    it('non-scheduler transitions: approve, reopen, close (from draft/planning/planned/cancelled/completed)', () => {
       const nonScheduler = TRANSITION_TABLE.filter((r) => !r.needsScheduler)
       const actions = [...new Set(nonScheduler.map((r) => r.action))].sort()
       expect(actions).toEqual(['approve', 'close', 'reopen'])
     })
 
-    it('scheduler transitions: cancel, close (from ready/in-progress/awaiting_review), accept, request_changes, rollback', () => {
+    it('scheduler transitions: cancel, close (from ready/in_review), accept, request_changes, rollback', () => {
       const scheduler = TRANSITION_TABLE.filter((r) => r.needsScheduler)
       const actions = [...new Set(scheduler.map((r) => r.action))].sort()
       expect(actions).toEqual(['accept', 'cancel', 'close', 'request_changes', 'rollback'])

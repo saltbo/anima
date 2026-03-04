@@ -16,7 +16,7 @@ export function think(context: SoulContext): Decision {
   }
 
   // Find active milestone (in-progress takes priority)
-  const active = milestones.find((m) => m.status === 'in-progress')
+  const active = milestones.find((m) => m.status === 'in_progress')
   if (active) return { task: 'execute-milestone', milestone: active }
 
   // Find ready milestone
@@ -25,7 +25,7 @@ export function think(context: SoulContext): Decision {
 
   // Check if we have pending planning/review milestones — don't trigger another plan
   const hasPendingPlanning = milestones.some(
-    (m) => m.status === 'draft' || m.status === 'reviewing' || m.status === 'reviewed'
+    (m) => m.status === 'draft' || m.status === 'planning' || m.status === 'planned'
   )
   if (hasPendingPlanning) return { task: 'idle' }
 

@@ -16,7 +16,7 @@ function createMockMilestoneRepo() {
     id: 'm-1',
     title: 'Test',
     description: 'desc',
-    status: 'in-progress',
+    status: 'in_progress',
     items: [],
     checks: [],
     createdAt: '2026-01-01',

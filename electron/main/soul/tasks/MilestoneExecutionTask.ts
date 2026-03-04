@@ -195,7 +195,7 @@ export class MilestoneExecutionTask implements SoulTask {
     const baseCommit = await this.gitService.createMilestoneBranch(this.projectPath, milestone.id)
     const updated: Milestone = {
       ...milestone,
-      status: 'in-progress',
+      status: 'in_progress',
       baseCommit: milestone.baseCommit ?? baseCommit,
       iterationCount: milestone.iterationCount ?? 0,
     }
@@ -224,10 +224,10 @@ export class MilestoneExecutionTask implements SoulTask {
         this.broadcastStatus()
         this.notifier.notifyMilestoneCompleted(milestone.id)
       } catch (err) {
-        log.warn('autoMerge failed, falling back to awaiting_review', { error: String(err) })
+        log.warn('autoMerge failed, falling back to in_review', { error: String(err) })
         if (m) {
           this.milestoneRepo.save(this.projectId, {
-            ...m, status: 'awaiting_review', iterationCount: round,
+            ...m, status: 'in_review', iterationCount: round,
           })
         }
         this.projectRepo.patch(this.projectId, { status: 'idle', currentIteration: null })
@@ -237,7 +237,7 @@ export class MilestoneExecutionTask implements SoulTask {
     } else {
       if (m) {
         this.milestoneRepo.save(this.projectId, {
-          ...m, status: 'awaiting_review', iterationCount: round,
+          ...m, status: 'in_review', iterationCount: round,
         })
       }
       this.projectRepo.patch(this.projectId, { status: 'idle', currentIteration: null })

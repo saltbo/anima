@@ -71,7 +71,7 @@ export class MilestoneService {
 
   deleteMilestone(projectId: string, id: string): void {
     const existing = this.milestoneRepo.getById(id)
-    if (existing && (existing.status === 'reviewing' || existing.status === 'in-progress')) {
+    if (existing && (existing.status === 'planning' || existing.status === 'in_progress')) {
       throw new Error(`Cannot delete milestone in status: ${existing.status}`)
     }
     this.milestoneRepo.delete(id)
@@ -112,8 +112,8 @@ export class MilestoneService {
     } else {
       this.milestoneRepo.save(projectId, { ...milestone, status: rule.to })
 
-      // Release backlog items back to todo when milestone is cancelled
-      if (rule.to === 'cancelled') {
+      // Release backlog items back to todo when milestone is cancelled or closed
+      if (rule.to === 'cancelled' || rule.to === 'closed') {
         this.releaseBacklogItems(milestoneId)
       }
 

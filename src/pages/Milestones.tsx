@@ -6,17 +6,18 @@ import { useProjects } from '@/store/projects'
 import { timeAgo, formatTokens } from '@/lib/time'
 import type { Milestone, MilestoneStatus } from '@/types/index'
 
-const STATUS_ORDER: MilestoneStatus[] = ['in-progress', 'awaiting_review', 'reviewed', 'reviewing', 'ready', 'draft', 'cancelled', 'completed']
+const STATUS_ORDER: MilestoneStatus[] = ['in_progress', 'in_review', 'planned', 'planning', 'ready', 'draft', 'cancelled', 'completed', 'closed']
 
 const GROUP_LABELS: Record<MilestoneStatus, string> = {
-  'in-progress': 'In Progress',
-  'awaiting_review': 'Awaiting Review',
-  'reviewing': 'Under Review',
-  'reviewed': 'Reviewed',
+  'in_progress': 'In Progress',
+  'in_review': 'In Review',
+  'planning': 'Planning',
+  'planned': 'Planned',
   'ready': 'Ready to Start',
   'draft': 'Drafts',
   'cancelled': 'Cancelled',
   'completed': 'Completed',
+  'closed': 'Closed',
 }
 
 export function Milestones() {
@@ -94,7 +95,7 @@ export function Milestones() {
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-medium text-foreground truncate">{m.title}</span>
                           <div className="flex items-center gap-2 shrink-0">
-                            {m.status === 'in-progress' && (
+                            {m.status === 'in_progress' && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); navigate(`/projects/${id}/milestones/${m.id}?tab=iterations`) }}
                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-green-400 hover:bg-green-500/10 transition-colors"

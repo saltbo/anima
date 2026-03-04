@@ -45,7 +45,7 @@ export interface BacklogItem {
   createdAt: string
 }
 
-export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'awaiting_review' | 'completed' | 'cancelled'
+export type MilestoneStatus = 'draft' | 'planning' | 'planned' | 'ready' | 'in_progress' | 'in_review' | 'completed' | 'cancelled' | 'closed'
 
 export type MilestoneCheckStatus = 'pending' | 'checking' | 'passed' | 'rejected'
 

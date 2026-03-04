@@ -84,7 +84,7 @@ export class SoulService {
 
     // Auto-wake if project has ready milestones or was active
     const milestones = this.milestoneRepo.getByProjectId(project.id)
-    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in-progress')
+    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress')
     if (hasWork || project.status === 'busy' || project.status === 'idle') {
       soul.wake()
     }
@@ -192,7 +192,7 @@ export class SoulService {
   /** Only wake the soul if there are ready or in-progress milestones to work on */
   private wakeIfHasWork(projectId: string): void {
     const milestones = this.milestoneRepo.getByProjectId(projectId)
-    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in-progress')
+    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress')
     if (hasWork) {
       this.souls.get(projectId)?.wake()
     }

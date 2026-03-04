@@ -244,7 +244,7 @@ interface MilestoneDetailSidebarProps {
 }
 
 export function MilestoneDetailSidebar({ milestone, gitInfo, iterations }: MilestoneDetailSidebarProps) {
-  const showGit = gitInfo && (milestone.status === 'in-progress' || milestone.status === 'awaiting_review')
+  const showGit = gitInfo && (milestone.status === 'in_progress' || milestone.status === 'in_review')
 
   return (
     <div className="w-80 shrink-0 border-l border-border">
