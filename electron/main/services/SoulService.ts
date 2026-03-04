@@ -4,6 +4,7 @@ import type { Project, WakeSchedule, MilestoneGitInfo, TransitionPayload } from 
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
+import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { GitService } from './GitService'
 import { MilestoneLifecycle } from './MilestoneLifecycle'
 import { Soul } from '../soul/Soul'
@@ -21,6 +22,7 @@ export class SoulService {
     private projectRepo: ProjectRepository,
     private milestoneRepo: MilestoneRepository,
     private commentRepo: CommentRepository,
+    private backlogRepo: BacklogRepository,
     private gitService: GitService,
     private agentRunner: AgentRunner,
     private getWindow: () => BrowserWindow | null,
@@ -160,6 +162,7 @@ export class SoulService {
         this.projectRepo,
         this.milestoneRepo,
         this.commentRepo,
+        this.backlogRepo,
         this.gitService,
         new Notifier(projectId, this.getWindow)
       )

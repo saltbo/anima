@@ -32,7 +32,7 @@ export interface Project {
 
 export type BacklogItemType = 'idea' | 'bug' | 'feature'
 export type BacklogItemPriority = 'low' | 'medium' | 'high'
-export type BacklogItemStatus = 'pending' | 'included' | 'dismissed'
+export type BacklogItemStatus = 'todo' | 'in_progress' | 'done' | 'closed'
 
 export interface BacklogItem {
   id: string

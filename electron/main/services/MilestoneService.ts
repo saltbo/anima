@@ -240,7 +240,7 @@ export class MilestoneService {
 
     // Link backlog items to milestone
     for (const iid of backlogItemIds) {
-      this.backlogRepo.update(iid, { milestoneId, status: 'included' })
+      this.backlogRepo.update(iid, { milestoneId, status: 'in_progress' })
     }
 
     // Resolve backlog item contents for inline context

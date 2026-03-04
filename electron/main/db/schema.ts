@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS backlog_items (
   title        TEXT NOT NULL,
   description  TEXT,
   priority     TEXT NOT NULL DEFAULT 'medium',
-  status       TEXT NOT NULL DEFAULT 'pending',
+  status       TEXT NOT NULL DEFAULT 'todo',
   milestone_id TEXT,
   created_at   TEXT NOT NULL
 );
@@ -134,6 +134,22 @@ function migrateInboxToBacklog(db: Database.Database): void {
   `)
 }
 
+function migrateBacklogStatusToKanban(db: Database.Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='backlog_items'").all()
+  if (tables.length === 0) return
+
+  // Check if any rows still use old statuses
+  const oldRows = db.prepare("SELECT COUNT(*) as cnt FROM backlog_items WHERE status IN ('pending', 'included', 'dismissed')").get() as { cnt: number }
+  if (oldRows.cnt === 0) return
+
+  log.info('migrating backlog_items status: pending→todo, included→in_progress, dismissed→closed')
+  db.exec(`
+    UPDATE backlog_items SET status = 'todo' WHERE status = 'pending';
+    UPDATE backlog_items SET status = 'in_progress' WHERE status = 'included';
+    UPDATE backlog_items SET status = 'closed' WHERE status = 'dismissed';
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
@@ -141,4 +157,5 @@ export function initSchema(db: Database.Database): void {
   migrateAutoMergeColumn(db)
   migrateMilestoneCommentsTable(db)
   migrateInboxToBacklog(db)
+  migrateBacklogStatusToKanban(db)
 }

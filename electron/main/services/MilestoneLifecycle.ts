@@ -3,6 +3,7 @@ import { nowISO } from '../lib/time'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
+import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { GitService } from './GitService'
 import { Notifier } from '../soul/notifier'
 
@@ -13,6 +14,7 @@ export class MilestoneLifecycle {
     private projectRepo: ProjectRepository,
     private milestoneRepo: MilestoneRepository,
     private commentRepo: CommentRepository,
+    private backlogRepo: BacklogRepository,
     private gitService: GitService,
     private notifier: Notifier
   ) {}
@@ -37,6 +39,7 @@ export class MilestoneLifecycle {
       status: 'completed',
       completedAt: nowISO(),
     })
+    this.markBacklogItems(milestoneId, 'done')
     this.projectRepo.patch(projectId, { status: 'sleeping' })
     this.broadcastStatus(projectId)
     this.notifier.notifyMilestoneCompleted(milestoneId)
@@ -106,6 +109,7 @@ export class MilestoneLifecycle {
     }
 
     this.milestoneRepo.save(projectId, { ...milestone, status: 'cancelled' })
+    this.releaseBacklogItems(milestoneId)
     this.projectRepo.patch(projectId, { status: 'sleeping', currentIteration: null })
     this.broadcastStatus(projectId)
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'cancelled' })
@@ -122,6 +126,7 @@ export class MilestoneLifecycle {
     }
 
     this.milestoneRepo.save(projectId, { ...milestone, status: 'cancelled' })
+    this.releaseBacklogItems(milestoneId)
     this.projectRepo.patch(projectId, { status: 'sleeping', currentIteration: null })
     this.broadcastStatus(projectId)
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'cancelled' })
@@ -131,5 +136,21 @@ export class MilestoneLifecycle {
   private broadcastStatus(projectId: string): void {
     const project = this.projectRepo.getById(projectId)
     if (project) this.notifier.broadcastStatus(project)
+  }
+
+  /** Mark all backlog items linked to a milestone as a given status. */
+  private markBacklogItems(milestoneId: string, status: 'done' | 'todo'): void {
+    const items = this.backlogRepo.getByMilestoneId(milestoneId)
+    for (const item of items) {
+      this.backlogRepo.update(item.id, { status })
+    }
+  }
+
+  /** Release backlog items from a cancelled milestone: set to todo, clear milestoneId. */
+  private releaseBacklogItems(milestoneId: string): void {
+    const items = this.backlogRepo.getByMilestoneId(milestoneId)
+    for (const item of items) {
+      this.backlogRepo.update(item.id, { status: 'todo', milestoneId: undefined })
+    }
   }
 }

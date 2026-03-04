@@ -29,7 +29,7 @@ export function installBrowserStub() {
     onTriggerAddProject: () => () => {},
 
     getBacklogItems: async () => [],
-    addBacklogItem: async () => ({ id: '', title: '', type: 'idea', priority: 'medium', status: 'pending', createdAt: '' }),
+    addBacklogItem: async () => ({ id: '', title: '', type: 'idea', priority: 'medium', status: 'todo', createdAt: '' }),
     updateBacklogItem: async () => null,
     deleteBacklogItem: async () => {},
     getMilestones: async () => [],

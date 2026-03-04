@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useLoaderData } from 'react-router-dom'
-import { EyeOff, RefreshCw, Trash2, Pencil, X, Check } from 'lucide-react'
+import { XCircle, RotateCcw, Trash2, Pencil, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -72,15 +72,15 @@ export function BacklogDetail() {
     setSaving(false)
   }
 
-  const handleDismiss = async () => {
+  const handleClose = async () => {
     if (!project || !item) return
-    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'dismissed' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'closed' })
     if (updated) setItem(updated)
   }
 
-  const handleRestore = async () => {
+  const handleReopen = async () => {
     if (!project || !item) return
-    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'pending' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'todo' })
     if (updated) setItem(updated)
   }
 
@@ -99,21 +99,23 @@ export function BacklogDetail() {
       {/* Header */}
       <div className="flex items-center gap-3 pt-6 pb-4 shrink-0">
         <div className="flex-1" />
-        {!editing && item.status !== 'included' && (
+        {!editing && (item.status === 'todo' || item.status === 'closed') && (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={startEdit}>
-              <Pencil size={12} />
-              Edit
-            </Button>
-            {item.status === 'dismissed' ? (
-              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleRestore}>
-                <RefreshCw size={12} />
-                Restore
+            {item.status === 'todo' && (
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={startEdit}>
+                <Pencil size={12} />
+                Edit
+              </Button>
+            )}
+            {item.status === 'closed' ? (
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleReopen}>
+                <RotateCcw size={12} />
+                Reopen
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-yellow-600 hover:text-yellow-700" onClick={handleDismiss}>
-                <EyeOff size={12} />
-                Dismiss
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-yellow-600 hover:text-yellow-700" onClick={handleClose}>
+                <XCircle size={12} />
+                Close
               </Button>
             )}
             <Button
@@ -152,14 +154,19 @@ export function BacklogDetail() {
             <span className={`text-xs font-semibold ${PRIORITY_COLOR[item.priority]}`}>
               {PRIORITY_LABEL[item.priority]}
             </span>
-            {item.status === 'included' && (
+            {item.status === 'in_progress' && (
               <span className="inline-flex items-center px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium">
-                Included in a milestone
+                In Progress
               </span>
             )}
-            {item.status === 'dismissed' && (
+            {item.status === 'done' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-500/10 text-green-600 text-xs font-medium">
+                Done
+              </span>
+            )}
+            {item.status === 'closed' && (
               <span className="inline-flex items-center px-2 py-0.5 rounded bg-muted text-muted-foreground text-xs font-medium">
-                Dismissed
+                Closed
               </span>
             )}
           </div>

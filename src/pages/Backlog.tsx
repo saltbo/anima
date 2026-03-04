@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, EyeOff, RefreshCw } from 'lucide-react'
+import { Plus, Search, Trash2, XCircle, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,11 +27,12 @@ const PRIORITY_ORDER: Record<BacklogItemPriority, number> = { high: 0, medium: 1
 const PRIORITY_LABEL: Record<BacklogItemPriority, string> = { high: '↑ High', medium: '— Med', low: '↓ Low' }
 const PRIORITY_COLOR: Record<BacklogItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
 
-const STATUS_LABEL: Record<string, string> = { pending: 'Pending', included: 'Included', dismissed: 'Dismissed' }
+const STATUS_LABEL: Record<string, string> = { todo: 'Todo', in_progress: 'In Progress', done: 'Done', closed: 'Closed' }
 const STATUS_STYLE: Record<string, string> = {
-  pending: 'bg-muted text-muted-foreground',
-  included: 'bg-primary/10 text-primary',
-  dismissed: 'bg-muted text-muted-foreground opacity-60',
+  todo: 'bg-muted text-muted-foreground',
+  in_progress: 'bg-primary/10 text-primary',
+  done: 'bg-green-500/10 text-green-600',
+  closed: 'bg-muted text-muted-foreground opacity-60',
 }
 
 type SortKey = 'priority' | 'date'
@@ -44,16 +45,16 @@ const EMPTY_FORM = { type: 'idea' as BacklogItemType, title: '', description: ''
 interface RowProps {
   item: BacklogItem
   onOpen: (item: BacklogItem) => void
-  onDismiss: (item: BacklogItem) => void
-  onRestore: (item: BacklogItem) => void
+  onClose: (item: BacklogItem) => void
+  onReopen: (item: BacklogItem) => void
   onDeleteRequest: (item: BacklogItem) => void
 }
 
-function BacklogRow({ item, onOpen, onDismiss, onRestore, onDeleteRequest }: RowProps) {
-  const isDismissed = item.status === 'dismissed'
-  const isIncluded = item.status === 'included'
+function BacklogRow({ item, onOpen, onClose, onReopen, onDeleteRequest }: RowProps) {
+  const isClosed = item.status === 'closed'
+  const isLocked = item.status === 'in_progress' || item.status === 'done'
   return (
-    <div className={`flex items-center gap-3 py-2.5 border-b border-border hover:bg-accent/40 transition-colors ${isDismissed ? 'opacity-50' : ''}`}>
+    <div className={`flex items-center gap-3 py-2.5 border-b border-border hover:bg-accent/40 transition-colors ${isClosed ? 'opacity-50' : ''}`}>
       <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
         {item.type}
       </span>
@@ -76,25 +77,25 @@ function BacklogRow({ item, onOpen, onDismiss, onRestore, onDeleteRequest }: Row
       <span className="shrink-0 text-xs text-muted-foreground w-12 text-right">{timeAgo(item.createdAt)}</span>
 
       <div className="shrink-0 flex items-center gap-0.5">
-        {!isIncluded && !isDismissed && (
+        {item.status === 'todo' && (
           <button
-            onClick={() => onDismiss(item)}
-            title="Dismiss"
+            onClick={() => onClose(item)}
+            title="Close"
             className="p-1.5 rounded text-muted-foreground hover:text-yellow-600 hover:bg-yellow-500/10 transition-colors"
           >
-            <EyeOff size={13} />
+            <XCircle size={13} />
           </button>
         )}
-        {isDismissed && (
+        {isClosed && (
           <button
-            onClick={() => onRestore(item)}
-            title="Restore"
+            onClick={() => onReopen(item)}
+            title="Reopen"
             className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           >
-            <RefreshCw size={13} />
+            <RotateCcw size={13} />
           </button>
         )}
-        {!isIncluded && (
+        {!isLocked && (
           <button
             onClick={() => onDeleteRequest(item)}
             title="Delete"
@@ -157,15 +158,15 @@ export function Backlog() {
     setSubmitting(false)
   }
 
-  const handleDismiss = async (item: BacklogItem) => {
+  const handleClose = async (item: BacklogItem) => {
     if (!project) return
-    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'dismissed' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'closed' })
     if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
-  const handleRestore = async (item: BacklogItem) => {
+  const handleReopen = async (item: BacklogItem) => {
     if (!project) return
-    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'pending' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'todo' })
     if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
@@ -262,8 +263,8 @@ export function Backlog() {
               key={item.id}
               item={item}
               onOpen={(i) => navigate(`/projects/${id}/backlog/${i.id}`)}
-              onDismiss={handleDismiss}
-              onRestore={handleRestore}
+              onClose={handleClose}
+              onReopen={handleReopen}
               onDeleteRequest={setDeleteTarget}
             />
           ))

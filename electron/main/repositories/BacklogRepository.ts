@@ -43,11 +43,18 @@ export class BacklogRepository {
     return row ? rowToItem(row) : null
   }
 
+  getByMilestoneId(milestoneId: string): BacklogItem[] {
+    const rows = this.db
+      .prepare('SELECT * FROM backlog_items WHERE milestone_id = ?')
+      .all(milestoneId) as BacklogRow[]
+    return rows.map(rowToItem)
+  }
+
   add(projectId: string, item: Omit<BacklogItem, 'id' | 'createdAt' | 'status'>): BacklogItem {
     const newItem: BacklogItem = {
       ...item,
       id: randomUUID(),
-      status: 'pending',
+      status: 'todo',
       createdAt: nowISO(),
     }
     this.db

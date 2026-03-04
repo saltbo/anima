@@ -102,7 +102,7 @@ app.whenReady().then(() => {
   const mcpServerPath = join(__dirname, 'mcp-server.js')
   const dbPath = join(app.getPath('userData'), 'anima.db')
   soulService = new SoulService(
-    projectRepo, milestoneRepo, commentRepo, gitService, agentRunner, getWindow,
+    projectRepo, milestoneRepo, commentRepo, backlogRepo, gitService, agentRunner, getWindow,
     mcpServerPath, dbPath
   )
 
