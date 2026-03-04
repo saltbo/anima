@@ -25,12 +25,12 @@ export function buildPlannerSystemPrompt(): string {
   ].join('\n')
 }
 
-export function buildPlannerFirstMessage(): string {
+export function buildPlannerFirstMessage(projectId: string): string {
   return [
-    'Plan the next milestone for this project.',
-    'Use list_backlog_items to see what needs to be done.',
+    `Plan the next milestone for project \`${projectId}\`.`,
+    `Use list_backlog_items with project_id="${projectId}" to see what needs to be done.`,
     'Read .anima/soul.md for project context.',
-    'Then use create_milestone to create the milestone with your selected backlog items.',
+    `Then use create_milestone with project_id="${projectId}" to create the milestone with your selected backlog items.`,
   ].join(' ')
 }
 

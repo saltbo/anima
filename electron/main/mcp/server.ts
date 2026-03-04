@@ -73,10 +73,6 @@ function nowISO(): string {
   return new Date().toISOString()
 }
 
-function getProjectId(): string | null {
-  return process.env.ANIMA_PROJECT_ID ?? null
-}
-
 // ── Server setup ─────────────────────────────────────────────────────────────
 
 const server = new McpServer({
@@ -175,18 +171,14 @@ server.tool(
   }
 )
 
-// ── Planning tools (available when ANIMA_PROJECT_ID is set) ─────────────────
+// ── Planning tools ───────────────────────────────────────────────────────────
 
 server.tool(
   'list_backlog_items',
-  'List all backlog items for the current project. Use this to understand what needs to be done before planning a milestone.',
-  {},
-  async () => {
-    const projectId = getProjectId()
-    if (!projectId) {
-      return { content: [{ type: 'text' as const, text: 'ANIMA_PROJECT_ID not set — cannot list backlog items' }], isError: true }
-    }
-    const items = await client.call('backlog:list', [projectId]) as Array<{ status: string }>
+  'List all backlog items for a project. Use this to understand what needs to be done before planning a milestone.',
+  { project_id: z.string().describe('The project ID') },
+  async ({ project_id }) => {
+    const items = await client.call('backlog:list', [project_id]) as Array<{ status: string }>
     const todoItems = items.filter((i) => i.status === 'todo')
     return { content: [{ type: 'text' as const, text: JSON.stringify(todoItems, null, 2) }] }
   }
@@ -196,22 +188,18 @@ server.tool(
   'create_milestone',
   'Create a new milestone and link backlog items to it. The milestone will be created in draft status.',
   {
+    project_id: z.string().describe('The project ID'),
     title: z.string().describe('Milestone title'),
     description: z.string().describe('Milestone description (product-level, 1-2 paragraphs)'),
     backlog_item_ids: z.array(z.string()).describe('IDs of backlog items to link to this milestone'),
     milestone_content: z.string().describe('Full milestone markdown content following the standard format'),
   },
-  async ({ title, description, backlog_item_ids, milestone_content }) => {
-    const projectId = getProjectId()
-    if (!projectId) {
-      return { content: [{ type: 'text' as const, text: 'ANIMA_PROJECT_ID not set — cannot create milestone' }], isError: true }
-    }
-
+  async ({ project_id, title, description, backlog_item_ids, milestone_content }) => {
     const milestoneId = randomUUID()
     const now = nowISO()
 
     // Save milestone record
-    await client.call('milestones:save', [projectId, {
+    await client.call('milestones:save', [project_id, {
       id: milestoneId,
       title,
       description,
@@ -227,7 +215,7 @@ server.tool(
 
     // Link backlog items to milestone
     for (const itemId of backlog_item_ids) {
-      await client.call('backlog:update', [projectId, itemId, { milestoneId, status: 'in_progress' }])
+      await client.call('backlog:update', [project_id, itemId, { milestoneId, status: 'in_progress' }])
     }
 
     // Store milestone content as a comment for reference

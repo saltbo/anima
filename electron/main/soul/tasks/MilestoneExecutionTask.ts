@@ -10,7 +10,7 @@ import type { Milestone, IterationOutcome } from '../../../../src/types/index'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
-import { ensureMcpConfigFile } from '../../mcp/mcpConfig'
+import { getMcpConfigPath } from '../../mcp/mcpConfig'
 import {
   buildDeveloperSystemPrompt,
   buildAcceptorSystemPrompt,
@@ -35,8 +35,6 @@ export interface MilestoneExecutionTaskOptions {
   gitService: GitService
   agentRunner: AgentRunner
   notifier: Notifier
-  mcpServerPath: string
-  bridgeSocketPath: string
 }
 
 type MilestoneExecutionDecision = Decision & { task: 'execute-milestone' }
@@ -52,8 +50,6 @@ export class MilestoneExecutionTask implements SoulTask {
   private gitService: GitService
   private agentRunner: AgentRunner
   private notifier: Notifier
-  private mcpServerPath: string
-  private bridgeSocketPath: string
 
   constructor(opts: MilestoneExecutionTaskOptions) {
     this.projectId = opts.projectId
@@ -64,8 +60,6 @@ export class MilestoneExecutionTask implements SoulTask {
     this.gitService = opts.gitService
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier
-    this.mcpServerPath = opts.mcpServerPath
-    this.bridgeSocketPath = opts.bridgeSocketPath
   }
 
   async execute(decision: Decision, signal: AbortSignal): Promise<void> {
@@ -77,8 +71,7 @@ export class MilestoneExecutionTask implements SoulTask {
       milestone = await this.prepare(milestone)
     }
 
-    // Write centralized MCP config
-    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.bridgeSocketPath)
+    const mcpConfigPath = getMcpConfigPath()
 
     const branch = `milestone/${milestone.id}`
     let devSessionId = randomUUID()

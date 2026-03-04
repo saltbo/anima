@@ -5,6 +5,7 @@ import { tmpdir } from 'os'
 
 import {
   setMcpConfigDir,
+  initMcpConfig,
   getMcpConfigPath,
   loadMcpConfig,
   saveMcpConfig,
@@ -70,14 +71,6 @@ describe('mcpConfig', () => {
       })
     })
 
-    it('includes projectId in env when provided', () => {
-      const config = buildMcpConfig('/path/to/mcp-server.js', '/path/to/anima.sock', 'proj-123')
-      expect(config.mcpServers.anima.env).toEqual({
-        ANIMA_BRIDGE_SOCKET: '/path/to/anima.sock',
-        ANIMA_PROJECT_ID: 'proj-123',
-      })
-    })
-
     it('merges user-installed servers', () => {
       const existing = { mcpServers: { custom: { command: 'npx', args: ['my-mcp'] } } }
       writeFileSync(join(tmpDir, 'mcp-config.json'), JSON.stringify(existing))
@@ -90,12 +83,14 @@ describe('mcpConfig', () => {
 
   describe('ensureMcpConfigFile', () => {
     it('writes config and returns path', () => {
-      const configPath = ensureMcpConfigFile('/path/to/mcp-server.js', '/path/to/anima.db')
+      initMcpConfig(tmpDir, '/path/to/mcp-server.js', '/path/to/anima.sock')
+      const configPath = ensureMcpConfigFile()
       expect(configPath).toBe(join(tmpDir, 'mcp-config.json'))
       expect(existsSync(configPath)).toBe(true)
 
       const config = JSON.parse(readFileSync(configPath, 'utf-8'))
       expect(config.mcpServers.anima).toBeDefined()
+      expect(config.mcpServers.anima.env.ANIMA_BRIDGE_SOCKET).toBe('/path/to/anima.sock')
     })
   })
 

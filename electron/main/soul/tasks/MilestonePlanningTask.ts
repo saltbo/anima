@@ -11,7 +11,7 @@ import type { BacklogRepository } from '../../repositories/BacklogRepository'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
-import { ensureMcpConfigFile } from '../../mcp/mcpConfig'
+import { getMcpConfigPath } from '../../mcp/mcpConfig'
 import { buildPlannerSystemPrompt, buildPlannerFirstMessage } from '../prompts'
 
 const log = createLogger('milestone-planning')
@@ -32,8 +32,6 @@ export interface MilestonePlanningTaskOptions {
   backlogRepo: BacklogRepository
   agentRunner: AgentRunner
   notifier: Notifier
-  mcpServerPath: string
-  bridgeSocketPath: string
 }
 
 // ── MilestonePlanningTask ───────────────────────────────────────────────────
@@ -47,8 +45,6 @@ export class MilestonePlanningTask implements SoulTask {
   private backlogRepo: BacklogRepository
   private agentRunner: AgentRunner
   private notifier: Notifier
-  private mcpServerPath: string
-  private bridgeSocketPath: string
 
   constructor(opts: MilestonePlanningTaskOptions) {
     this.projectId = opts.projectId
@@ -59,15 +55,12 @@ export class MilestonePlanningTask implements SoulTask {
     this.backlogRepo = opts.backlogRepo
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier
-    this.mcpServerPath = opts.mcpServerPath
-    this.bridgeSocketPath = opts.bridgeSocketPath
   }
 
   async execute(_decision: Decision, signal: AbortSignal): Promise<void> {
     log.info('starting milestone planning', { project: this.projectId })
 
-    // Write centralized MCP config with projectId for backlog access
-    const mcpConfigPath = ensureMcpConfigFile(this.mcpServerPath, this.bridgeSocketPath, this.projectId)
+    const mcpConfigPath = getMcpConfigPath()
 
     try {
       // ── Step 1: Run planning agent ──────────────────────────────────────
@@ -78,7 +71,7 @@ export class MilestonePlanningTask implements SoulTask {
         projectPath: this.projectPath,
         sessionId: planSessionId,
         systemPrompt: buildPlannerSystemPrompt(),
-        message: buildPlannerFirstMessage(),
+        message: buildPlannerFirstMessage(this.projectId),
         mcpConfigPath,
         signal,
       })

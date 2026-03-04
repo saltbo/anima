@@ -16,17 +16,26 @@ export interface McpConfig {
 // ── Path ─────────────────────────────────────────────────────────────────────
 
 let userDataPath: string | null = null
+let _mcpServerPath: string | null = null
+let _bridgeSocketPath: string | null = null
 
 /**
- * Set the base directory for the MCP config file.
- * Must be called during app initialization (typically with app.getPath('userData')).
+ * Initialize the MCP config module.
+ * Must be called once during app startup with all three paths.
  */
+export function initMcpConfig(dir: string, mcpServerPath: string, bridgeSocketPath: string): void {
+  userDataPath = dir
+  _mcpServerPath = mcpServerPath
+  _bridgeSocketPath = bridgeSocketPath
+}
+
+/** @deprecated Use initMcpConfig instead. Only kept for tests. */
 export function setMcpConfigDir(dir: string): void {
   userDataPath = dir
 }
 
 export function getMcpConfigPath(): string {
-  if (!userDataPath) throw new Error('MCP config dir not set. Call setMcpConfigDir() first.')
+  if (!userDataPath) throw new Error('MCP config dir not set. Call initMcpConfig() first.')
   return path.join(userDataPath, 'mcp-config.json')
 }
 
@@ -58,9 +67,8 @@ export function saveMcpConfig(config: McpConfig): void {
  * Build a full MCP config with the anima entry always present,
  * plus any user-installed servers from the persisted config.
  */
-export function buildMcpConfig(mcpServerPath: string, bridgeSocketPath: string, projectId?: string): McpConfig {
+export function buildMcpConfig(mcpServerPath: string, bridgeSocketPath: string): McpConfig {
   const env: Record<string, string> = { ANIMA_BRIDGE_SOCKET: bridgeSocketPath }
-  if (projectId) env.ANIMA_PROJECT_ID = projectId
 
   const existing = loadMcpConfig()
 
@@ -82,10 +90,13 @@ export function buildMcpConfig(mcpServerPath: string, bridgeSocketPath: string, 
 
 /**
  * Write the centralized MCP config file and return its path.
- * This is the main entry point for task callers.
+ * Uses the mcpServerPath and bridgeSocketPath set via initMcpConfig().
  */
-export function ensureMcpConfigFile(mcpServerPath: string, bridgeSocketPath: string, projectId?: string): string {
-  const config = buildMcpConfig(mcpServerPath, bridgeSocketPath, projectId)
+export function ensureMcpConfigFile(): string {
+  if (!_mcpServerPath || !_bridgeSocketPath) {
+    throw new Error('MCP config not initialized. Call initMcpConfig() first.')
+  }
+  const config = buildMcpConfig(_mcpServerPath, _bridgeSocketPath)
   const configPath = getMcpConfigPath()
   const dir = path.dirname(configPath)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })

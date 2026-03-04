@@ -408,8 +408,6 @@ function createHarness(): Harness {
     gitService as unknown as GitService,
     agentRunner as unknown as AgentRunner,
     () => null,
-    '/fake/mcp-server.js',
-    ':memory:',
   )
 
   const milestoneService = new MilestoneService(
@@ -613,8 +611,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
-        mcpServerPath: '/fake/mcp.js',
-        dbPath: ':memory:',
       })
     }
 
@@ -756,8 +752,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
         backlogRepo: h.backlogRepo as unknown as BacklogRepository,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
-        mcpServerPath: '/fake/mcp.js',
-        dbPath: ':memory:',
       })
     }
 
@@ -1113,7 +1107,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
         backlogRepo: h.backlogRepo as unknown as BacklogRepository,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),
-        mcpServerPath: '/fake/mcp.js', dbPath: ':memory:',
       })
       await planTask.execute({ task: 'plan-milestone' }, new AbortController().signal)
 
@@ -1151,7 +1144,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),
-        mcpServerPath: '/fake/mcp.js', dbPath: ':memory:',
       })
       await execTask.execute(
         { task: 'execute-milestone', milestone: planned },

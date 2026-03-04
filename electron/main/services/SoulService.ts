@@ -27,8 +27,6 @@ export class SoulService {
     private gitService: GitService,
     private agentRunner: AgentRunner,
     private getWindow: () => BrowserWindow | null,
-    private mcpServerPath: string,
-    private bridgeSocketPath: string
   ) {}
 
   startAll(): void {
@@ -65,8 +63,6 @@ export class SoulService {
       gitService: this.gitService,
       agentRunner: this.agentRunner,
       notifier,
-      mcpServerPath: this.mcpServerPath,
-      bridgeSocketPath: this.bridgeSocketPath,
     })
     soul.register('execute-milestone', executionTask)
 
@@ -80,8 +76,6 @@ export class SoulService {
       backlogRepo: this.backlogRepo,
       agentRunner: this.agentRunner,
       notifier,
-      mcpServerPath: this.mcpServerPath,
-      bridgeSocketPath: this.bridgeSocketPath,
     })
     soul.register('plan-milestone', planningTask)
 

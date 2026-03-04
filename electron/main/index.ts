@@ -19,7 +19,7 @@ import { createTray } from './app/tray'
 import { createRoutes } from './api/routes'
 import { registerIpcAdapter } from './api/ipcAdapter'
 import { startSocketServer } from './api/socketAdapter'
-import { setMcpConfigDir } from './mcp/mcpConfig'
+import { initMcpConfig, ensureMcpConfigFile } from './mcp/mcpConfig'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
@@ -86,7 +86,10 @@ app.whenReady().then(() => {
   initSchema(db)
 
   // ── MCP Config ──────────────────────────────────────────────────────
-  setMcpConfigDir(app.getPath('userData'))
+  const mcpServerPath = join(__dirname, 'mcp-server.js')
+  const bridgeSocketPath = join(app.getPath('userData'), 'anima-bridge.sock')
+  initMcpConfig(app.getPath('userData'), mcpServerPath, bridgeSocketPath)
+  ensureMcpConfigFile()
 
   // ── Repositories ──────────────────────────────────────────────────────
   const projectRepo = new ProjectRepository(db)
@@ -105,11 +108,8 @@ app.whenReady().then(() => {
     () => soulService!
   )
   const setupService = new SetupService(agentRunner)
-  const mcpServerPath = join(__dirname, 'mcp-server.js')
-  const bridgeSocketPath = join(app.getPath('userData'), 'anima-bridge.sock')
   soulService = new SoulService(
-    projectRepo, milestoneRepo, commentRepo, backlogRepo, gitService, agentRunner, getWindow,
-    mcpServerPath, bridgeSocketPath
+    projectRepo, milestoneRepo, commentRepo, backlogRepo, gitService, agentRunner, getWindow
   )
 
   // ── Wire up ───────────────────────────────────────────────────────────
