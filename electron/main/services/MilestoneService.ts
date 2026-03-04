@@ -111,6 +111,12 @@ export class MilestoneService {
       await this.getSoulService().transition(projectId, milestoneId, payload)
     } else {
       this.milestoneRepo.save(projectId, { ...milestone, status: rule.to })
+
+      // Release backlog items back to todo when milestone is cancelled
+      if (rule.to === 'cancelled') {
+        this.releaseBacklogItems(milestoneId)
+      }
+
       this.getWindow()?.webContents.send('milestones:updated', {
         projectId,
         milestone: { ...milestone, status: rule.to },
@@ -179,6 +185,13 @@ export class MilestoneService {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  private releaseBacklogItems(milestoneId: string): void {
+    const itemIds = this.milestoneItemRepo.getItemIds(milestoneId)
+    for (const itemId of itemIds) {
+      this.backlogRepo.update(itemId, { status: 'todo' })
+    }
+  }
 
   private resolvePath(projectId: string): string | null {
     return this.projectRepo.getById(projectId)?.path ?? null
