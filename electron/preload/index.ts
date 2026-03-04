@@ -58,8 +58,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMilestones: (projectId: string) => ipcRenderer.invoke('milestones:list', projectId),
   saveMilestone: (projectId: string, milestone: unknown) => ipcRenderer.invoke('milestones:save', projectId, milestone),
   deleteMilestone: (projectId: string, id: string) => ipcRenderer.invoke('milestones:delete', projectId, id),
-  updateMilestoneTask: (projectId: string, milestoneId: string, taskId: string, patch: unknown) =>
-    ipcRenderer.invoke('milestones:updateTask', projectId, milestoneId, taskId, patch),
   readMilestoneMarkdown: (projectId: string, id: string) => ipcRenderer.invoke('milestones:readDoc', projectId, id),
   writeMilestoneMarkdown: (projectId: string, id: string, content: string) => ipcRenderer.invoke('milestones:writeDoc', projectId, id, content),
 

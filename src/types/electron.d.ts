@@ -1,4 +1,4 @@
-import type { Project, BacklogItem, Milestone, MilestoneTask, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload } from './index'
+import type { Project, BacklogItem, Milestone, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload } from './index'
 import type { AgentEvent } from './agent'
 
 export type AgentRole = 'developer' | 'acceptor'
@@ -60,7 +60,6 @@ declare global {
       getMilestones: (projectId: string) => Promise<Milestone[]>
       saveMilestone: (projectId: string, milestone: Milestone) => Promise<void>
       deleteMilestone: (projectId: string, id: string) => Promise<void>
-      updateMilestoneTask: (projectId: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
       readMilestoneMarkdown: (projectId: string, id: string) => Promise<string | null>
       writeMilestoneMarkdown: (projectId: string, id: string, content: string) => Promise<void>
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void

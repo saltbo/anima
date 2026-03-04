@@ -83,7 +83,6 @@ function createMockElectronAPI(projects: Project[] = []): MockElectronAPI {
     getMilestones: vi.fn().mockResolvedValue([]),
     saveMilestone: vi.fn().mockResolvedValue(undefined),
     deleteMilestone: vi.fn().mockResolvedValue(undefined),
-    updateMilestoneTask: vi.fn().mockResolvedValue(undefined),
     readMilestoneMarkdown: vi.fn().mockResolvedValue(null),
     writeMilestoneMarkdown: vi.fn().mockResolvedValue(undefined),
     onMilestoneReviewDone: vi.fn((cb: Listener<string>) => {
@@ -148,14 +147,14 @@ function makeMilestone(overrides: Partial<Milestone> = {}): Milestone {
     title: 'Test Milestone',
     description: 'Test description',
     status: 'awaiting_review',
-    acceptanceCriteria: [
-      { title: 'Feature A works', status: 'passed', iteration: 1 },
-      { title: 'Feature B works', status: 'pending', iteration: 1 },
+    checks: [
+      { id: 'chk-1', itemId: 'item-1', title: 'Feature A works', status: 'passed', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
+      { id: 'chk-2', itemId: 'item-1', title: 'Feature B works', status: 'pending', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
     ],
-    tasks: [
-      { id: 't1', title: 'Add login', completed: true, order: 0, iteration: 1 },
-      { id: 't2', title: 'Add signup', completed: false, order: 1, iteration: 1 },
-      { id: 't3', title: 'Add logout', completed: true, order: 2, iteration: 1 },
+    items: [
+      { id: 'item-1', type: 'feature', title: 'Add login', priority: 'high', status: 'done', createdAt: '2026-03-01T12:00:00Z' },
+      { id: 'item-2', type: 'feature', title: 'Add signup', priority: 'medium', status: 'in_progress', createdAt: '2026-03-01T12:00:00Z' },
+      { id: 'item-3', type: 'feature', title: 'Add logout', priority: 'low', status: 'done', createdAt: '2026-03-01T12:00:00Z' },
     ],
     createdAt: '2026-03-01T12:00:00.000Z',
     iterationCount: 1,
@@ -414,10 +413,10 @@ describe('useMilestoneDetail', () => {
       expect(result.current.totalACCount).toBe(2)
     })
 
-    it('returns 0% progress when no tasks', async () => {
+    it('returns 0% progress when no items', async () => {
       mockLoaderData = {
         meta: { title: 'Empty' },
-        milestone: makeMilestone({ tasks: [], acceptanceCriteria: [] }),
+        milestone: makeMilestone({ items: [], checks: [] }),
         backlogItems: [],
         markdown: '',
         comments: [],

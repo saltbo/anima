@@ -34,8 +34,6 @@ CREATE TABLE IF NOT EXISTS milestones (
   title                TEXT NOT NULL,
   description          TEXT NOT NULL DEFAULT '',
   status               TEXT NOT NULL DEFAULT 'draft',
-  acceptance_criteria  TEXT NOT NULL DEFAULT '[]',
-  tasks                TEXT NOT NULL DEFAULT '[]',
   created_at           TEXT NOT NULL,
   completed_at         TEXT,
   iteration_count      INTEGER NOT NULL DEFAULT 0,
@@ -70,11 +68,23 @@ CREATE TABLE IF NOT EXISTS milestone_comments (
   updated_at      TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS milestone_checks (
+  id           TEXT PRIMARY KEY,
+  item_id      TEXT NOT NULL REFERENCES backlog_items(id) ON DELETE CASCADE,
+  title        TEXT NOT NULL,
+  description  TEXT,
+  status       TEXT NOT NULL DEFAULT 'pending',
+  iteration    INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_backlog_project ON backlog_items(project_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_project ON milestones(project_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
 CREATE INDEX IF NOT EXISTS idx_comments_milestone ON milestone_comments(milestone_id);
+CREATE INDEX IF NOT EXISTS idx_checks_item ON milestone_checks(item_id);
 `
 
 function migrateIterationUsageColumns(db: Database.Database): void {
@@ -159,12 +169,61 @@ function migrateAutoApproveColumn(db: Database.Database): void {
   db.exec(`ALTER TABLE projects ADD COLUMN auto_approve INTEGER NOT NULL DEFAULT 0;`)
 }
 
+function migrateMilestoneDropJsonColumns(db: Database.Database): void {
+  const cols = db.pragma('table_info(milestones)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (!colNames.has('tasks') && !colNames.has('acceptance_criteria')) return
+
+  log.info('migrating milestones table: dropping tasks and acceptance_criteria JSON columns')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestones_new (
+      id                   TEXT PRIMARY KEY,
+      project_id           TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title                TEXT NOT NULL,
+      description          TEXT NOT NULL DEFAULT '',
+      status               TEXT NOT NULL DEFAULT 'draft',
+      created_at           TEXT NOT NULL,
+      completed_at         TEXT,
+      iteration_count      INTEGER NOT NULL DEFAULT 0,
+      base_commit          TEXT
+    );
+    INSERT INTO milestones_new SELECT id, project_id, title, description, status,
+      created_at, completed_at, iteration_count, base_commit FROM milestones;
+    DROP TABLE milestones;
+    ALTER TABLE milestones_new RENAME TO milestones;
+    CREATE INDEX IF NOT EXISTS idx_milestones_project ON milestones(project_id);
+    CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(project_id, status);
+  `)
+}
+
+function migrateMilestoneChecksTable(db: Database.Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='milestone_checks'").all()
+  if (tables.length > 0) return
+
+  log.info('migrating: creating milestone_checks table')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestone_checks (
+      id           TEXT PRIMARY KEY,
+      item_id      TEXT NOT NULL REFERENCES backlog_items(id) ON DELETE CASCADE,
+      title        TEXT NOT NULL,
+      description  TEXT,
+      status       TEXT NOT NULL DEFAULT 'pending',
+      iteration    INTEGER NOT NULL DEFAULT 0,
+      created_at   TEXT NOT NULL,
+      updated_at   TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_checks_item ON milestone_checks(item_id);
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
   migrateIterationUsageColumns(db)
   migrateAutoMergeColumn(db)
   migrateAutoApproveColumn(db)
+  migrateMilestoneChecksTable(db)
+  migrateMilestoneDropJsonColumns(db)
   migrateMilestoneCommentsTable(db)
   migrateInboxToBacklog(db)
   migrateBacklogStatusToKanban(db)

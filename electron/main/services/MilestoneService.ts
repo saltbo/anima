@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import type { BrowserWindow } from 'electron'
-import type { Milestone, MilestoneTask, TransitionPayload } from '../../../src/types/index'
+import type { Milestone, TransitionPayload } from '../../../src/types/index'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
@@ -56,10 +56,6 @@ export class MilestoneService {
       const mdPath = path.join(projectPath, '.anima', 'milestones', `${id}.md`)
       if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath)
     }
-  }
-
-  updateMilestoneTask(milestoneId: string, taskId: string, patch: Partial<MilestoneTask>): void {
-    this.milestoneRepo.updateTask(milestoneId, taskId, patch)
   }
 
   readMilestoneMarkdown(projectId: string, id: string): string | null {

@@ -7,7 +7,8 @@ import type { SoulService } from '../services/SoulService'
 import type { SetupService } from '../services/SetupService'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
-import type { Milestone, MilestoneTask, TransitionPayload, BacklogItem, BacklogItemPriority, WakeSchedule, AcceptanceCriterionStatus } from '../../../src/types/index'
+import type { CheckRepository } from '../repositories/CheckRepository'
+import type { Milestone, TransitionPayload, BacklogItem, BacklogItemPriority, WakeSchedule } from '../../../src/types/index'
 import type { McpServerEntry } from '../mcp/mcpConfig'
 import type { SetupType } from '../services/SetupService'
 import {
@@ -32,6 +33,7 @@ export interface ServiceContext {
   soulService: SoulService
   setupService: SetupService
   commentRepo: CommentRepository
+  checkRepo: CheckRepository
 }
 
 // ── Route Map ────────────────────────────────────────────────────────────────
@@ -40,7 +42,7 @@ export function createRoutes(
   ctx: ServiceContext,
   getWindow: () => BrowserWindow | null
 ): Record<string, ApiHandler> {
-  const { projectService, backlogService, milestoneService, milestoneRepo, soulService, setupService, commentRepo } = ctx
+  const { projectService, backlogService, milestoneService, milestoneRepo, soulService, setupService, commentRepo, checkRepo } = ctx
 
   return {
     // ── Projects ──────────────────────────────────────────────────────────
@@ -115,8 +117,6 @@ export function createRoutes(
       milestoneService.saveMilestone(projectId, milestone),
     'milestones:delete': (projectId: string, id: string) =>
       milestoneService.deleteMilestone(projectId, id),
-    'milestones:updateTask': (_projectId: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) =>
-      milestoneService.updateMilestoneTask(milestoneId, taskId, patch),
     'milestones:readDoc': (projectId: string, id: string) =>
       milestoneService.readMilestoneMarkdown(projectId, id),
     'milestones:writeDoc': (projectId: string, id: string, content: string) =>
@@ -126,16 +126,13 @@ export function createRoutes(
 
     // ── Milestone repo (used by MCP server via socket) ────────────────────
     'milestones:getById': (id: string) => milestoneRepo.getById(id),
-    'milestones:mergeAcceptanceCriteria': (
-      id: string,
-      criteria: Array<{ title: string; status: AcceptanceCriterionStatus; description?: string }>,
-      iteration: number
-    ) => milestoneRepo.mergeAcceptanceCriteria(id, criteria, iteration),
-    'milestones:mergeTasks': (
-      id: string,
-      tasks: Array<{ title: string; completed: boolean; description?: string }>,
-      iteration: number
-    ) => milestoneRepo.mergeTasks(id, tasks, iteration),
+
+    // ── Checks ────────────────────────────────────────────────────────────
+    'checks:list': (milestoneId: string) => checkRepo.getByMilestoneId(milestoneId),
+    'checks:add': (checks: Array<Omit<import('../../../src/types/index').MilestoneCheck, 'id' | 'createdAt' | 'updatedAt'>>) =>
+      checkRepo.bulkAdd(checks),
+    'checks:update': (checkId: string, patch: Partial<Pick<import('../../../src/types/index').MilestoneCheck, 'status' | 'title' | 'description' | 'iteration'>>) =>
+      checkRepo.update(checkId, patch),
 
     // ── Scheduler / Project ───────────────────────────────────────────────
     'project:wake': (projectId: string) => soulService.wake(projectId),

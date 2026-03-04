@@ -12,7 +12,7 @@
  * Coverage:
  *  1.  Project CRUD
  *  2.  Backlog CRUD
- *  3.  Milestone CRUD + iterations + acceptance criteria merging
+ *  3.  Milestone CRUD + iterations + checks
  *  4.  Soul decide() integration with real data
  *  5.  MilestoneExecutionTask — 1-round pass
  *  6.  MilestoneExecutionTask — multi-round (reject→pass)
@@ -46,8 +46,7 @@ import type { AgentRunner, RunOptions, ResumeOptions, RunResult } from '../agent
 import type {
   Project,
   Milestone,
-  MilestoneTask,
-  AcceptanceCriterionStatus,
+  MilestoneCheck,
   Iteration,
   BacklogItem,
   MilestoneComment,
@@ -149,63 +148,11 @@ class InMemoryMilestoneRepository {
     return this.milestones.get(milestoneId)?.projectId ?? null
   }
 
-  updateTask(milestoneId: string, taskId: string, patch: Partial<MilestoneTask>): void {
+  /** Update checks on a milestone by mutating in place */
+  updateChecks(milestoneId: string, checks: MilestoneCheck[]): void {
     const entry = this.milestones.get(milestoneId)
     if (!entry) return
-    const tIdx = entry.milestone.tasks.findIndex((t) => t.id === taskId)
-    if (tIdx === -1) return
-    entry.milestone.tasks[tIdx] = { ...entry.milestone.tasks[tIdx], ...patch }
-  }
-
-  mergeAcceptanceCriteria(
-    milestoneId: string,
-    criteria: Array<{ title: string; status: AcceptanceCriterionStatus; description?: string }>,
-    iteration: number,
-  ): Milestone | null {
-    const entry = this.milestones.get(milestoneId)
-    if (!entry) return null
-
-    const ac = [...entry.milestone.acceptanceCriteria]
-    for (const c of criteria) {
-      const idx = ac.findIndex((e) => e.title === c.title)
-      if (idx >= 0) {
-        ac[idx] = { ...ac[idx], status: c.status, description: c.description, iteration }
-      } else {
-        ac.push({ title: c.title, status: c.status, description: c.description, iteration })
-      }
-    }
-
-    entry.milestone.acceptanceCriteria = ac
-    return this.hydrate(entry.milestone)
-  }
-
-  mergeTasks(
-    milestoneId: string,
-    tasks: Array<{ title: string; completed: boolean; description?: string }>,
-    iteration: number,
-  ): Milestone | null {
-    const entry = this.milestones.get(milestoneId)
-    if (!entry) return null
-
-    const existing = [...entry.milestone.tasks]
-    for (const t of tasks) {
-      const idx = existing.findIndex((e) => e.title === t.title)
-      if (idx >= 0) {
-        existing[idx] = { ...existing[idx], completed: t.completed, description: t.description }
-      } else {
-        existing.push({
-          id: `task-${Date.now()}-${Math.random()}`,
-          title: t.title,
-          completed: t.completed,
-          description: t.description,
-          order: existing.length,
-          iteration,
-        })
-      }
-    }
-
-    entry.milestone.tasks = existing
-    return this.hydrate(entry.milestone)
+    entry.milestone.checks = checks
   }
 
   /** Remove all milestones for a project (for cascade delete) */
@@ -428,13 +375,26 @@ function makeMs(overrides: Partial<Milestone> = {}): Milestone {
     title: 'Test Milestone',
     description: 'Test',
     status: 'draft',
-    acceptanceCriteria: [],
-    tasks: [],
+    items: [],
+    checks: [],
     createdAt: '2026-03-01T12:00:00.000Z',
     iterationCount: 0,
     iterations: [],
     totalTokens: 0,
     totalCost: 0,
+    ...overrides,
+  }
+}
+
+function makeCheck(overrides: Partial<MilestoneCheck> = {}): MilestoneCheck {
+  return {
+    id: `chk-${Math.random().toString(36).slice(2, 8)}`,
+    itemId: 'item-1',
+    title: 'Check',
+    status: 'pending',
+    iteration: 0,
+    createdAt: '2026-03-01T12:00:00.000Z',
+    updatedAt: '2026-03-01T12:00:00.000Z',
     ...overrides,
   }
 }
@@ -512,15 +472,13 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add('/tmp/ms')
       const ms = makeMs({
         id: 'ms-crud',
-        acceptanceCriteria: [{ title: 'Login works', status: 'pending', iteration: 0 }],
-        tasks: [{ id: 't1', title: 'Add JWT', completed: false, order: 0, iteration: 0 }],
+        checks: [makeCheck({ title: 'Login works' })],
       })
       h.milestoneRepo.save(project.id, ms)
 
       const fetched = h.milestoneRepo.getById('ms-crud')!
       expect(fetched.title).toBe('Test Milestone')
-      expect(fetched.acceptanceCriteria).toHaveLength(1)
-      expect(fetched.tasks).toHaveLength(1)
+      expect(fetched.checks).toHaveLength(1)
 
       h.milestoneRepo.delete('ms-crud')
       expect(h.milestoneRepo.getById('ms-crud')).toBeNull()
@@ -543,25 +501,23 @@ describe('E2E: Full Milestone Lifecycle', () => {
       expect(refreshed.totalTokens).toBe(500)
     })
 
-    it('merges acceptance criteria by title (cross-iteration upsert)', () => {
+    it('updates checks on a milestone', () => {
       const project = h.projectRepo.add('/tmp/ac')
       h.milestoneRepo.save(project.id, makeMs({
         id: 'ms-ac',
-        acceptanceCriteria: [{ title: 'A', status: 'pending', iteration: 0 }],
+        checks: [makeCheck({ id: 'chk-1', title: 'A', status: 'pending' })],
       }))
 
-      // Upsert at iteration=1: should update existing AC 'A' (created at iteration=0)
-      // and add new AC 'B', resulting in 2 total (not 3)
-      const updated = h.milestoneRepo.mergeAcceptanceCriteria('ms-ac', [
-        { title: 'A', status: 'passed' },
-        { title: 'B', status: 'pending' },
-      ], 1)
+      // Update checks to passed
+      h.milestoneRepo.updateChecks('ms-ac', [
+        makeCheck({ id: 'chk-1', title: 'A', status: 'passed', iteration: 1 }),
+        makeCheck({ id: 'chk-2', title: 'B', status: 'pending', iteration: 1 }),
+      ])
 
-      expect(updated!.acceptanceCriteria).toHaveLength(2)
-      const acA = updated!.acceptanceCriteria.find((c) => c.title === 'A')!
-      expect(acA.status).toBe('passed')
-      expect(acA.iteration).toBe(1) // iteration updated from 0 to 1
-      expect(updated!.acceptanceCriteria.find((c) => c.title === 'B')!.status).toBe('pending')
+      const updated = h.milestoneRepo.getById('ms-ac')!
+      expect(updated.checks).toHaveLength(2)
+      expect(updated.checks.find((c) => c.title === 'A')!.status).toBe('passed')
+      expect(updated.checks.find((c) => c.title === 'B')!.status).toBe('pending')
     })
   })
 
@@ -618,17 +574,17 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
         id: 'ms-exec', status: 'ready',
-        acceptanceCriteria: [{ title: 'Works', status: 'pending', iteration: 0 }],
+        checks: [makeCheck({ title: 'Works', status: 'pending' })],
       })
       h.milestoneRepo.save(project.id, ms)
 
       let callCount = 0
       h.agentRunner.onRun = () => {
         callCount++
-        if (callCount === 2) { // acceptor: update AC via mergeAcceptanceCriteria (simulates MCP update)
-          h.milestoneRepo.mergeAcceptanceCriteria('ms-exec', [
-            { title: 'Works', status: 'passed' },
-          ], 1)
+        if (callCount === 2) { // acceptor: update checks (simulates MCP update)
+          h.milestoneRepo.updateChecks('ms-exec', [
+            makeCheck({ title: 'Works', status: 'passed', iteration: 1 }),
+          ])
         }
       }
 
@@ -653,7 +609,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
         id: 'ms-multi', status: 'ready',
-        acceptanceCriteria: [{ title: 'X', status: 'pending', iteration: 0 }],
+        checks: [makeCheck({ title: 'X', status: 'pending' })],
       })
       h.milestoneRepo.save(project.id, ms)
 
@@ -661,11 +617,11 @@ describe('E2E: Full Milestone Lifecycle', () => {
       h.agentRunner.onRun = () => {
         callCount++
         // Round 1 acceptor (call 2): does NOT pass all criteria → rejected
-        // Round 2 acceptor (call 4): passes all criteria via mergeAcceptanceCriteria
+        // Round 2 acceptor (call 4): passes all criteria
         if (callCount === 4) {
-          h.milestoneRepo.mergeAcceptanceCriteria('ms-multi', [
-            { title: 'X', status: 'passed' },
-          ], 2)
+          h.milestoneRepo.updateChecks('ms-multi', [
+            makeCheck({ title: 'X', status: 'passed', iteration: 2 }),
+          ])
         }
       }
 
@@ -688,7 +644,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
         id: 'ms-rl', status: 'ready',
-        acceptanceCriteria: [{ title: 'A', status: 'pending', iteration: 0 }],
+        checks: [makeCheck({ title: 'A', status: 'pending' })],
       })
       h.milestoneRepo.save(project.id, ms)
 
@@ -715,7 +671,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
       const ms = makeMs({
         id: 'ms-am', status: 'ready',
-        acceptanceCriteria: [{ title: 'Done', status: 'pending', iteration: 0 }],
+        checks: [makeCheck({ title: 'Done', status: 'pending' })],
       })
       h.milestoneRepo.save(project.id, ms)
 
@@ -723,9 +679,9 @@ describe('E2E: Full Milestone Lifecycle', () => {
       h.agentRunner.onRun = () => {
         callCount++
         if (callCount === 2) {
-          h.milestoneRepo.mergeAcceptanceCriteria('ms-am', [
-            { title: 'Done', status: 'passed' },
-          ], 1)
+          h.milestoneRepo.updateChecks('ms-am', [
+            makeCheck({ title: 'Done', status: 'passed', iteration: 1 }),
+          ])
         }
       }
 
@@ -767,7 +723,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
           plannerCalled = true
           h.milestoneRepo.save(project.id, makeMs({
             id: 'ms-planned', title: 'Planned', description: 'Auto-planned', status: 'draft',
-            acceptanceCriteria: [{ title: 'Feature 0 works', status: 'pending', iteration: 0 }],
+            checks: [makeCheck({ title: 'Feature 0 works' })],
           }))
         }
       }
@@ -849,7 +805,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
         id: 'ms-lc', status: 'awaiting_review', baseCommit: 'abc1234',
-        acceptanceCriteria: [{ title: 'A', status: 'passed', iteration: 1 }],
+        checks: [makeCheck({ title: 'A', status: 'passed', iteration: 1 })],
       }))
       const item = h.backlogRepo.add(project.id, { type: 'feature', title: 'Linked', priority: 'high' })
       h.backlogRepo.update(item.id, { milestoneId: 'ms-lc', status: 'in_progress' })
@@ -920,16 +876,16 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
         id: 'ms-soul', status: 'ready',
-        acceptanceCriteria: [{ title: 'OK', status: 'pending', iteration: 0 }],
+        checks: [makeCheck({ title: 'OK', status: 'pending' })],
       }))
 
       let callCount = 0
       h.agentRunner.onRun = () => {
         callCount++
         if (callCount === 2) {
-          h.milestoneRepo.mergeAcceptanceCriteria('ms-soul', [
-            { title: 'OK', status: 'passed' },
-          ], 1)
+          h.milestoneRepo.updateChecks('ms-soul', [
+            makeCheck({ title: 'OK', status: 'passed', iteration: 1 }),
+          ])
         }
       }
 
@@ -944,7 +900,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
         id: 'ms-accept', status: 'awaiting_review', baseCommit: 'def456',
-        acceptanceCriteria: [{ title: 'A', status: 'passed', iteration: 1 }],
+        checks: [makeCheck({ title: 'A', status: 'passed', iteration: 1 })],
       }))
       h.soulService.add(project)
 
@@ -1091,9 +1047,9 @@ describe('E2E: Full Milestone Lifecycle', () => {
           plannerDone = true
           h.milestoneRepo.save(project.id, makeMs({
             id: 'ms-e2e', title: 'E2E Milestone', description: 'Full flow', status: 'draft',
-            acceptanceCriteria: [
-              { title: 'All features work', status: 'pending', iteration: 0 },
-              { title: 'Tests pass', status: 'pending', iteration: 0 },
+            checks: [
+              makeCheck({ title: 'All features work', status: 'pending' }),
+              makeCheck({ title: 'Tests pass', status: 'pending' }),
             ],
           }))
         }
@@ -1127,11 +1083,11 @@ describe('E2E: Full Milestone Lifecycle', () => {
       let execCallCount = 0
       h.agentRunner.onRun = () => {
         execCallCount++
-        if (execCallCount === 2) { // acceptor passes all criteria via mergeAcceptanceCriteria
-          h.milestoneRepo.mergeAcceptanceCriteria('ms-e2e', [
-            { title: 'All features work', status: 'passed' },
-            { title: 'Tests pass', status: 'passed' },
-          ], 1)
+        if (execCallCount === 2) { // acceptor passes all checks
+          h.milestoneRepo.updateChecks('ms-e2e', [
+            makeCheck({ title: 'All features work', status: 'passed', iteration: 1 }),
+            makeCheck({ title: 'Tests pass', status: 'passed', iteration: 1 }),
+          ])
         }
       }
 

@@ -269,8 +269,8 @@ export class MilestoneExecutionTask implements SoulTask {
   // ── State helpers ──────────────────────────────────────────────────────
 
   private isComplete(milestone: Milestone): boolean {
-    const ac = milestone.acceptanceCriteria
-    return ac.length > 0 && ac.every((a) => a.status === 'passed')
+    const checks = milestone.checks
+    return checks.length > 0 && checks.every((c) => c.status === 'passed')
   }
 
   private refresh(milestone: Milestone): Milestone {

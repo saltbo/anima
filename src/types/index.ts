@@ -48,22 +48,17 @@ export interface BacklogItem {
 
 export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'awaiting_review' | 'completed' | 'cancelled'
 
-export interface MilestoneTask {
+export type MilestoneCheckStatus = 'pending' | 'checking' | 'passed' | 'rejected'
+
+export interface MilestoneCheck {
   id: string
+  itemId: string
   title: string
   description?: string
-  completed: boolean
-  order: number
+  status: MilestoneCheckStatus
   iteration: number
-}
-
-export type AcceptanceCriterionStatus = 'pending' | 'in_progress' | 'passed' | 'rejected'
-
-export interface AcceptanceCriterion {
-  title: string
-  description?: string
-  status: AcceptanceCriterionStatus
-  iteration: number
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Milestone {
@@ -71,8 +66,8 @@ export interface Milestone {
   title: string
   description: string
   status: MilestoneStatus
-  acceptanceCriteria: AcceptanceCriterion[]
-  tasks: MilestoneTask[]
+  items: BacklogItem[]
+  checks: MilestoneCheck[]
   createdAt: string
   completedAt?: string
   iterationCount: number

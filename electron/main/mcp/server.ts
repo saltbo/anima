@@ -86,7 +86,7 @@ let client: SocketClient
 
 server.tool(
   'get_milestone',
-  'Get milestone details including title, description, acceptance criteria, tasks, and iterations',
+  'Get milestone details including title, description, backlog items, checks, and iterations',
   { milestone_id: z.string().describe('The milestone ID') },
   async ({ milestone_id }) => {
     const milestone = await client.call('milestones:getById', [milestone_id])
@@ -130,44 +130,77 @@ server.tool(
 )
 
 server.tool(
-  'update_acceptance_criteria',
-  'Update acceptance criteria for a milestone. Merges by title (upsert): existing criteria with matching titles are updated, new ones are added.',
+  'list_checks',
+  'List checks for a milestone (via milestone_id) or a specific backlog item (via item_id)',
   {
-    milestone_id: z.string().describe('The milestone ID'),
-    criteria: z.array(z.object({
-      title: z.string().describe('Criterion title (used as merge key)'),
-      status: z.enum(['pending', 'in_progress', 'passed', 'rejected']).describe('Current status'),
-      description: z.string().optional().describe('Optional detailed description'),
-    })).describe('Acceptance criteria to upsert'),
-    iteration: z.number().describe('Current iteration number'),
+    milestone_id: z.string().optional().describe('The milestone ID — list all checks for this milestone'),
+    item_id: z.string().optional().describe('The backlog item ID — list checks for this item'),
   },
-  async ({ milestone_id, criteria, iteration }) => {
-    const updated = await client.call('milestones:mergeAcceptanceCriteria', [milestone_id, criteria, iteration])
-    if (!updated) {
-      return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
+  async ({ milestone_id, item_id }) => {
+    if (!milestone_id && !item_id) {
+      return { content: [{ type: 'text' as const, text: 'Either milestone_id or item_id is required' }], isError: true }
     }
-    return { content: [{ type: 'text' as const, text: `Updated ${criteria.length} acceptance criteria` }] }
+    const checks = await client.call('checks:list', [milestone_id ?? item_id])
+    return { content: [{ type: 'text' as const, text: JSON.stringify(checks, null, 2) }] }
   }
 )
 
 server.tool(
-  'update_tasks',
-  'Update tasks for a milestone. Merges by title (upsert): existing tasks with matching titles are updated, new ones are added.',
+  'add_checks',
+  'Add checks to a backlog item. Each check represents a verification criterion.',
   {
-    milestone_id: z.string().describe('The milestone ID'),
-    tasks: z.array(z.object({
-      title: z.string().describe('Task title (used as merge key)'),
-      completed: z.boolean().describe('Whether the task is completed'),
+    item_id: z.string().describe('The backlog item ID to add checks to'),
+    checks: z.array(z.object({
+      title: z.string().describe('Check title'),
       description: z.string().optional().describe('Optional detailed description'),
-    })).describe('Tasks to upsert'),
-    iteration: z.number().describe('Current iteration number'),
+      status: z.enum(['pending', 'checking', 'passed', 'rejected']).default('pending').describe('Check status'),
+      iteration: z.number().default(0).describe('Iteration number'),
+    })).describe('Checks to add'),
   },
-  async ({ milestone_id, tasks, iteration }) => {
-    const updated = await client.call('milestones:mergeTasks', [milestone_id, tasks, iteration])
+  async ({ item_id, checks }) => {
+    const checksWithItemId = checks.map((c) => ({ ...c, itemId: item_id }))
+    const created = await client.call('checks:add', [checksWithItemId])
+    return { content: [{ type: 'text' as const, text: `Added ${(created as unknown[]).length} checks` }] }
+  }
+)
+
+server.tool(
+  'update_check',
+  'Update a single check\'s status or other properties',
+  {
+    check_id: z.string().describe('The check ID'),
+    status: z.enum(['pending', 'checking', 'passed', 'rejected']).optional().describe('New status'),
+    title: z.string().optional().describe('Updated title'),
+    description: z.string().optional().describe('Updated description'),
+    iteration: z.number().optional().describe('Updated iteration number'),
+  },
+  async ({ check_id, ...patch }) => {
+    const filtered = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+    const updated = await client.call('checks:update', [check_id, filtered])
     if (!updated) {
-      return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
+      return { content: [{ type: 'text' as const, text: `Check ${check_id} not found` }], isError: true }
     }
-    return { content: [{ type: 'text' as const, text: `Updated ${tasks.length} tasks` }] }
+    return { content: [{ type: 'text' as const, text: `Check ${check_id} updated` }] }
+  }
+)
+
+server.tool(
+  'update_backlog_item',
+  'Update a backlog item\'s status or other properties (e.g., mark as done)',
+  {
+    project_id: z.string().describe('The project ID'),
+    item_id: z.string().describe('The backlog item ID'),
+    status: z.enum(['todo', 'in_progress', 'done', 'closed']).optional().describe('New status'),
+    title: z.string().optional().describe('Updated title'),
+    description: z.string().optional().describe('Updated description'),
+  },
+  async ({ project_id, item_id, ...patch }) => {
+    const filtered = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+    const updated = await client.call('backlog:update', [project_id, item_id, filtered])
+    if (!updated) {
+      return { content: [{ type: 'text' as const, text: `Backlog item ${item_id} not found` }], isError: true }
+    }
+    return { content: [{ type: 'text' as const, text: `Backlog item ${item_id} updated` }] }
   }
 )
 
@@ -204,8 +237,8 @@ server.tool(
       title,
       description,
       status: 'draft',
-      acceptanceCriteria: [],
-      tasks: [],
+      items: [],
+      checks: [],
       createdAt: now,
       iterationCount: 0,
       iterations: [],

@@ -213,12 +213,12 @@ export function useMilestoneDetail() {
   const currentIter = status.currentIteration
   const isCurrentMilestone = currentIter?.milestoneId === mid
 
-  const completedTaskCount = milestone?.tasks.filter((t) => t.completed).length ?? 0
-  const totalTaskCount = milestone?.tasks.length ?? 0
+  const completedTaskCount = milestone?.items.filter((i) => i.status === 'done').length ?? 0
+  const totalTaskCount = milestone?.items.length ?? 0
   const progressPct = totalTaskCount > 0 ? Math.round((completedTaskCount / totalTaskCount) * 100) : 0
 
-  const passedACCount = milestone?.acceptanceCriteria.filter((ac) => ac.status === 'passed').length ?? 0
-  const totalACCount = milestone?.acceptanceCriteria.length ?? 0
+  const passedACCount = milestone?.checks.filter((c) => c.status === 'passed').length ?? 0
+  const totalACCount = milestone?.checks.length ?? 0
 
   return {
     // Identifiers

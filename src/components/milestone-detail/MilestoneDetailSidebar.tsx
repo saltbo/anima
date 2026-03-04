@@ -74,19 +74,21 @@ function GitSection({ gitInfo }: { gitInfo: MilestoneGitInfo }) {
   )
 }
 
-/* ── Tasks Section ────────────────────────────────────────────────────── */
+/* ── Tasks Section (from backlog items) ──────────────────────────────── */
 
 function TasksSection({ milestone }: { milestone: Milestone }) {
-  const completedCount = milestone.tasks.filter((t) => t.completed).length
-  const totalCount = milestone.tasks.length
+  const completedCount = milestone.items.filter((i) => i.status === 'done').length
+  const totalCount = milestone.items.length
   const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
   const allDone = completedCount === totalCount && totalCount > 0
 
   if (totalCount === 0) return null
 
-  const sortedTasks = [...milestone.tasks].sort((a, b) => {
-    if (a.completed === b.completed) return a.order - b.order
-    return a.completed ? 1 : -1
+  const sortedItems = [...milestone.items].sort((a, b) => {
+    const aDone = a.status === 'done'
+    const bDone = b.status === 'done'
+    if (aDone === bDone) return 0
+    return aDone ? 1 : -1
   })
 
   return (
@@ -108,39 +110,42 @@ function TasksSection({ milestone }: { milestone: Milestone }) {
 
       {/* Task list */}
       <div className="space-y-0.5">
-        {sortedTasks.map((task) => (
-          <div key={task.id} className="flex items-center gap-2 py-1">
-            {task.completed
-              ? <CircleCheck size={14} className="text-green-600 shrink-0" />
-              : <Circle size={14} className="text-muted-foreground shrink-0" />
-            }
-            <span className={`text-xs leading-snug ${task.completed ? 'text-muted-foreground' : 'text-foreground'}`}>
-              {task.title}
-            </span>
-          </div>
-        ))}
+        {sortedItems.map((item) => {
+          const isDone = item.status === 'done'
+          return (
+            <div key={item.id} className="flex items-center gap-2 py-1">
+              {isDone
+                ? <CircleCheck size={14} className="text-green-600 shrink-0" />
+                : <Circle size={14} className="text-muted-foreground shrink-0" />
+              }
+              <span className={`text-xs leading-snug ${isDone ? 'text-muted-foreground' : 'text-foreground'}`}>
+                {item.title}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </SidebarSection>
   )
 }
 
-/* ── Acceptance Criteria Section ──────────────────────────────────────── */
+/* ── Checks Section (acceptance criteria) ────────────────────────────── */
 
-function ACSection({ milestone }: { milestone: Milestone }) {
-  if (milestone.acceptanceCriteria.length === 0) return null
+function ChecksSection({ milestone }: { milestone: Milestone }) {
+  if (milestone.checks.length === 0) return null
 
   return (
     <SidebarSection>
       <SectionLabel>Acceptance Criteria</SectionLabel>
       <div className="space-y-0.5">
-        {milestone.acceptanceCriteria.map((ac, i) => (
-          <div key={i} className="flex items-start gap-2 py-1">
-            {ac.status === 'passed' && <CircleCheck size={14} className="text-green-600 mt-0.5 shrink-0" />}
-            {ac.status === 'rejected' && <CircleX size={14} className="text-red-500 mt-0.5 shrink-0" />}
-            {ac.status === 'in_progress' && <Circle size={14} className="text-yellow-500 mt-0.5 shrink-0 animate-pulse" />}
-            {ac.status === 'pending' && <Circle size={14} className="text-muted-foreground mt-0.5 shrink-0" />}
-            <span className={`text-xs leading-relaxed ${ac.status === 'pending' ? 'text-foreground' : 'text-muted-foreground'}`}>
-              {ac.title}
+        {milestone.checks.map((check) => (
+          <div key={check.id} className="flex items-start gap-2 py-1">
+            {check.status === 'passed' && <CircleCheck size={14} className="text-green-600 mt-0.5 shrink-0" />}
+            {check.status === 'rejected' && <CircleX size={14} className="text-red-500 mt-0.5 shrink-0" />}
+            {check.status === 'checking' && <Circle size={14} className="text-yellow-500 mt-0.5 shrink-0 animate-pulse" />}
+            {check.status === 'pending' && <Circle size={14} className="text-muted-foreground mt-0.5 shrink-0" />}
+            <span className={`text-xs leading-relaxed ${check.status === 'pending' ? 'text-foreground' : 'text-muted-foreground'}`}>
+              {check.title}
             </span>
           </div>
         ))}
@@ -246,7 +251,7 @@ export function MilestoneDetailSidebar({ milestone, gitInfo, iterations }: Miles
       <StatusSection milestone={milestone} />
       {showGit && <GitSection gitInfo={gitInfo} />}
       <TasksSection milestone={milestone} />
-      <ACSection milestone={milestone} />
+      <ChecksSection milestone={milestone} />
       <IterationsSection iterations={iterations} />
       <UsageSection milestone={milestone} />
     </div>

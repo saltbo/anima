@@ -91,14 +91,14 @@ export function buildDeveloperFirstMessage(milestoneId: string, branch: string):
     `Milestone: ${milestoneId}. Branch: ${branch}.`,
     'Read it via get_milestone, then select at most 3 closely related features for this iteration (max 5 items including bug fixes).',
     'Check list_comments for any prior feedback.',
-    'Implement with production quality, write unit tests (≥80% coverage) and integration tests (cover core flows), update_tasks, commit, add_comment with full report.',
+    'Implement with production quality, write unit tests (≥80% coverage) and integration tests (cover core flows), update_backlog_item to track progress, commit, add_comment with full report.',
   ].join(' ')
 }
 
 export function buildAcceptorFirstMessage(milestoneId: string): string {
   return (
     `Milestone: ${milestoneId}. ` +
-    `Read via get_milestone, check developer comments, review code, test functionality, update_acceptance_criteria, add_comment.`
+    `Read via get_milestone, check developer comments, review code, test functionality, update_check for each criterion, add_comment.`
   )
 }
 

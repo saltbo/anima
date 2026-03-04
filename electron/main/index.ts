@@ -8,6 +8,7 @@ import { ProjectRepository } from './repositories/ProjectRepository'
 import { BacklogRepository } from './repositories/BacklogRepository'
 import { MilestoneRepository } from './repositories/MilestoneRepository'
 import { CommentRepository } from './repositories/CommentRepository'
+import { CheckRepository } from './repositories/CheckRepository'
 import { ProjectService } from './services/ProjectService'
 import { BacklogService } from './services/BacklogService'
 import { MilestoneService } from './services/MilestoneService'
@@ -96,6 +97,7 @@ app.whenReady().then(() => {
   const backlogRepo = new BacklogRepository(db)
   const milestoneRepo = new MilestoneRepository(db)
   const commentRepo = new CommentRepository(db)
+  const checkRepo = new CheckRepository(db)
 
   // ── Services ──────────────────────────────────────────────────────────
   const gitService = new GitService()
@@ -123,6 +125,7 @@ app.whenReady().then(() => {
     soulService,
     setupService,
     commentRepo,
+    checkRepo,
   }, getWindow)
   registerIpcAdapter(routes)
   startSocketServer(routes, bridgeSocketPath)

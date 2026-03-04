@@ -34,7 +34,6 @@ export function installBrowserStub() {
     getMilestones: async () => [],
     saveMilestone: async () => {},
     deleteMilestone: async () => {},
-    updateMilestoneTask: async () => {},
     writeMilestoneMarkdown: async () => {},
     readMilestoneMarkdown: async () => null,
 

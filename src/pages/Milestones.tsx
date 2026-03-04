@@ -81,8 +81,8 @@ export function Milestones() {
                   {GROUP_LABELS[status]}
                 </p>
                 {group.map((m) => {
-                  const completed = m.tasks.filter((t) => t.completed).length
-                  const total = m.tasks.length
+                  const completed = m.items.filter((i) => i.status === 'done').length
+                  const total = m.items.length
                   return (
                     <div
                       key={m.id}
