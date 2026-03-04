@@ -15,17 +15,32 @@ import {
   ChainOfThoughtContent,
   ChainOfThoughtStep,
 } from '@/components/ai-elements/chain-of-thought'
+import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool'
+import {
+  Agent,
+  AgentHeader,
+} from '@/components/ai-elements/agent'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { AgentEvent } from '@/types/agent'
-import { Terminal, CheckCircle, XCircle, AlertTriangle, Cpu, ChevronRight } from 'lucide-react'
+import { AlertTriangle, XCircle } from 'lucide-react'
 
 // ── Event types rendered in the timeline ──────────────────────────────────────
 
 type TimelineEvent =
   | { kind: 'text'; id: number; text: string; role: 'user' | 'assistant' }
   | { kind: 'thinking'; id: number; thinking: string }
-  | { kind: 'tool_use'; id: number; toolName: string; toolInput: string; toolCallId: string }
-  | { kind: 'tool_result'; id: number; toolCallId: string; content: string; isError: boolean }
+  | {
+      kind: 'tool_call'; id: number; toolName: string
+      toolInput: unknown; toolCallId: string
+      output?: unknown; errorText?: string
+    }
   | { kind: 'system'; id: number; model: string; sessionId: string }
   | { kind: 'rate_limit'; id: number; utilization: number }
   | { kind: 'error'; id: number; message: string }
@@ -34,16 +49,9 @@ type TimelineEvent =
 
 function SystemBanner({ model, sessionId }: { model: string; sessionId: string }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
-      <Cpu size={12} />
-      <span className="font-mono font-medium">{model || 'claude'}</span>
-      {sessionId && (
-        <>
-          <span className="opacity-40">·</span>
-          <span className="font-mono opacity-60 truncate max-w-[200px]">{sessionId}</span>
-        </>
-      )}
-    </div>
+    <Agent>
+      <AgentHeader name={model || 'claude'} model={sessionId ? `Session ${sessionId.slice(0, 8)}` : undefined} />
+    </Agent>
   )
 }
 
@@ -60,74 +68,62 @@ function ThinkingBlock({ thinking }: { thinking: string }) {
   )
 }
 
-function ToolCallBlock({ toolName, toolInput }: { toolName: string; toolInput: string }) {
-  let parsed: Record<string, unknown> | null = null
-  try { parsed = JSON.parse(toolInput) } catch { /* raw */ }
+function ToolCallBlock({ toolName, toolInput, output, errorText }: {
+  toolName: string
+  toolInput: unknown
+  output?: unknown
+  errorText?: string
+}) {
+  // Determine state for ToolHeader based on whether we have output
+  const hasResult = output !== undefined || errorText !== undefined
+  const state = errorText ? 'output-error' : hasResult ? 'output-available' : 'input-available'
 
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
-      <Terminal size={12} className="mt-0.5 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <span className="font-mono font-semibold text-foreground">{toolName}</span>
-        {parsed && Object.keys(parsed).length > 0 && (
-          <div className="mt-1 space-y-0.5">
-            {Object.entries(parsed).map(([k, v]) => (
-              <div key={k} className="flex gap-1.5">
-                <span className="text-muted-foreground shrink-0">{k}:</span>
-                <span className="font-mono text-foreground truncate">
-                  {typeof v === 'string' ? v : JSON.stringify(v)}
-                </span>
-              </div>
-            ))}
-          </div>
+    <Tool defaultOpen={false}>
+      <ToolHeader
+        type="dynamic-tool"
+        toolName={toolName}
+        state={state}
+      />
+      <ToolContent>
+        <ToolInput input={toolInput} />
+        {hasResult && (
+          <ToolOutput output={output} errorText={errorText} />
         )}
-      </div>
-      <ChevronRight size={12} className="mt-0.5 shrink-0 text-muted-foreground opacity-50" />
-    </div>
-  )
-}
-
-function ToolResultBlock({ content, isError }: { content: string; isError: boolean }) {
-  const preview = content.length > 300 ? content.slice(0, 300) + '…' : content
-  return (
-    <div className={cn(
-      'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs',
-      isError
-        ? 'border-destructive/40 bg-destructive/5 text-destructive'
-        : 'border-border bg-muted/20 text-muted-foreground'
-    )}>
-      {isError
-        ? <XCircle size={12} className="mt-0.5 shrink-0" />
-        : <CheckCircle size={12} className="mt-0.5 shrink-0" />
-      }
-      <pre className="whitespace-pre-wrap break-all font-mono leading-relaxed">{preview}</pre>
-    </div>
+      </ToolContent>
+    </Tool>
   )
 }
 
 function RateLimitBadge({ utilization }: { utilization: number }) {
   return (
-    <div className="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
+    <Badge variant="outline" className="gap-1.5 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700">
       <AlertTriangle size={11} />
-      <span>Rate limit {Math.round(utilization * 100)}% used</span>
-    </div>
+      Rate limit {Math.round(utilization * 100)}% used
+    </Badge>
   )
 }
 
 function ErrorBlock({ message }: { message: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-      <XCircle size={12} className="mt-0.5 shrink-0" />
-      <span className="whitespace-pre-wrap">{message}</span>
-    </div>
+    <Badge variant="destructive" className="gap-1.5 whitespace-pre-wrap py-1.5 h-auto text-left font-normal">
+      <XCircle size={12} className="shrink-0" />
+      {message}
+    </Badge>
   )
 }
 
 // ── AgentEvent → TimelineEvent ────────────────────────────────────────────────
 
+/** Parse tool input string into an object for ToolInput display */
+function parseToolInput(raw: string): unknown {
+  try { return JSON.parse(raw) } catch { return raw }
+}
+
 function applyAgentEvent(
   event: AgentEvent,
   push: (ev: TimelineEvent) => void,
+  update: (pred: (ev: TimelineEvent) => boolean, patch: Partial<TimelineEvent>) => void,
   nextId: () => number
 ): void {
   const base = { id: nextId() }
@@ -139,10 +135,21 @@ function applyAgentEvent(
       push({ kind: 'thinking', ...base, thinking: event.thinking })
       break
     case 'tool_use':
-      push({ kind: 'tool_use', ...base, toolName: event.toolName, toolInput: event.toolInput, toolCallId: event.toolCallId })
+      push({
+        kind: 'tool_call', ...base,
+        toolName: event.toolName,
+        toolInput: parseToolInput(event.toolInput),
+        toolCallId: event.toolCallId,
+      })
       break
     case 'tool_result':
-      push({ kind: 'tool_result', ...base, toolCallId: event.toolCallId, content: event.content, isError: event.isError })
+      // Merge result into the matching tool_call event
+      update(
+        (ev) => ev.kind === 'tool_call' && ev.toolCallId === event.toolCallId,
+        event.isError
+          ? { errorText: event.content }
+          : { output: event.content },
+      )
       break
     case 'system':
       push({ kind: 'system', ...base, model: event.model, sessionId: event.sessionId })
@@ -200,12 +207,26 @@ function AgentChat({ sessionId, live, input, footer, className, onDone }, ref) {
     })
   }, [])
 
+  const update = useCallback(
+    (pred: (ev: TimelineEvent) => boolean, patch: Partial<TimelineEvent>) => {
+      setEvents((prev) => {
+        // Find the last matching event and merge the patch
+        const idx = prev.findLastIndex(pred)
+        if (idx === -1) return prev
+        const updated = [...prev]
+        updated[idx] = { ...updated[idx], ...patch } as TimelineEvent
+        return updated
+      })
+    },
+    [],
+  )
+
   const applyEvents = useCallback((incoming: AgentEvent[]) => {
     for (const ev of incoming) {
-      applyAgentEvent(ev, push, nextId)
+      applyAgentEvent(ev, push, update, nextId)
       if (ev.event === 'done') onDoneRef.current?.()
     }
-  }, [push, nextId])
+  }, [push, update, nextId])
 
   useImperativeHandle(ref, () => ({
     appendUserMessage: (text: string) => {
@@ -274,11 +295,16 @@ function AgentChat({ sessionId, live, input, footer, className, onDone }, ref) {
                   </Message>
                 )
 
-              case 'tool_use':
-                return <ToolCallBlock key={ev.id} toolName={ev.toolName} toolInput={ev.toolInput} />
-
-              case 'tool_result':
-                return <ToolResultBlock key={ev.id} content={ev.content} isError={ev.isError} />
+              case 'tool_call':
+                return (
+                  <ToolCallBlock
+                    key={ev.id}
+                    toolName={ev.toolName}
+                    toolInput={ev.toolInput}
+                    output={ev.output}
+                    errorText={ev.errorText}
+                  />
+                )
 
               case 'rate_limit':
                 return <RateLimitBadge key={ev.id} utilization={ev.utilization} />

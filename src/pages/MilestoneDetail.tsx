@@ -1,5 +1,7 @@
+import { useState, useCallback } from 'react'
 import type { LoaderFunctionArgs } from 'react-router-dom'
 import type { MilestoneDetailLoaderData } from '@/types/router'
+import type { Iteration } from '@/types/index'
 import {
   MilestoneDetailHeader,
   ReviewBanner,
@@ -7,6 +9,7 @@ import {
   Timeline,
   BottomActionBar,
   MilestoneDetailSidebar,
+  SessionDrawer,
   DeleteDialog,
   CancelDialog,
   RollbackDialog,
@@ -52,6 +55,22 @@ export function MilestoneDetail() {
     handleRequestChanges, handleAddComment,
   } = useMilestoneDetail()
 
+  // Session drawer state
+  const [drawerSession, setDrawerSession] = useState<{
+    iteration: Iteration
+    role: 'developer' | 'acceptor'
+    displayNum: number
+  } | null>(null)
+
+  const handleViewSession = useCallback(
+    (role: 'developer' | 'acceptor', iteration: Iteration) => {
+      // Compute 1-based display number from iterations array order
+      const displayNum = iterations.findIndex((it) => it === iteration) + 1
+      setDrawerSession({ iteration, role, displayNum: displayNum || iteration.round })
+    },
+    [iterations],
+  )
+
   if (!milestone) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -75,6 +94,7 @@ export function MilestoneDetail() {
         <Timeline
           comments={comments}
           iterations={iterations}
+          onViewSession={handleViewSession}
         />
 
         <BottomActionBar
@@ -123,6 +143,13 @@ export function MilestoneDetail() {
         value={requestChangesText}
         onChange={setRequestChangesText}
         onSubmit={handleRequestChanges}
+      />
+      <SessionDrawer
+        open={drawerSession !== null}
+        onOpenChange={(open) => { if (!open) setDrawerSession(null) }}
+        iteration={drawerSession?.iteration ?? null}
+        initialRole={drawerSession?.role}
+        displayNum={drawerSession?.displayNum}
       />
     </div>
   )
