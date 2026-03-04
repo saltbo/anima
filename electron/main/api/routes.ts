@@ -11,6 +11,7 @@ import type { CheckRepository } from '../repositories/CheckRepository'
 import type { Milestone, TransitionPayload, BacklogItem, BacklogItemPriority, WakeSchedule } from '../../../src/types/index'
 import type { McpServerEntry } from '../mcp/mcpConfig'
 import type { SetupType } from '../services/SetupService'
+import type { CreateMilestoneInput } from '../services/MilestoneService'
 import {
   getUserMcpServers,
   addUserMcpServer,
@@ -113,6 +114,9 @@ export function createRoutes(
 
     // ── Milestones ────────────────────────────────────────────────────────
     'milestones:list': (projectId: string) => milestoneService.getMilestones(projectId),
+    'milestones:getById': (id: string) => milestoneRepo.getById(id),
+    'milestones:create': (projectId: string, input: CreateMilestoneInput) =>
+      milestoneService.createMilestone(projectId, input),
     'milestones:save': (projectId: string, milestone: Milestone) =>
       milestoneService.saveMilestone(projectId, milestone),
     'milestones:delete': (projectId: string, id: string) =>
@@ -123,10 +127,13 @@ export function createRoutes(
       milestoneService.writeMilestoneMarkdown(projectId, id, content),
     'milestones:transition': async (projectId: string, milestoneId: string, payload: TransitionPayload) =>
       milestoneService.transition(projectId, milestoneId, payload),
+    'milestones:assignAgent': (milestoneId: string, agentId: string) =>
+      milestoneService.assignAgent(milestoneId, agentId),
 
-    // ── Milestone repo (used by MCP server via socket) ────────────────────
-    'milestones:getById': (id: string) => milestoneRepo.getById(id),
-    'milestones:getProjectId': (milestoneId: string) => milestoneRepo.getProjectIdForMilestone(milestoneId),
+    // ── Milestone comments ────────────────────────────────────────────────
+    'milestones:listComments': (milestoneId: string) => commentRepo.getByMilestoneId(milestoneId),
+    'milestones:addComment': (comment: { id: string; milestoneId: string; body: string; author: string; createdAt: string; updatedAt: string }) =>
+      commentRepo.add(comment),
 
     // ── Checks ────────────────────────────────────────────────────────────
     'checks:list': (milestoneId: string) => checkRepo.getByMilestoneId(milestoneId),
@@ -146,9 +153,6 @@ export function createRoutes(
 
     'milestone:gitStatus': async (projectId: string, milestoneId: string) =>
       soulService.getMilestoneGitStatus(projectId, milestoneId),
-    'milestone:comments': (milestoneId: string) => commentRepo.getByMilestoneId(milestoneId),
-    'milestone:addComment': (comment: { id: string; milestoneId: string; body: string; author: string; createdAt: string; updatedAt: string }) =>
-      commentRepo.add(comment),
 
     // ── MCP Servers ───────────────────────────────────────────────────────
     'mcp:list': () => getUserMcpServers(),

@@ -16,11 +16,11 @@ const builtinAgents: AgentDefinition[] = [
       'You are a project planning expert. Your job is to analyze a project\'s backlog and plan the next milestone.',
       '',
       '## Your Workflow',
-      '1. Use the `list_backlog_items` MCP tool to see all pending backlog items.',
+      '1. Use the `backlog:list` MCP tool to see all pending backlog items.',
       '2. Read the project\'s `.anima/soul.md` file to understand the project context, standards, and priorities.',
       '3. Analyze the backlog items and select a cohesive set for the next milestone.',
       '4. For each selected backlog item, define 1-3 acceptance checks — observable, binary criteria that prove the item is done.',
-      '5. Use the `create_milestone` MCP tool to create the milestone with your selected backlog items and their checks.',
+      '5. Use the `milestones:create` MCP tool to create the milestone with your selected backlog items and their checks.',
       '',
       '## Selection Criteria',
       '- Group related items that share modules, domain areas, or dependencies.',
@@ -75,7 +75,7 @@ const builtinAgents: AgentDefinition[] = [
       '## Workflow',
       'Use the Anima MCP tools to read your milestone and update task progress.',
       'Commit your changes with conventional commit messages.',
-      'When done, use the add_comment tool to post an implementation report that includes:',
+      'When done, use the milestones:addComment tool to post an implementation report that includes:',
       '1. Features implemented in this iteration (with brief descriptions).',
       '2. Bug fixes addressed (if any).',
       '3. Test results summary (unit test coverage %, integration test status).',
@@ -91,7 +91,7 @@ const builtinAgents: AgentDefinition[] = [
       'You are a strict code reviewer and quality acceptor. ' +
       'Use Anima MCP tools to read the milestone and update acceptance criteria status. ' +
       'Perform functional testing — use Playwright MCP if available. ' +
-      'Post review feedback via add_comment. ' +
+      'Post review feedback via milestones:addComment. ' +
       'Mark each criterion: passed (met) or rejected (not met).',
   },
 ]

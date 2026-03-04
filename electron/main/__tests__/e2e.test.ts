@@ -55,6 +55,7 @@ import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
+import type { CheckRepository } from '../repositories/CheckRepository'
 import { setMcpConfigDir } from '../mcp/mcpConfig'
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -277,6 +278,46 @@ class InMemoryMilestoneItemRepository {
   }
 }
 
+class InMemoryCheckRepository {
+  private checks = new Map<string, MilestoneCheck>()
+
+  add(check: Omit<MilestoneCheck, 'id' | 'createdAt' | 'updatedAt'>): MilestoneCheck {
+    const now = new Date().toISOString()
+    const newCheck: MilestoneCheck = {
+      ...check,
+      id: `chk-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.checks.set(newCheck.id, newCheck)
+    return newCheck
+  }
+
+  bulkAdd(checks: Array<Omit<MilestoneCheck, 'id' | 'createdAt' | 'updatedAt'>>): MilestoneCheck[] {
+    return checks.map((c) => this.add(c))
+  }
+
+  update(id: string, patch: Partial<Pick<MilestoneCheck, 'status' | 'title' | 'description' | 'iteration'>>): MilestoneCheck | null {
+    const existing = this.checks.get(id)
+    if (!existing) return null
+    const updated = { ...existing, ...patch, updatedAt: new Date().toISOString() }
+    this.checks.set(id, updated)
+    return updated
+  }
+
+  getByItemId(itemId: string): MilestoneCheck[] {
+    return [...this.checks.values()].filter((c) => c.itemId === itemId)
+  }
+
+  getByMilestoneId(_milestoneId: string): MilestoneCheck[] {
+    return [...this.checks.values()]
+  }
+
+  delete(id: string): void {
+    this.checks.delete(id)
+  }
+}
+
 // ── Mock AgentRunner ──────────────────────────────────────────────────────────
 
 function makeRunResult(sessionId: string): RunResult {
@@ -353,6 +394,7 @@ interface Harness {
   backlogRepo: InMemoryBacklogRepository
   commentRepo: InMemoryCommentRepository
   milestoneItemRepo: InMemoryMilestoneItemRepository
+  checkRepo: InMemoryCheckRepository
   gitService: MockGitService
   agentRunner: MockAgentRunner
   soulService: SoulService
@@ -366,6 +408,7 @@ function createHarness(): Harness {
   const backlogRepo = new InMemoryBacklogRepository()
   const commentRepo = new InMemoryCommentRepository()
   const milestoneItemRepo = new InMemoryMilestoneItemRepository()
+  const checkRepo = new InMemoryCheckRepository()
   const gitService = new MockGitService()
   const agentRunner = new MockAgentRunner()
 
@@ -389,11 +432,12 @@ function createHarness(): Harness {
     milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
     projectRepo as unknown as ProjectRepository,
     commentRepo as unknown as CommentRepository,
+    checkRepo as unknown as CheckRepository,
     () => null,
     () => soulService,
   )
 
-  return { projectRepo, milestoneRepo, backlogRepo, commentRepo, milestoneItemRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
+  return { projectRepo, milestoneRepo, backlogRepo, commentRepo, milestoneItemRepo, checkRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
 }
 
 function makeMs(overrides: Partial<Milestone> = {}): Milestone {

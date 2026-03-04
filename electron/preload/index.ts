@@ -92,9 +92,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMilestoneGitStatus: (projectId: string, milestoneId: string) =>
     ipcRenderer.invoke('milestone:gitStatus', projectId, milestoneId),
   getMilestoneComments: (milestoneId: string) =>
-    ipcRenderer.invoke('milestone:comments', milestoneId),
+    ipcRenderer.invoke('milestones:listComments', milestoneId),
   addMilestoneComment: (comment: unknown) =>
-    ipcRenderer.invoke('milestone:addComment', comment),
+    ipcRenderer.invoke('milestones:addComment', comment),
 
   onMilestoneAwaitingReview: (callback: (data: unknown) => void) => {
     const handler = (_: unknown, data: unknown) => callback(data)

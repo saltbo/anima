@@ -107,7 +107,7 @@ app.whenReady().then(() => {
   const projectService = new ProjectService(projectRepo)
   const backlogService = new BacklogService(backlogRepo)
   const milestoneService = new MilestoneService(
-    milestoneRepo, backlogRepo, milestoneItemRepo, projectRepo, commentRepo,
+    milestoneRepo, backlogRepo, milestoneItemRepo, projectRepo, commentRepo, checkRepo,
     getWindow,
     () => soulService!
   )

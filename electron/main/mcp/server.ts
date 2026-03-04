@@ -5,6 +5,9 @@
  *
  * Connects to the Electron main process via a Unix domain socket
  * (ANIMA_BRIDGE_SOCKET) using JSON-RPC. No native modules required.
+ *
+ * Each MCP tool maps 1:1 to an API handler in routes.ts.
+ * Business logic lives in the Service layer — this file is a thin adapter.
  */
 
 import * as net from 'net'
@@ -74,6 +77,10 @@ function nowISO(): string {
   return new Date().toISOString()
 }
 
+function textResult(text: string, isError = false) {
+  return { content: [{ type: 'text' as const, text }], ...(isError ? { isError: true } : {}) }
+}
+
 // ── Server setup ─────────────────────────────────────────────────────────────
 
 const server = new McpServer({
@@ -83,33 +90,60 @@ const server = new McpServer({
 
 let client: SocketClient
 
-// ── Tools ────────────────────────────────────────────────────────────────────
+// ── Milestone tools ─────────────────────────────────────────────────────────
 
 server.tool(
-  'get_milestone',
+  'milestones:getById',
   'Get milestone details including title, description, backlog items, checks, and iterations',
   { milestone_id: z.string().describe('The milestone ID') },
   async ({ milestone_id }) => {
     const milestone = await client.call('milestones:getById', [milestone_id])
     if (!milestone) {
-      return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
+      return textResult(`Milestone ${milestone_id} not found`, true)
     }
-    return { content: [{ type: 'text' as const, text: JSON.stringify(milestone, null, 2) }] }
+    return textResult(JSON.stringify(milestone, null, 2))
   }
 )
 
 server.tool(
-  'list_comments',
+  'milestones:create',
+  'Create a new milestone, link backlog items, and define acceptance checks for each item. The milestone will be created in draft status.',
+  {
+    project_id: z.string().describe('The project ID'),
+    title: z.string().describe('Milestone title'),
+    description: z.string().describe('Milestone description — full milestone content in markdown, including product-level context and requirements'),
+    backlog_items: z.array(z.object({
+      id: z.string().describe('Backlog item ID'),
+      checks: z.array(z.object({
+        title: z.string().describe('Acceptance check title — must be observable and binary'),
+        description: z.string().optional().describe('Optional detailed description of what to verify'),
+      })).describe('Acceptance checks for this backlog item'),
+    })).describe('Backlog items to include, each with its acceptance checks'),
+  },
+  async ({ project_id, title, description, backlog_items }) => {
+    const result = await client.call('milestones:create', [project_id, {
+      title,
+      description,
+      backlogItems: backlog_items,
+    }])
+    return textResult(JSON.stringify(result, null, 2))
+  }
+)
+
+// ── Comment tools ───────────────────────────────────────────────────────────
+
+server.tool(
+  'milestones:listComments',
   'List all comments for a milestone, ordered by creation time',
   { milestone_id: z.string().describe('The milestone ID') },
   async ({ milestone_id }) => {
-    const comments = await client.call('milestone:comments', [milestone_id])
-    return { content: [{ type: 'text' as const, text: JSON.stringify(comments, null, 2) }] }
+    const comments = await client.call('milestones:listComments', [milestone_id])
+    return textResult(JSON.stringify(comments, null, 2))
   }
 )
 
 server.tool(
-  'add_comment',
+  'milestones:addComment',
   'Add a comment to a milestone (used for developer reports and acceptor feedback)',
   {
     milestone_id: z.string().describe('The milestone ID'),
@@ -119,7 +153,7 @@ server.tool(
   async ({ milestone_id, body, author }) => {
     const now = nowISO()
     const id = randomUUID()
-    await client.call('milestone:addComment', [{
+    await client.call('milestones:addComment', [{
       id,
       milestoneId: milestone_id,
       body,
@@ -127,28 +161,26 @@ server.tool(
       createdAt: now,
       updatedAt: now,
     }])
-    return { content: [{ type: 'text' as const, text: `Comment added (id: ${id})` }] }
+    return textResult(`Comment added (id: ${id})`)
   }
 )
 
+// ── Check tools ─────────────────────────────────────────────────────────────
+
 server.tool(
-  'list_checks',
-  'List checks for a milestone (via milestone_id) or a specific backlog item (via item_id)',
+  'checks:list',
+  'List checks for a milestone',
   {
-    milestone_id: z.string().optional().describe('The milestone ID — list all checks for this milestone'),
-    item_id: z.string().optional().describe('The backlog item ID — list checks for this item'),
+    milestone_id: z.string().describe('The milestone ID'),
   },
-  async ({ milestone_id, item_id }) => {
-    if (!milestone_id && !item_id) {
-      return { content: [{ type: 'text' as const, text: 'Either milestone_id or item_id is required' }], isError: true }
-    }
-    const checks = await client.call('checks:list', [milestone_id ?? item_id])
-    return { content: [{ type: 'text' as const, text: JSON.stringify(checks, null, 2) }] }
+  async ({ milestone_id }) => {
+    const checks = await client.call('checks:list', [milestone_id])
+    return textResult(JSON.stringify(checks, null, 2))
   }
 )
 
 server.tool(
-  'add_checks',
+  'checks:add',
   'Add checks to a backlog item. Each check represents a verification criterion.',
   {
     item_id: z.string().describe('The backlog item ID to add checks to'),
@@ -162,12 +194,12 @@ server.tool(
   async ({ item_id, checks }) => {
     const checksWithItemId = checks.map((c) => ({ ...c, itemId: item_id }))
     const created = await client.call('checks:add', [checksWithItemId])
-    return { content: [{ type: 'text' as const, text: `Added ${(created as unknown[]).length} checks` }] }
+    return textResult(`Added ${(created as unknown[]).length} checks`)
   }
 )
 
 server.tool(
-  'update_check',
+  'checks:update',
   'Update a single check\'s status or other properties',
   {
     check_id: z.string().describe('The check ID'),
@@ -180,14 +212,27 @@ server.tool(
     const filtered = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
     const updated = await client.call('checks:update', [check_id, filtered])
     if (!updated) {
-      return { content: [{ type: 'text' as const, text: `Check ${check_id} not found` }], isError: true }
+      return textResult(`Check ${check_id} not found`, true)
     }
-    return { content: [{ type: 'text' as const, text: `Check ${check_id} updated` }] }
+    return textResult(`Check ${check_id} updated`)
+  }
+)
+
+// ── Backlog tools ───────────────────────────────────────────────────────────
+
+server.tool(
+  'backlog:list',
+  'List all backlog items for a project. Use this to understand what needs to be done before planning a milestone.',
+  { project_id: z.string().describe('The project ID') },
+  async ({ project_id }) => {
+    const items = await client.call('backlog:list', [project_id]) as Array<{ status: string }>
+    const todoItems = items.filter((i) => i.status === 'todo')
+    return textResult(JSON.stringify(todoItems, null, 2))
   }
 )
 
 server.tool(
-  'update_backlog_item',
+  'backlog:update',
   'Update a backlog item\'s status or other properties (e.g., mark as done)',
   {
     project_id: z.string().describe('The project ID'),
@@ -200,131 +245,34 @@ server.tool(
     const filtered = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
     const updated = await client.call('backlog:update', [project_id, item_id, filtered])
     if (!updated) {
-      return { content: [{ type: 'text' as const, text: `Backlog item ${item_id} not found` }], isError: true }
+      return textResult(`Backlog item ${item_id} not found`, true)
     }
-    return { content: [{ type: 'text' as const, text: `Backlog item ${item_id} updated` }] }
-  }
-)
-
-// ── Planning tools ───────────────────────────────────────────────────────────
-
-server.tool(
-  'list_backlog_items',
-  'List all backlog items for a project. Use this to understand what needs to be done before planning a milestone.',
-  { project_id: z.string().describe('The project ID') },
-  async ({ project_id }) => {
-    const items = await client.call('backlog:list', [project_id]) as Array<{ status: string }>
-    const todoItems = items.filter((i) => i.status === 'todo')
-    return { content: [{ type: 'text' as const, text: JSON.stringify(todoItems, null, 2) }] }
-  }
-)
-
-server.tool(
-  'create_milestone',
-  'Create a new milestone, link backlog items, and define acceptance checks for each item. The milestone will be created in draft status.',
-  {
-    project_id: z.string().describe('The project ID'),
-    title: z.string().describe('Milestone title'),
-    description: z.string().describe('Milestone description (product-level, 1-2 paragraphs)'),
-    backlog_items: z.array(z.object({
-      id: z.string().describe('Backlog item ID'),
-      checks: z.array(z.object({
-        title: z.string().describe('Acceptance check title — must be observable and binary'),
-        description: z.string().optional().describe('Optional detailed description of what to verify'),
-      })).describe('Acceptance checks for this backlog item'),
-    })).describe('Backlog items to include, each with its acceptance checks'),
-    milestone_content: z.string().describe('Full milestone markdown content following the standard format'),
-  },
-  async ({ project_id, title, description, backlog_items, milestone_content }) => {
-    const milestoneId = randomUUID()
-    const now = nowISO()
-
-    // Save milestone record with linked item IDs
-    await client.call('milestones:save', [project_id, {
-      id: milestoneId,
-      title,
-      description,
-      status: 'draft',
-      items: backlog_items.map((bi) => ({ id: bi.id })),
-      checks: [],
-      createdAt: now,
-      iterationCount: 0,
-      iterations: [],
-      totalTokens: 0,
-      totalCost: 0,
-      assignees: getAllAgents().map((a) => a.id),
-    }])
-
-    // Update backlog item statuses and create checks
-    let totalChecks = 0
-    for (const item of backlog_items) {
-      await client.call('backlog:update', [project_id, item.id, { status: 'in_progress' }])
-
-      if (item.checks.length > 0) {
-        const checksWithItemId = item.checks.map((c) => ({
-          itemId: item.id,
-          title: c.title,
-          description: c.description,
-          status: 'pending' as const,
-          iteration: 0,
-        }))
-        await client.call('checks:add', [checksWithItemId])
-        totalChecks += item.checks.length
-      }
-    }
-
-    // Store milestone content as a comment for reference
-    await client.call('milestone:addComment', [{
-      id: randomUUID(),
-      milestoneId,
-      body: milestone_content,
-      author: 'planner',
-      createdAt: now,
-      updatedAt: now,
-    }])
-
-    return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ milestoneId, title, linkedBacklogItems: backlog_items.length, checks: totalChecks }, null, 2),
-      }],
-    }
+    return textResult(`Backlog item ${item_id} updated`)
   }
 )
 
 // ── Agent tools ─────────────────────────────────────────────────────────────
 
 server.tool(
-  'list_agents',
+  'agents:list',
   'List all available agent definitions (id, name, description)',
   {},
   async () => {
     const agents = getAllAgents().map(({ id, name, description }) => ({ id, name, description }))
-    return { content: [{ type: 'text' as const, text: JSON.stringify(agents, null, 2) }] }
+    return textResult(JSON.stringify(agents, null, 2))
   }
 )
 
 server.tool(
-  'assign_agent',
+  'milestones:assignAgent',
   'Assign an agent to a milestone by adding its ID to the assignees list',
   {
     milestone_id: z.string().describe('The milestone ID'),
     agent_id: z.string().describe('The agent ID to assign'),
   },
   async ({ milestone_id, agent_id }) => {
-    const milestone = await client.call('milestones:getById', [milestone_id]) as { assignees?: string[] } | null
-    if (!milestone) {
-      return { content: [{ type: 'text' as const, text: `Milestone ${milestone_id} not found` }], isError: true }
-    }
-    const assignees = milestone.assignees ?? []
-    if (!assignees.includes(agent_id)) {
-      assignees.push(agent_id)
-    }
-    await client.call('milestones:save', [
-      await client.call('milestones:getProjectId', [milestone_id]),
-      { ...milestone, assignees },
-    ])
-    return { content: [{ type: 'text' as const, text: `Agent ${agent_id} assigned to milestone ${milestone_id}` }] }
+    await client.call('milestones:assignAgent', [milestone_id, agent_id])
+    return textResult(`Agent ${agent_id} assigned to milestone ${milestone_id}`)
   }
 )
 
