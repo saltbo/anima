@@ -3,9 +3,9 @@ import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
 import { nowISO } from '../lib/time'
-import type { Milestone, MilestoneTask, InboxItem, TransitionPayload } from '../../../src/types/index'
+import type { Milestone, MilestoneTask, BacklogItem, TransitionPayload } from '../../../src/types/index'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
-import type { InboxRepository } from '../repositories/InboxRepository'
+import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { AgentRunner } from '../agents/AgentRunner'
@@ -35,21 +35,21 @@ const MILESTONE_MD_FORMAT = `\
 - {criterion 1 — observable, binary, product-level}
 - {criterion 2}
 
-## Linked Inbox Items
-- {inbox-item-id}
-(omit this section entirely if no inbox items are linked)`
+## Linked Backlog Items
+- {backlog-item-id}
+(omit this section entirely if no backlog items are linked)`
 
-function buildFirstMessage(projectPath: string, inboxItems: InboxItem[], milestoneId: string): string {
+function buildFirstMessage(projectPath: string, backlogItems: BacklogItem[], milestoneId: string): string {
   const mdFile = `${projectPath}/.anima/milestones/${milestoneId}.draft.md`
-  const inboxContext =
-    inboxItems.length > 0
-      ? `\n\nThe user has pre-selected these inbox items:\n${inboxItems.map((i) => `- [${i.id}] ${i.title}: ${i.description ?? '(no description)'}`).join('\n')}`
+  const backlogContext =
+    backlogItems.length > 0
+      ? `\n\nThe user has pre-selected these backlog items:\n${backlogItems.map((i) => `- [${i.id}] ${i.title}: ${i.description ?? '(no description)'}`).join('\n')}`
       : ''
 
   return `Your role: help the user define a Milestone, then write it to \`${mdFile}\`.
 
 First, read these files for project context:
-- ${projectPath}/.anima/soul.md${inboxContext}
+- ${projectPath}/.anima/soul.md${backlogContext}
 
 A Milestone is a product-level requirement document — not a technical plan.
 - Requirements describe features or bugs from the user's perspective: what they see, what they can do, what breaks. Never say how to implement it.
@@ -100,7 +100,7 @@ export class MilestoneService {
 
   constructor(
     private milestoneRepo: MilestoneRepository,
-    private inboxRepo: InboxRepository,
+    private backlogRepo: BacklogRepository,
     private projectRepo: ProjectRepository,
     private commentRepo: CommentRepository,
     private agentRunner: AgentRunner,
@@ -215,7 +215,7 @@ export class MilestoneService {
   async startPlanningSession(
     agentId: string,
     projectId: string,
-    inboxItemIds: string[],
+    backlogItemIds: string[],
     title: string,
     description: string
   ): Promise<{ sessionId: string; milestoneId: string }> {
@@ -238,15 +238,15 @@ export class MilestoneService {
       iterations: [],
     })
 
-    // Link inbox items to milestone
-    for (const iid of inboxItemIds) {
-      this.inboxRepo.update(iid, { milestoneId, status: 'included' })
+    // Link backlog items to milestone
+    for (const iid of backlogItemIds) {
+      this.backlogRepo.update(iid, { milestoneId, status: 'included' })
     }
 
-    // Resolve inbox item contents for inline context
-    const inboxItems = inboxItemIds
-      .map((id) => this.inboxRepo.getById(id))
-      .filter((i): i is InboxItem => i !== null)
+    // Resolve backlog item contents for inline context
+    const backlogItems = backlogItemIds
+      .map((id) => this.backlogRepo.getById(id))
+      .filter((i): i is BacklogItem => i !== null)
 
     // Register planning session for resume tracking
     this.planningSessions.set(sessionId, { projectId, milestoneId, agentId })
@@ -259,7 +259,7 @@ export class MilestoneService {
       projectPath,
       sessionId,
       systemPrompt: MILESTONE_PLANNING_ROLE,
-      message: buildFirstMessage(projectPath, inboxItems, milestoneId),
+      message: buildFirstMessage(projectPath, backlogItems, milestoneId),
       onEvent: this.makePlanningDoneHandler(sessionId),
     }).catch(() => {
       // session ended (user closed or error) — no action needed

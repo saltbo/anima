@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { AgentChat } from '@/components/AgentChat'
 import type { AgentChatHandle } from '@/components/AgentChat'
 import { useProjects } from '@/store/projects'
-import type { InboxItem } from '@/types/index'
+import type { BacklogItem } from '@/types/index'
 
 type Phase = 'setup' | 'chatting'
 
@@ -22,7 +22,7 @@ export function MilestoneNew() {
   const project = projects.find((p) => p.id === id)
 
   const [phase, setPhase] = useState<Phase>('setup')
-  const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
+  const [backlogItems, setBacklogItems] = useState<BacklogItem[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -33,7 +33,7 @@ export function MilestoneNew() {
 
   useEffect(() => {
     if (!project) return
-    window.electronAPI.getInboxItems(project.id).then(setInboxItems)
+    window.electronAPI.getBacklogItems(project.id).then(setBacklogItems)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id])
 
@@ -113,12 +113,12 @@ export function MilestoneNew() {
             />
           </div>
 
-          {inboxItems.length > 0 && (
+          {backlogItems.length > 0 && (
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Link Inbox Items
+                Link Backlog Items
               </p>
-              {inboxItems.map((item) => (
+              {backlogItems.map((item) => (
                 <label
                   key={item.id}
                   className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors"

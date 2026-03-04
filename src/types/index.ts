@@ -30,17 +30,17 @@ export interface Project {
   rateLimitResetAt: string | null
 }
 
-export type InboxItemType = 'idea' | 'bug' | 'feature'
-export type InboxItemPriority = 'low' | 'medium' | 'high'
-export type InboxItemStatus = 'pending' | 'included' | 'dismissed'
+export type BacklogItemType = 'idea' | 'bug' | 'feature'
+export type BacklogItemPriority = 'low' | 'medium' | 'high'
+export type BacklogItemStatus = 'pending' | 'included' | 'dismissed'
 
-export interface InboxItem {
+export interface BacklogItem {
   id: string
-  type: InboxItemType
+  type: BacklogItemType
   title: string
   description?: string
-  priority: InboxItemPriority
-  status: InboxItemStatus
+  priority: BacklogItemPriority
+  status: BacklogItemStatus
   createdAt: string
   milestoneId?: string
 }

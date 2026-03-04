@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS projects (
   rate_limit_reset_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS inbox_items (
+CREATE TABLE IF NOT EXISTS backlog_items (
   id           TEXT PRIMARY KEY,
   project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   type         TEXT NOT NULL DEFAULT 'idea',
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS milestone_comments (
   updated_at      TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_inbox_project ON inbox_items(project_id);
+CREATE INDEX IF NOT EXISTS idx_backlog_project ON backlog_items(project_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_project ON milestones(project_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
@@ -122,10 +122,23 @@ function migrateMilestoneCommentsTable(db: Database.Database): void {
   `)
 }
 
+function migrateInboxToBacklog(db: Database.Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='inbox_items'").all()
+  if (tables.length === 0) return
+
+  log.info('migrating: renaming inbox_items → backlog_items')
+  db.exec(`
+    ALTER TABLE inbox_items RENAME TO backlog_items;
+    DROP INDEX IF EXISTS idx_inbox_project;
+    CREATE INDEX IF NOT EXISTS idx_backlog_project ON backlog_items(project_id);
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
   migrateIterationUsageColumns(db)
   migrateAutoMergeColumn(db)
   migrateMilestoneCommentsTable(db)
+  migrateInboxToBacklog(db)
 }

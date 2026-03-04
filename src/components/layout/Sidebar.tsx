@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChevronDown,
   Home,
-  Inbox,
+  ClipboardList,
   LayoutDashboard,
   Flag,
   Plus,
@@ -18,7 +18,7 @@ const PROJECT_TABS = [
   { label: 'Dashboard', path: '', icon: LayoutDashboard },
   { label: 'Soul', path: '/soul', icon: Sparkles },
   { label: 'Milestones', path: '/milestones', icon: Flag },
-  { label: 'Inbox', path: '/inbox', icon: Inbox },
+  { label: 'Backlog', path: '/backlog', icon: ClipboardList },
   { label: 'Settings', path: '/settings', icon: Settings },
 ]
 

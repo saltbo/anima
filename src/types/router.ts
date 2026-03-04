@@ -1,4 +1,4 @@
-import type { Milestone, InboxItem, MilestoneComment } from './index'
+import type { Milestone, BacklogItem, MilestoneComment } from './index'
 
 export interface RouteMeta {
   title: string
@@ -16,12 +16,12 @@ export interface RouteHandle {
 export interface MilestoneDetailLoaderData {
   meta: RouteMeta
   milestone: Milestone | null
-  inboxItems: InboxItem[]
+  backlogItems: BacklogItem[]
   markdown: string
   comments: MilestoneComment[]
 }
 
-export interface InboxDetailLoaderData {
+export interface BacklogDetailLoaderData {
   meta: RouteMeta
-  item: InboxItem | null
+  item: BacklogItem | null
 }

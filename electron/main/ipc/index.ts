@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import type { ProjectService } from '../services/ProjectService'
-import type { InboxService } from '../services/InboxService'
+import type { BacklogService } from '../services/BacklogService'
 import type { MilestoneService } from '../services/MilestoneService'
 import type { SoulService } from '../services/SoulService'
 import type { SetupService } from '../services/SetupService'
@@ -9,7 +9,7 @@ import { registerProjectsIPC } from './projects'
 import { registerWindowIPC } from './window'
 import { registerSetupIPC } from './setup'
 import { registerAgentIPC } from './agent'
-import { registerInboxIPC } from './inbox'
+import { registerBacklogIPC } from './backlog'
 import { registerMilestonesIPC } from './milestones'
 import { registerSchedulerIPC } from './scheduler'
 
@@ -17,7 +17,7 @@ export type { IpcError } from './safeHandle'
 
 export interface ServiceContext {
   projectService: ProjectService
-  inboxService: InboxService
+  backlogService: BacklogService
   milestoneService: MilestoneService
   soulService: SoulService
   setupService: SetupService
@@ -29,7 +29,7 @@ export function setupIPC(getWindow: () => BrowserWindow | null, ctx: ServiceCont
   registerWindowIPC(getWindow)
   registerSetupIPC(ctx)
   registerAgentIPC(ctx)
-  registerInboxIPC(ctx)
+  registerBacklogIPC(ctx)
   registerMilestonesIPC(ctx)
   registerSchedulerIPC(ctx)
 }

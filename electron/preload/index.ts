@@ -50,11 +50,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('agent:sendMessage', projectId, sessionId, message),
   stopAgent: (sessionId: string) => ipcRenderer.invoke('agent:stop', sessionId),
 
-  // ── Inbox ──────────────────────────────────────────────────────────────────
-  getInboxItems: (projectId: string) => ipcRenderer.invoke('inbox:list', projectId),
-  addInboxItem: (projectId: string, item: unknown) => ipcRenderer.invoke('inbox:add', projectId, item),
-  updateInboxItem: (projectId: string, id: string, patch: unknown) => ipcRenderer.invoke('inbox:update', projectId, id, patch),
-  deleteInboxItem: (projectId: string, id: string) => ipcRenderer.invoke('inbox:delete', projectId, id),
+  // ── Backlog ─────────────────────────────────────────────────────────────────
+  getBacklogItems: (projectId: string) => ipcRenderer.invoke('backlog:list', projectId),
+  addBacklogItem: (projectId: string, item: unknown) => ipcRenderer.invoke('backlog:add', projectId, item),
+  updateBacklogItem: (projectId: string, id: string, patch: unknown) => ipcRenderer.invoke('backlog:update', projectId, id, patch),
+  deleteBacklogItem: (projectId: string, id: string) => ipcRenderer.invoke('backlog:delete', projectId, id),
 
   // ── Milestones ─────────────────────────────────────────────────────────────
   getMilestones: (projectId: string) => ipcRenderer.invoke('milestones:list', projectId),
@@ -64,8 +64,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('milestones:updateTask', projectId, milestoneId, taskId, patch),
   readMilestoneMarkdown: (projectId: string, id: string) => ipcRenderer.invoke('milestones:readDoc', projectId, id),
   writeMilestoneMarkdown: (projectId: string, id: string, content: string) => ipcRenderer.invoke('milestones:writeDoc', projectId, id, content),
-  startMilestonePlanning: (id: string, projectId: string, inboxItemIds: string[], title: string, description: string) =>
-    ipcRenderer.invoke('milestones:startPlanning', id, projectId, inboxItemIds, title, description),
+  startMilestonePlanning: (id: string, projectId: string, backlogItemIds: string[], title: string, description: string) =>
+    ipcRenderer.invoke('milestones:startPlanning', id, projectId, backlogItemIds, title, description),
 
   onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => {
     const handler = (_: unknown, planningId: string, milestoneId: string) => callback(planningId, milestoneId)

@@ -15,17 +15,17 @@ import {
 } from '@/components/ui/dialog'
 import { useProjects } from '@/store/projects'
 import { timeAgo } from '@/lib/time'
-import type { InboxItem, InboxItemType, InboxItemPriority } from '@/types/index'
+import type { BacklogItem, BacklogItemType, BacklogItemPriority } from '@/types/index'
 
-const TYPE_STYLES: Record<InboxItemType, string> = {
+const TYPE_STYLES: Record<BacklogItemType, string> = {
   idea: 'bg-blue-500/10 text-blue-600 border border-blue-500/30',
   bug: 'bg-red-500/10 text-red-600 border border-red-500/30',
   feature: 'bg-green-500/10 text-green-600 border border-green-500/30',
 }
 
-const PRIORITY_ORDER: Record<InboxItemPriority, number> = { high: 0, medium: 1, low: 2 }
-const PRIORITY_LABEL: Record<InboxItemPriority, string> = { high: '↑ High', medium: '— Med', low: '↓ Low' }
-const PRIORITY_COLOR: Record<InboxItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
+const PRIORITY_ORDER: Record<BacklogItemPriority, number> = { high: 0, medium: 1, low: 2 }
+const PRIORITY_LABEL: Record<BacklogItemPriority, string> = { high: '↑ High', medium: '— Med', low: '↓ Low' }
+const PRIORITY_COLOR: Record<BacklogItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
 
 const STATUS_LABEL: Record<string, string> = { pending: 'Pending', included: 'Included', dismissed: 'Dismissed' }
 const STATUS_STYLE: Record<string, string> = {
@@ -35,21 +35,21 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 type SortKey = 'priority' | 'date'
-type TypeFilter = InboxItemType | 'all'
+type TypeFilter = BacklogItemType | 'all'
 
-const EMPTY_FORM = { type: 'idea' as InboxItemType, title: '', description: '', priority: 'medium' as InboxItemPriority }
+const EMPTY_FORM = { type: 'idea' as BacklogItemType, title: '', description: '', priority: 'medium' as BacklogItemPriority }
 
 // ── Row component defined OUTSIDE parent to avoid focus loss on re-render ──
 
 interface RowProps {
-  item: InboxItem
-  onOpen: (item: InboxItem) => void
-  onDismiss: (item: InboxItem) => void
-  onRestore: (item: InboxItem) => void
-  onDeleteRequest: (item: InboxItem) => void
+  item: BacklogItem
+  onOpen: (item: BacklogItem) => void
+  onDismiss: (item: BacklogItem) => void
+  onRestore: (item: BacklogItem) => void
+  onDeleteRequest: (item: BacklogItem) => void
 }
 
-function InboxRow({ item, onOpen, onDismiss, onRestore, onDeleteRequest }: RowProps) {
+function BacklogRow({ item, onOpen, onDismiss, onRestore, onDeleteRequest }: RowProps) {
   const isDismissed = item.status === 'dismissed'
   const isIncluded = item.status === 'included'
   return (
@@ -110,15 +110,15 @@ function InboxRow({ item, onOpen, onDismiss, onRestore, onDeleteRequest }: RowPr
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function Inbox() {
+export function Backlog() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { projects } = useProjects()
   const project = projects.find((p) => p.id === id)
 
-  const [items, setItems] = useState<InboxItem[]>([])
+  const [items, setItems] = useState<BacklogItem[]>([])
   const [addOpen, setAddOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<InboxItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<BacklogItem | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
@@ -127,7 +127,7 @@ export function Inbox() {
 
   useEffect(() => {
     if (!project) return
-    window.electronAPI.getInboxItems(project.id).then(setItems)
+    window.electronAPI.getBacklogItems(project.id).then(setItems)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id])
 
@@ -145,7 +145,7 @@ export function Inbox() {
   const handleAdd = async () => {
     if (!project || !form.title.trim()) return
     setSubmitting(true)
-    const newItem = await window.electronAPI.addInboxItem(project.id, {
+    const newItem = await window.electronAPI.addBacklogItem(project.id, {
       type: form.type,
       title: form.title.trim(),
       description: form.description.trim() || undefined,
@@ -157,21 +157,21 @@ export function Inbox() {
     setSubmitting(false)
   }
 
-  const handleDismiss = async (item: InboxItem) => {
+  const handleDismiss = async (item: BacklogItem) => {
     if (!project) return
-    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'dismissed' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'dismissed' })
     if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
-  const handleRestore = async (item: InboxItem) => {
+  const handleRestore = async (item: BacklogItem) => {
     if (!project) return
-    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'pending' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'pending' })
     if (updated) setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
   }
 
   const handleDelete = async () => {
     if (!project || !deleteTarget) return
-    await window.electronAPI.deleteInboxItem(project.id, deleteTarget.id)
+    await window.electronAPI.deleteBacklogItem(project.id, deleteTarget.id)
     setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id))
     setDeleteTarget(null)
   }
@@ -187,7 +187,7 @@ export function Inbox() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between pt-6 pb-4 shrink-0">
-        <h2 className="text-sm font-semibold text-foreground">Inbox</h2>
+        <h2 className="text-sm font-semibold text-foreground">Backlog</h2>
         <Button size="sm" onClick={() => { setForm(EMPTY_FORM); setAddOpen(true) }}>
           <Plus size={12} className="mr-1.5" />
           Add Item
@@ -250,7 +250,7 @@ export function Inbox() {
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
             <p className="text-sm font-medium text-foreground">
-              {items.length === 0 ? 'Inbox is empty' : 'No items match your filter'}
+              {items.length === 0 ? 'Backlog is empty' : 'No items match your filter'}
             </p>
             <p className="text-xs text-muted-foreground">
               {items.length === 0 ? 'Add ideas, bugs, and feature requests here.' : 'Try adjusting your search or filter.'}
@@ -258,10 +258,10 @@ export function Inbox() {
           </div>
         ) : (
           filtered.map((item) => (
-            <InboxRow
+            <BacklogRow
               key={item.id}
               item={item}
-              onOpen={(i) => navigate(`/projects/${id}/inbox/${i.id}`)}
+              onOpen={(i) => navigate(`/projects/${id}/backlog/${i.id}`)}
               onDismiss={handleDismiss}
               onRestore={handleRestore}
               onDeleteRequest={setDeleteTarget}
@@ -274,13 +274,13 @@ export function Inbox() {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Inbox Item</DialogTitle>
+            <DialogTitle>Add Backlog Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="flex gap-2">
               <Select
                 value={form.type}
-                onValueChange={(v) => setForm((f) => ({ ...f, type: v as InboxItemType }))}
+                onValueChange={(v) => setForm((f) => ({ ...f, type: v as BacklogItemType }))}
               >
                 <SelectTrigger className="flex-1">
                   <SelectValue />
@@ -293,7 +293,7 @@ export function Inbox() {
               </Select>
               <Select
                 value={form.priority}
-                onValueChange={(v) => setForm((f) => ({ ...f, priority: v as InboxItemPriority }))}
+                onValueChange={(v) => setForm((f) => ({ ...f, priority: v as BacklogItemPriority }))}
               >
                 <SelectTrigger className="flex-1">
                   <SelectValue />

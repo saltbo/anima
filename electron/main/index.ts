@@ -5,11 +5,11 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { getDb, closeDb } from './db/index'
 import { initSchema } from './db/schema'
 import { ProjectRepository } from './repositories/ProjectRepository'
-import { InboxRepository } from './repositories/InboxRepository'
+import { BacklogRepository } from './repositories/BacklogRepository'
 import { MilestoneRepository } from './repositories/MilestoneRepository'
 import { CommentRepository } from './repositories/CommentRepository'
 import { ProjectService } from './services/ProjectService'
-import { InboxService } from './services/InboxService'
+import { BacklogService } from './services/BacklogService'
 import { MilestoneService } from './services/MilestoneService'
 import { SoulService } from './services/SoulService'
 import { SetupService } from './services/SetupService'
@@ -84,7 +84,7 @@ app.whenReady().then(() => {
 
   // ── Repositories ──────────────────────────────────────────────────────
   const projectRepo = new ProjectRepository(db)
-  const inboxRepo = new InboxRepository(db)
+  const backlogRepo = new BacklogRepository(db)
   const milestoneRepo = new MilestoneRepository(db)
   const commentRepo = new CommentRepository(db)
 
@@ -92,9 +92,9 @@ app.whenReady().then(() => {
   const gitService = new GitService()
   const agentRunner = new AgentRunner()
   const projectService = new ProjectService(projectRepo)
-  const inboxService = new InboxService(inboxRepo)
+  const backlogService = new BacklogService(backlogRepo)
   const milestoneService = new MilestoneService(
-    milestoneRepo, inboxRepo, projectRepo, commentRepo,
+    milestoneRepo, backlogRepo, projectRepo, commentRepo,
     agentRunner, getWindow,
     () => soulService!
   )
@@ -110,7 +110,7 @@ app.whenReady().then(() => {
   createTray(getWindow, projectService)
   setupIPC(getWindow, {
     projectService,
-    inboxService,
+    backlogService,
     milestoneService,
     soulService,
     setupService,

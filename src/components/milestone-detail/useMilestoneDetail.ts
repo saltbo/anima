@@ -4,7 +4,7 @@ import { useProjects } from '@/store/projects'
 import { nowISO } from '@/lib/time'
 import type { ProjectIterationStatus } from '@/types/electron.d'
 import type {
-  Milestone, InboxItem, Iteration,
+  Milestone, BacklogItem, Iteration,
   MilestoneComment, MilestoneGitInfo, MilestoneAction,
 } from '@/types/index'
 import type { MilestoneDetailLoaderData } from '@/types/router'
@@ -18,7 +18,7 @@ export function useMilestoneDetail() {
 
   // ── Core state ──────────────────────────────────────────────────────────
   const [milestone, setMilestone] = useState<Milestone | null>(loaderData.milestone)
-  const [inboxItems] = useState<InboxItem[]>(loaderData.inboxItems)
+  const [backlogItems] = useState<BacklogItem[]>(loaderData.backlogItems)
   const [comments, setComments] = useState<MilestoneComment[]>(loaderData.comments)
   const [gitInfo, setGitInfo] = useState<MilestoneGitInfo | null>(null)
   const [markdownContent, setMarkdownContent] = useState(loaderData.markdown)
@@ -225,7 +225,7 @@ export function useMilestoneDetail() {
     id, mid, project,
 
     // Core data
-    milestone, inboxItems, comments, gitInfo,
+    milestone, backlogItems, comments, gitInfo,
     markdownContent, setMarkdownContent, savingMarkdown,
     iterations, status, activeAgent,
     commentText, setCommentText,

@@ -19,16 +19,16 @@ import {
 
 export const milestoneDetailLoader = async ({ params }: LoaderFunctionArgs) => {
   const { id, mid } = params
-  const [milestones, inboxItems, markdown, comments] = await Promise.all([
+  const [milestones, backlogItems, markdown, comments] = await Promise.all([
     window.electronAPI.getMilestones(id!),
-    window.electronAPI.getInboxItems(id!),
+    window.electronAPI.getBacklogItems(id!),
     window.electronAPI.readMilestoneMarkdown(id!, mid!),
     window.electronAPI.getMilestoneComments(mid!),
   ])
   const milestone = milestones.find((m) => m.id === mid) ?? null
   return {
     meta: { title: milestone?.title ?? '' },
-    milestone, inboxItems, markdown: markdown ?? '', comments,
+    milestone, backlogItems, markdown: markdown ?? '', comments,
   } satisfies MilestoneDetailLoaderData
 }
 

@@ -5,8 +5,8 @@ import { ProjectDashboard } from '@/pages/ProjectDashboard'
 import { Milestones } from '@/pages/Milestones'
 import { MilestoneDetail, milestoneDetailLoader } from '@/pages/MilestoneDetail'
 import { MilestoneNew } from '@/pages/MilestoneNew'
-import { Inbox } from '@/pages/Inbox'
-import { InboxDetail, inboxDetailLoader } from '@/pages/InboxDetail'
+import { Backlog } from '@/pages/Backlog'
+import { BacklogDetail, backlogDetailLoader } from '@/pages/BacklogDetail'
 import { ProjectSettings } from '@/pages/ProjectSettings'
 import { Soul } from '@/pages/Soul'
 import { GlobalSettings } from '@/pages/GlobalSettings'
@@ -53,17 +53,17 @@ const router = createHashRouter([
         loader: milestoneDetailLoader,
       },
       {
-        path: 'projects/:id/inbox',
-        element: <Inbox />,
-        handle: { crumb: [{ label: 'Inbox' }] } satisfies RouteHandle,
+        path: 'projects/:id/backlog',
+        element: <Backlog />,
+        handle: { crumb: [{ label: 'Backlog' }] } satisfies RouteHandle,
       },
       {
-        path: 'projects/:id/inbox/:itemId',
-        element: <InboxDetail />,
+        path: 'projects/:id/backlog/:itemId',
+        element: <BacklogDetail />,
         handle: {
-          crumb: [{ label: 'Inbox', path: 'inbox' }],
+          crumb: [{ label: 'Backlog', path: 'backlog' }],
         } satisfies RouteHandle,
-        loader: inboxDetailLoader,
+        loader: backlogDetailLoader,
       },
       {
         path: 'projects/:id/settings',

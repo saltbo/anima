@@ -15,39 +15,39 @@ import {
 } from '@/components/ui/dialog'
 import { useProjects } from '@/store/projects'
 import { timeAgo } from '@/lib/time'
-import type { InboxItem, InboxItemType, InboxItemPriority } from '@/types/index'
-import type { InboxDetailLoaderData } from '@/types/router'
+import type { BacklogItem, BacklogItemType, BacklogItemPriority } from '@/types/index'
+import type { BacklogDetailLoaderData } from '@/types/router'
 import type { LoaderFunctionArgs } from 'react-router-dom'
 
-export const inboxDetailLoader = async ({ params }: LoaderFunctionArgs) => {
+export const backlogDetailLoader = async ({ params }: LoaderFunctionArgs) => {
   const { id, itemId } = params
-  const items = await window.electronAPI.getInboxItems(id!)
+  const items = await window.electronAPI.getBacklogItems(id!)
   const item = items.find((i) => i.id === itemId) ?? null
-  return { meta: { title: item?.title ?? '' }, item } satisfies InboxDetailLoaderData
+  return { meta: { title: item?.title ?? '' }, item } satisfies BacklogDetailLoaderData
 }
 
-const TYPE_STYLES: Record<InboxItemType, string> = {
+const TYPE_STYLES: Record<BacklogItemType, string> = {
   idea: 'bg-blue-500/10 text-blue-600 border border-blue-500/30',
   bug: 'bg-red-500/10 text-red-600 border border-red-500/30',
   feature: 'bg-green-500/10 text-green-600 border border-green-500/30',
 }
-const PRIORITY_LABEL: Record<InboxItemPriority, string> = { high: '↑ High', medium: '— Medium', low: '↓ Low' }
-const PRIORITY_COLOR: Record<InboxItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
+const PRIORITY_LABEL: Record<BacklogItemPriority, string> = { high: '↑ High', medium: '— Medium', low: '↓ Low' }
+const PRIORITY_COLOR: Record<BacklogItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
 
-export function InboxDetail() {
+export function BacklogDetail() {
   const { id } = useParams<{ id: string; itemId: string }>()
   const navigate = useNavigate()
   const { projects } = useProjects()
   const project = projects.find((p) => p.id === id)
-  const { item: initial } = useLoaderData() as InboxDetailLoaderData
+  const { item: initial } = useLoaderData() as BacklogDetailLoaderData
 
-  const [item, setItem] = useState<InboxItem | null>(initial)
+  const [item, setItem] = useState<BacklogItem | null>(initial)
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState(() => ({
-    type: (initial?.type ?? 'idea') as InboxItemType,
+    type: (initial?.type ?? 'idea') as BacklogItemType,
     title: initial?.title ?? '',
     description: initial?.description ?? '',
-    priority: (initial?.priority ?? 'medium') as InboxItemPriority,
+    priority: (initial?.priority ?? 'medium') as BacklogItemPriority,
   }))
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -61,7 +61,7 @@ export function InboxDetail() {
   const handleSaveEdit = async () => {
     if (!project || !item || !editForm.title.trim()) return
     setSaving(true)
-    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, {
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, {
       type: editForm.type,
       title: editForm.title.trim(),
       description: editForm.description.trim() || undefined,
@@ -74,20 +74,20 @@ export function InboxDetail() {
 
   const handleDismiss = async () => {
     if (!project || !item) return
-    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'dismissed' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'dismissed' })
     if (updated) setItem(updated)
   }
 
   const handleRestore = async () => {
     if (!project || !item) return
-    const updated = await window.electronAPI.updateInboxItem(project.id, item.id, { status: 'pending' })
+    const updated = await window.electronAPI.updateBacklogItem(project.id, item.id, { status: 'pending' })
     if (updated) setItem(updated)
   }
 
   const handleDelete = async () => {
     if (!project || !item) return
-    await window.electronAPI.deleteInboxItem(project.id, item.id)
-    navigate(`/projects/${id}/inbox`)
+    await window.electronAPI.deleteBacklogItem(project.id, item.id)
+    navigate(`/projects/${id}/backlog`)
   }
 
   if (!item) {
@@ -169,7 +169,7 @@ export function InboxDetail() {
           /* Edit form */
           <div className="space-y-3">
             <div className="flex gap-2">
-              <Select value={editForm.type} onValueChange={(v) => setEditForm((f) => ({ ...f, type: v as InboxItemType }))}>
+              <Select value={editForm.type} onValueChange={(v) => setEditForm((f) => ({ ...f, type: v as BacklogItemType }))}>
                 <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -179,7 +179,7 @@ export function InboxDetail() {
                   <SelectItem value="feature">Feature</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={editForm.priority} onValueChange={(v) => setEditForm((f) => ({ ...f, priority: v as InboxItemPriority }))}>
+              <Select value={editForm.priority} onValueChange={(v) => setEditForm((f) => ({ ...f, priority: v as BacklogItemPriority }))}>
                 <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 const TABS = [
   { label: 'Dashboard', path: '' },
   { label: 'Milestones', path: '/milestones' },
-  { label: 'Inbox', path: '/inbox' },
+  { label: 'Backlog', path: '/backlog' },
   { label: 'Settings', path: '/settings' },
 ]
 
