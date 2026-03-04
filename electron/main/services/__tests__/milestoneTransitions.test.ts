@@ -8,7 +8,6 @@ describe('milestoneTransitions', () => {
     // ── Legal transitions ──────────────────────────────────────────────────
 
     it.each([
-      ['draft', 'mark_ready', 'ready'],
       ['reviewed', 'approve', 'ready'],
       ['ready', 'cancel', 'cancelled'],
       ['in-progress', 'cancel', 'cancelled'],
@@ -44,17 +43,14 @@ describe('milestoneTransitions', () => {
       ['draft', 'reopen'],
       ['draft', 'approve'],
       ['draft', 'request_changes'],
-      ['ready', 'mark_ready'],
       ['ready', 'accept'],
       ['ready', 'rollback'],
       ['ready', 'reopen'],
       ['ready', 'approve'],
       ['ready', 'request_changes'],
-      ['in-progress', 'mark_ready'],
       ['in-progress', 'accept'],
       ['in-progress', 'rollback'],
       ['in-progress', 'reopen'],
-      ['completed', 'mark_ready'],
       ['completed', 'cancel'],
       ['completed', 'close'],
       ['completed', 'accept'],
@@ -62,14 +58,10 @@ describe('milestoneTransitions', () => {
       ['completed', 'reopen'],
       ['completed', 'approve'],
       ['completed', 'request_changes'],
-      ['reviewing', 'mark_ready'],
       ['reviewing', 'cancel'],
       ['reviewed', 'cancel'],
-      ['reviewed', 'mark_ready'],
-      ['awaiting_review', 'mark_ready'],
       ['awaiting_review', 'cancel'],
       ['awaiting_review', 'reopen'],
-      ['cancelled', 'mark_ready'],
       ['cancelled', 'cancel'],
       ['cancelled', 'close'],
       ['cancelled', 'accept'],
@@ -84,8 +76,8 @@ describe('milestoneTransitions', () => {
   })
 
   describe('availableActions', () => {
-    it('returns [mark_ready, close] for draft', () => {
-      expect(availableActions('draft')).toEqual(['mark_ready', 'close'])
+    it('returns [close] for draft', () => {
+      expect(availableActions('draft')).toEqual(['close'])
     })
 
     it('returns [close] for reviewing', () => {
@@ -118,10 +110,10 @@ describe('milestoneTransitions', () => {
   })
 
   describe('needsScheduler flags', () => {
-    it('non-scheduler transitions: mark_ready, approve, reopen, close (from draft/reviewing/reviewed)', () => {
+    it('non-scheduler transitions: approve, reopen, close (from draft/reviewing/reviewed)', () => {
       const nonScheduler = TRANSITION_TABLE.filter((r) => !r.needsScheduler)
       const actions = [...new Set(nonScheduler.map((r) => r.action))].sort()
-      expect(actions).toEqual(['approve', 'close', 'mark_ready', 'reopen'])
+      expect(actions).toEqual(['approve', 'close', 'reopen'])
     })
 
     it('scheduler transitions: cancel, close (from ready/in-progress/awaiting_review), accept, request_changes, rollback', () => {

@@ -3,6 +3,7 @@ import { createLogger } from '../logger'
 import { msUntil } from '../lib/time'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
+import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { WakeSchedule } from '../../../src/types/index'
 import type { SoulState, SoulTask, SoulContext, Decision } from './types'
 import { think } from './decide'
@@ -21,6 +22,7 @@ export interface SoulOptions {
   getWindow: () => BrowserWindow | null
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
+  backlogRepo: BacklogRepository
 }
 
 // ── Soul ─────────────────────────────────────────────────────────────────────
@@ -134,6 +136,7 @@ export class Soul {
     return {
       project: this.opts.projectRepo.getById(this.opts.projectId) ?? null,
       milestones: this.opts.milestoneRepo.getByProjectId(this.opts.projectId),
+      backlogItems: this.opts.backlogRepo.getByProjectId(this.opts.projectId),
     }
   }
 

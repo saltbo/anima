@@ -2,17 +2,11 @@ import { findSessionFile, readEventsFromFile } from '../agents/claude-code/parse
 import type { ServiceContext } from './index'
 import { safeHandle } from './safeHandle'
 
-export function registerAgentIPC(ctx: ServiceContext): void {
-  const { milestoneService } = ctx
-
+export function registerAgentIPC(_ctx: ServiceContext): void {
   safeHandle('agent:readSessionEvents', (_, sessionId: string) => {
     const filePath = findSessionFile(sessionId)
     if (!filePath) return []
     return readEventsFromFile(filePath, 0).events
-  })
-
-  safeHandle('agent:sendMessage', (_, projectId: string, sessionId: string, message: string) => {
-    milestoneService.resumePlanningSession(projectId, sessionId, message)
   })
 
   safeHandle('agent:stop', (_) => {

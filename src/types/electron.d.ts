@@ -42,7 +42,6 @@ declare global {
 
       // ── Agent ────────────────────────────────────────────────────────────
       readSessionEvents: (sessionId: string) => Promise<AgentEvent[]>
-      sendAgentMessage: (projectId: string, sessionId: string, message: string) => Promise<void>
       stopAgent: (sessionId: string) => Promise<void>
 
       // ── Backlog ───────────────────────────────────────────────────────────
@@ -58,8 +57,6 @@ declare global {
       updateMilestoneTask: (projectId: string, milestoneId: string, taskId: string, patch: Partial<MilestoneTask>) => Promise<void>
       readMilestoneMarkdown: (projectId: string, id: string) => Promise<string | null>
       writeMilestoneMarkdown: (projectId: string, id: string, content: string) => Promise<void>
-      startMilestonePlanning: (id: string, projectId: string, backlogItemIds: string[], title: string, description: string) => Promise<{ sessionId: string; milestoneId: string }>
-      onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => () => void
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
       onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void
       onMilestoneCompleted: (callback: (data: { projectId: string; milestoneId: string }) => void) => () => void
@@ -68,6 +65,7 @@ declare global {
       wakeProject: (projectId: string) => Promise<void>
       updateWakeSchedule: (projectId: string, schedule: WakeSchedule) => Promise<void>
       updateAutoMerge: (projectId: string, autoMerge: boolean) => Promise<void>
+      updateAutoApprove: (projectId: string, autoApprove: boolean) => Promise<void>
       transitionMilestone: (projectId: string, milestoneId: string, payload: TransitionPayload) => Promise<void>
       getMilestoneGitStatus: (projectId: string, milestoneId: string) => Promise<MilestoneGitInfo | null>
       getMilestoneComments: (milestoneId: string) => Promise<MilestoneComment[]>

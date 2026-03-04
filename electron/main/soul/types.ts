@@ -1,4 +1,4 @@
-import type { Milestone, Project } from '../../../src/types/index'
+import type { BacklogItem, Milestone, Project } from '../../../src/types/index'
 
 // ── Soul state ───────────────────────────────────────────────────────────────
 
@@ -9,6 +9,7 @@ export type SoulState = 'sleeping' | 'idle' | 'busy'
 export interface SoulContext {
   project: Project | null
   milestones: Milestone[]
+  backlogItems: BacklogItem[]
 }
 
 // ── Decisions (returned by think()) ──────────────────────────────────────────
@@ -16,6 +17,7 @@ export interface SoulContext {
 export type Decision =
   | { task: 'idle' }
   | { task: 'execute-milestone'; milestone: Milestone }
+  | { task: 'plan-milestone' }
 
 // ── SoulTask plugin interface ────────────────────────────────────────────────
 

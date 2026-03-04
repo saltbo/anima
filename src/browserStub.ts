@@ -21,7 +21,6 @@ export function installBrowserStub() {
     writeSetupFile: async () => {},
 
     readSessionEvents: async () => [],
-    sendAgentMessage: async () => {},
     stopAgent: async () => {},
 
     onProjectsUpdated: () => () => {},
@@ -38,13 +37,13 @@ export function installBrowserStub() {
     updateMilestoneTask: async () => {},
     writeMilestoneMarkdown: async () => {},
     readMilestoneMarkdown: async () => null,
-    startMilestonePlanning: async () => ({ sessionId: '', milestoneId: '' }),
 
-    onMilestonePlanningDone: () => () => {},
     onMilestoneReviewDone: () => () => {},
 
     wakeProject: async () => {},
     updateWakeSchedule: async () => {},
+    updateAutoMerge: async () => {},
+    updateAutoApprove: async () => {},
     transitionMilestone: async () => {},
 
     onProjectStatusChanged: () => () => {},
@@ -53,5 +52,9 @@ export function installBrowserStub() {
     onMilestoneCompleted: () => () => {},
     onIterationPaused: () => () => {},
     onRateLimited: () => () => {},
+    onMilestoneAwaitingReview: () => () => {},
+    getMilestoneGitStatus: async () => null,
+    getMilestoneComments: async () => [],
+    addMilestoneComment: async () => {},
   }
 }

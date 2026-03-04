@@ -25,6 +25,7 @@ export interface Project {
   nextWakeTime: string | null
   wakeSchedule: WakeSchedule
   autoMerge: boolean
+  autoApprove: boolean
   totalTokens: number
   totalCost: number
   rateLimitResetAt: string | null
@@ -112,7 +113,6 @@ export interface MilestoneGitInfo {
 // ── Milestone state machine ──────────────────────────────────────────────────
 
 export type MilestoneAction =
-  | 'mark_ready'
   | 'approve'
   | 'cancel'
   | 'close'

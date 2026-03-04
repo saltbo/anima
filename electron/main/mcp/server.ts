@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { MilestoneRepository } from '../repositories/MilestoneRepository'
 import { CommentRepository } from '../repositories/CommentRepository'
+import { BacklogRepository } from '../repositories/BacklogRepository'
 import type { AcceptanceCriterionStatus } from '../../../src/types/index'
 
 // ── DB connection ────────────────────────────────────────────────────────────
@@ -36,6 +37,10 @@ function nowISO(): string {
   return new Date().toISOString()
 }
 
+function getProjectId(): string | null {
+  return process.env.ANIMA_PROJECT_ID ?? null
+}
+
 // ── Server setup ─────────────────────────────────────────────────────────────
 
 const server = new McpServer({
@@ -45,6 +50,7 @@ const server = new McpServer({
 
 let milestoneRepo: MilestoneRepository
 let commentRepo: CommentRepository
+let backlogRepo: BacklogRepository
 
 // ── Tools ────────────────────────────────────────────────────────────────────
 
@@ -139,12 +145,87 @@ server.tool(
   }
 )
 
+// ── Planning tools (available when ANIMA_PROJECT_ID is set) ─────────────────
+
+server.tool(
+  'list_backlog_items',
+  'List all backlog items for the current project. Use this to understand what needs to be done before planning a milestone.',
+  {},
+  async () => {
+    const projectId = getProjectId()
+    if (!projectId) {
+      return { content: [{ type: 'text' as const, text: 'ANIMA_PROJECT_ID not set — cannot list backlog items' }], isError: true }
+    }
+    const items = backlogRepo.getByProjectId(projectId)
+    const todoItems = items.filter((i) => i.status === 'todo')
+    return { content: [{ type: 'text' as const, text: JSON.stringify(todoItems, null, 2) }] }
+  }
+)
+
+server.tool(
+  'create_milestone',
+  'Create a new milestone and link backlog items to it. The milestone will be created in draft status.',
+  {
+    title: z.string().describe('Milestone title'),
+    description: z.string().describe('Milestone description (product-level, 1-2 paragraphs)'),
+    backlog_item_ids: z.array(z.string()).describe('IDs of backlog items to link to this milestone'),
+    milestone_content: z.string().describe('Full milestone markdown content following the standard format'),
+  },
+  async ({ title, description, backlog_item_ids, milestone_content }) => {
+    const projectId = getProjectId()
+    if (!projectId) {
+      return { content: [{ type: 'text' as const, text: 'ANIMA_PROJECT_ID not set — cannot create milestone' }], isError: true }
+    }
+
+    const milestoneId = randomUUID()
+    const now = nowISO()
+
+    // Save milestone record
+    milestoneRepo.save(projectId, {
+      id: milestoneId,
+      title,
+      description,
+      status: 'draft',
+      acceptanceCriteria: [],
+      tasks: [],
+      createdAt: now,
+      iterationCount: 0,
+      iterations: [],
+      totalTokens: 0,
+      totalCost: 0,
+    })
+
+    // Link backlog items to milestone
+    for (const itemId of backlog_item_ids) {
+      backlogRepo.update(itemId, { milestoneId, status: 'in_progress' })
+    }
+
+    // Store milestone content as a comment for reference
+    commentRepo.add({
+      id: randomUUID(),
+      milestoneId,
+      body: milestone_content,
+      author: 'system',
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({ milestoneId, title, linkedBacklogItems: backlog_item_ids.length }, null, 2),
+      }],
+    }
+  }
+)
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   const db = openDb()
   milestoneRepo = new MilestoneRepository(db)
   commentRepo = new CommentRepository(db)
+  backlogRepo = new BacklogRepository(db)
 
   const transport = new StdioServerTransport()
   await server.connect(transport)

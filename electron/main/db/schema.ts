@@ -150,11 +150,21 @@ function migrateBacklogStatusToKanban(db: Database.Database): void {
   `)
 }
 
+function migrateAutoApproveColumn(db: Database.Database): void {
+  const cols = db.pragma('table_info(projects)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (colNames.has('auto_approve')) return
+
+  log.info('migrating projects table: adding auto_approve column')
+  db.exec(`ALTER TABLE projects ADD COLUMN auto_approve INTEGER NOT NULL DEFAULT 0;`)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
   migrateIterationUsageColumns(db)
   migrateAutoMergeColumn(db)
+  migrateAutoApproveColumn(db)
   migrateMilestoneCommentsTable(db)
   migrateInboxToBacklog(db)
   migrateBacklogStatusToKanban(db)

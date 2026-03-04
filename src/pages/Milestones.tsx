@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Flag, Activity } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Flag, Activity } from 'lucide-react'
 import { milestoneStatusLabel, milestoneStatusBadgeClass, milestoneStatusDotClass } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
 import { timeAgo, formatTokens } from '@/lib/time'
@@ -59,10 +58,6 @@ export function Milestones() {
     <div className="py-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">Milestones</h2>
-        <Button size="sm" onClick={() => navigate(`/projects/${id}/milestones/new`)}>
-          <Plus size={12} className="mr-1.5" />
-          New Milestone
-        </Button>
       </div>
 
       {milestones.length === 0 ? (
@@ -72,7 +67,7 @@ export function Milestones() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">No milestones yet</h3>
-            <p className="text-sm text-muted-foreground mt-1">Create one to get started.</p>
+            <p className="text-sm text-muted-foreground mt-1">Soul will automatically create milestones from your backlog.</p>
           </div>
         </div>
       ) : (

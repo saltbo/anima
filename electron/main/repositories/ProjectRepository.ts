@@ -14,6 +14,7 @@ interface ProjectRow {
   next_wake_time: string | null
   wake_schedule: string
   auto_merge: number
+  auto_approve: number
   total_tokens: number  // computed via subquery
   total_cost: number    // computed via subquery
   rate_limit_reset_at: string | null
@@ -21,7 +22,7 @@ interface ProjectRow {
 
 const PROJECT_SELECT = `
   SELECT p.id, p.path, p.name, p.added_at, p.status, p.current_iteration,
-    p.next_wake_time, p.wake_schedule, p.auto_merge, p.rate_limit_reset_at,
+    p.next_wake_time, p.wake_schedule, p.auto_merge, p.auto_approve, p.rate_limit_reset_at,
     COALESCE((SELECT SUM(i.total_tokens) FROM iterations i JOIN milestones m ON i.milestone_id = m.id WHERE m.project_id = p.id), 0) as total_tokens,
     COALESCE((SELECT SUM(i.total_cost) FROM iterations i JOIN milestones m ON i.milestone_id = m.id WHERE m.project_id = p.id), 0) as total_cost
   FROM projects p`
@@ -37,6 +38,7 @@ function rowToProject(row: ProjectRow): Project {
     nextWakeTime: row.next_wake_time,
     wakeSchedule: JSON.parse(row.wake_schedule) as WakeSchedule,
     autoMerge: !!row.auto_merge,
+    autoApprove: !!row.auto_approve,
     totalTokens: row.total_tokens,
     totalCost: row.total_cost,
     rateLimitResetAt: row.rate_limit_reset_at,
@@ -93,6 +95,7 @@ export class ProjectRepository {
         next_wake_time = ?,
         wake_schedule = ?,
         auto_merge = ?,
+        auto_approve = ?,
         rate_limit_reset_at = ?
       WHERE id = ?`
     ).run(
@@ -101,6 +104,7 @@ export class ProjectRepository {
       merged.nextWakeTime,
       JSON.stringify(merged.wakeSchedule),
       merged.autoMerge ? 1 : 0,
+      merged.autoApprove ? 1 : 0,
       merged.rateLimitResetAt,
       projectId
     )

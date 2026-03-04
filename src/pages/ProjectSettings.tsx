@@ -167,6 +167,20 @@ export function ProjectSettings() {
             onCheckedChange={(checked) => window.electronAPI.updateAutoMerge(project.id, checked)}
           />
         </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">Auto-approve planned milestones</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {project.autoApprove
+                ? 'Milestones planned by Soul are automatically approved and enter execution after review.'
+                : 'Milestones planned by Soul wait for your manual approval before execution.'}
+            </p>
+          </div>
+          <Switch
+            checked={project.autoApprove}
+            onCheckedChange={(checked) => window.electronAPI.updateAutoApprove(project.id, checked)}
+          />
+        </div>
       </Section>
 
       <Section title="Soul">

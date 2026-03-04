@@ -46,8 +46,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Agent ──────────────────────────────────────────────────────────────────
   readSessionEvents: (sessionId: string) => ipcRenderer.invoke('agent:readSessionEvents', sessionId),
-  sendAgentMessage: (projectId: string, sessionId: string, message: string) =>
-    ipcRenderer.invoke('agent:sendMessage', projectId, sessionId, message),
   stopAgent: (sessionId: string) => ipcRenderer.invoke('agent:stop', sessionId),
 
   // ── Backlog ─────────────────────────────────────────────────────────────────
@@ -64,14 +62,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('milestones:updateTask', projectId, milestoneId, taskId, patch),
   readMilestoneMarkdown: (projectId: string, id: string) => ipcRenderer.invoke('milestones:readDoc', projectId, id),
   writeMilestoneMarkdown: (projectId: string, id: string, content: string) => ipcRenderer.invoke('milestones:writeDoc', projectId, id, content),
-  startMilestonePlanning: (id: string, projectId: string, backlogItemIds: string[], title: string, description: string) =>
-    ipcRenderer.invoke('milestones:startPlanning', id, projectId, backlogItemIds, title, description),
-
-  onMilestonePlanningDone: (callback: (planningId: string, milestoneId: string) => void) => {
-    const handler = (_: unknown, planningId: string, milestoneId: string) => callback(planningId, milestoneId)
-    ipcRenderer.on('milestones:planningDone', handler)
-    return () => ipcRenderer.removeListener('milestones:planningDone', handler)
-  },
 
   onMilestoneReviewDone: (callback: (milestoneId: string) => void) => {
     const handler = (_: unknown, milestoneId: string) => callback(milestoneId)
@@ -97,6 +87,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('project:updateSchedule', projectId, schedule),
   updateAutoMerge: (projectId: string, autoMerge: boolean) =>
     ipcRenderer.invoke('project:updateAutoMerge', projectId, autoMerge),
+  updateAutoApprove: (projectId: string, autoApprove: boolean) =>
+    ipcRenderer.invoke('project:updateAutoApprove', projectId, autoApprove),
   transitionMilestone: (projectId: string, milestoneId: string, payload: { action: string; comment?: { id: string; body: string } }) =>
     ipcRenderer.invoke('milestones:transition', projectId, milestoneId, payload),
   getMilestoneGitStatus: (projectId: string, milestoneId: string) =>

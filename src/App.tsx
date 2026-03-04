@@ -4,7 +4,6 @@ import { GlobalDashboard } from '@/pages/GlobalDashboard'
 import { ProjectDashboard } from '@/pages/ProjectDashboard'
 import { Milestones } from '@/pages/Milestones'
 import { MilestoneDetail, milestoneDetailLoader } from '@/pages/MilestoneDetail'
-import { MilestoneNew } from '@/pages/MilestoneNew'
 import { Backlog } from '@/pages/Backlog'
 import { BacklogDetail, backlogDetailLoader } from '@/pages/BacklogDetail'
 import { ProjectSettings } from '@/pages/ProjectSettings'
@@ -33,16 +32,6 @@ const router = createHashRouter([
         path: 'projects/:id/milestones',
         element: <Milestones />,
         handle: { crumb: [{ label: 'Milestones' }] } satisfies RouteHandle,
-      },
-      {
-        path: 'projects/:id/milestones/new',
-        element: <MilestoneNew />,
-        handle: {
-          crumb: [
-            { label: 'Milestones', path: 'milestones' },
-            { label: 'New' },
-          ],
-        } satisfies RouteHandle,
       },
       {
         path: 'projects/:id/milestones/:mid',

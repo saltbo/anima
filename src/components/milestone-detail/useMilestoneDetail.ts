@@ -107,7 +107,7 @@ export function useMilestoneDetail() {
   // ── Actions ────────────────────────────────────────────────────────────
   const handleMarkReady = useCallback(async () => {
     if (!project || !milestone) return
-    const action: MilestoneAction = milestone.status === 'reviewed' ? 'approve' : 'mark_ready'
+    const action: MilestoneAction = 'approve'
     await window.electronAPI.transitionMilestone(project.id, milestone.id, { action })
     setMilestone({ ...milestone, status: 'ready' })
   }, [project, milestone])

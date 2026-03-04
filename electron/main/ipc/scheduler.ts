@@ -28,4 +28,8 @@ export function registerSchedulerIPC(ctx: ServiceContext): void {
   safeHandle('project:updateAutoMerge', (_, projectId: string, autoMerge: boolean) => {
     ctx.projectService.patch(projectId, { autoMerge })
   })
+
+  safeHandle('project:updateAutoApprove', (_, projectId: string, autoApprove: boolean) => {
+    ctx.projectService.patch(projectId, { autoApprove })
+  })
 }

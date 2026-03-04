@@ -3,7 +3,6 @@ import type { MilestoneStatus } from '../../../src/types/index'
 // ── Actions ──────────────────────────────────────────────────────────────────
 
 export type MilestoneAction =
-  | 'mark_ready'
   | 'approve'
   | 'cancel'
   | 'close'
@@ -23,7 +22,6 @@ export interface TransitionRule {
 
 export const TRANSITION_TABLE: readonly TransitionRule[] = [
   // User-initiated via milestones:transition IPC
-  { action: 'mark_ready',       from: 'draft',           to: 'ready',     needsScheduler: false },
   { action: 'approve',          from: 'reviewed',        to: 'ready',     needsScheduler: false },
   { action: 'cancel',           from: 'ready',           to: 'cancelled', needsScheduler: true  },
   { action: 'cancel',           from: 'in-progress',     to: 'cancelled', needsScheduler: true  },

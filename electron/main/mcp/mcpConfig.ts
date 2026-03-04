@@ -14,11 +14,13 @@ interface McpConfig {
 /**
  * Build the Anima MCP server entry for a project's .mcp.json.
  */
-export function buildAnimaMcpEntry(mcpServerPath: string, dbPath: string): McpServerEntry {
+export function buildAnimaMcpEntry(mcpServerPath: string, dbPath: string, projectId?: string): McpServerEntry {
+  const env: Record<string, string> = { ANIMA_DB_PATH: dbPath }
+  if (projectId) env.ANIMA_PROJECT_ID = projectId
   return {
     command: 'node',
     args: [mcpServerPath],
-    env: { ANIMA_DB_PATH: dbPath },
+    env,
   }
 }
 
@@ -27,7 +29,7 @@ export function buildAnimaMcpEntry(mcpServerPath: string, dbPath: string): McpSe
  * Preserves any existing entries (e.g. Playwright MCP).
  * Creates the file if it doesn't exist.
  */
-export function ensureAnimaMcpConfig(projectPath: string, mcpServerPath: string, dbPath: string): void {
+export function ensureAnimaMcpConfig(projectPath: string, mcpServerPath: string, dbPath: string, projectId?: string): void {
   const configPath = path.join(projectPath, '.mcp.json')
   let config: McpConfig = { mcpServers: {} }
 
@@ -42,6 +44,6 @@ export function ensureAnimaMcpConfig(projectPath: string, mcpServerPath: string,
     }
   }
 
-  config.mcpServers.anima = buildAnimaMcpEntry(mcpServerPath, dbPath)
+  config.mcpServers.anima = buildAnimaMcpEntry(mcpServerPath, dbPath, projectId)
   writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8')
 }

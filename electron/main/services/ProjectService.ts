@@ -20,7 +20,7 @@ export class ProjectService {
     return this.projectRepo.getByPath(projectPath)
   }
 
-  patch(id: string, patch: Partial<Pick<Project, 'autoMerge'>>): Project {
+  patch(id: string, patch: Partial<Pick<Project, 'autoMerge' | 'autoApprove'>>): Project {
     return this.projectRepo.patch(id, patch)
   }
 }

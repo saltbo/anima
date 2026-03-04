@@ -9,6 +9,7 @@ import type { GitService } from './GitService'
 import { MilestoneLifecycle } from './MilestoneLifecycle'
 import { Soul } from '../soul/Soul'
 import { MilestoneExecutionTask } from '../soul/tasks/MilestoneExecutionTask'
+import { MilestonePlanningTask } from '../soul/tasks/MilestonePlanningTask'
 import { Notifier } from '../soul/notifier'
 import type { AgentRunner } from '../agents/AgentRunner'
 
@@ -49,7 +50,10 @@ export class SoulService {
       getWindow: this.getWindow,
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
+      backlogRepo: this.backlogRepo,
     })
+
+    const notifier = new Notifier(project.id, this.getWindow)
 
     // Register the milestone execution task
     const executionTask = new MilestoneExecutionTask({
@@ -60,11 +64,26 @@ export class SoulService {
       commentRepo: this.commentRepo,
       gitService: this.gitService,
       agentRunner: this.agentRunner,
-      notifier: new Notifier(project.id, this.getWindow),
+      notifier,
       mcpServerPath: this.mcpServerPath,
       dbPath: this.dbPath,
     })
     soul.register('execute-milestone', executionTask)
+
+    // Register the milestone planning task
+    const planningTask = new MilestonePlanningTask({
+      projectId: project.id,
+      projectPath: project.path,
+      projectRepo: this.projectRepo,
+      milestoneRepo: this.milestoneRepo,
+      commentRepo: this.commentRepo,
+      backlogRepo: this.backlogRepo,
+      agentRunner: this.agentRunner,
+      notifier,
+      mcpServerPath: this.mcpServerPath,
+      dbPath: this.dbPath,
+    })
+    soul.register('plan-milestone', planningTask)
 
     this.souls.set(project.id, soul)
 

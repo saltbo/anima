@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { msUntil } from '../lib/time'
 import type { SoulContext, Decision } from './types'
 
@@ -22,5 +23,34 @@ export function think(context: SoulContext): Decision {
   const ready = milestones.find((m) => m.status === 'ready')
   if (ready) return { task: 'execute-milestone', milestone: ready }
 
+  // Check if we have pending planning/review milestones — don't trigger another plan
+  const hasPendingPlanning = milestones.some(
+    (m) => m.status === 'draft' || m.status === 'reviewing' || m.status === 'reviewed'
+  )
+  if (hasPendingPlanning) return { task: 'idle' }
+
+  // Check if we should plan a new milestone
+  if (shouldPlanMilestone(context)) return { task: 'plan-milestone' }
+
   return { task: 'idle' }
+}
+
+function shouldPlanMilestone(context: SoulContext): boolean {
+  const { milestones, backlogItems } = context
+
+  const todoItems = backlogItems.filter((i) => i.status === 'todo')
+  if (todoItems.length === 0) return false
+
+  // Condition 1: enough backlog accumulated (≥10)
+  if (todoItems.length >= 10) return true
+
+  // Condition 2: at least 1 todo + last milestone completed >30 days ago (or never completed)
+  const lastCompleted = milestones
+    .filter((m) => m.status === 'completed' && m.completedAt)
+    .sort((a, b) => (b.completedAt! > a.completedAt! ? 1 : -1))[0]
+
+  if (!lastCompleted) return true // never completed a milestone
+
+  const daysSince = dayjs().diff(dayjs(lastCompleted.completedAt), 'day')
+  return daysSince > 30
 }
