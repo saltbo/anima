@@ -219,15 +219,21 @@ server.tool(
 
 server.tool(
   'create_milestone',
-  'Create a new milestone and link backlog items to it. The milestone will be created in draft status.',
+  'Create a new milestone, link backlog items, and define acceptance checks for each item. The milestone will be created in draft status.',
   {
     project_id: z.string().describe('The project ID'),
     title: z.string().describe('Milestone title'),
     description: z.string().describe('Milestone description (product-level, 1-2 paragraphs)'),
-    backlog_item_ids: z.array(z.string()).describe('IDs of backlog items to link to this milestone'),
+    backlog_items: z.array(z.object({
+      id: z.string().describe('Backlog item ID'),
+      checks: z.array(z.object({
+        title: z.string().describe('Acceptance check title — must be observable and binary'),
+        description: z.string().optional().describe('Optional detailed description of what to verify'),
+      })).describe('Acceptance checks for this backlog item'),
+    })).describe('Backlog items to include, each with its acceptance checks'),
     milestone_content: z.string().describe('Full milestone markdown content following the standard format'),
   },
-  async ({ project_id, title, description, backlog_item_ids, milestone_content }) => {
+  async ({ project_id, title, description, backlog_items, milestone_content }) => {
     const milestoneId = randomUUID()
     const now = nowISO()
 
@@ -246,9 +252,22 @@ server.tool(
       totalCost: 0,
     }])
 
-    // Link backlog items to milestone
-    for (const itemId of backlog_item_ids) {
-      await client.call('backlog:update', [project_id, itemId, { milestoneId, status: 'in_progress' }])
+    // Link backlog items and create checks
+    let totalChecks = 0
+    for (const item of backlog_items) {
+      await client.call('backlog:update', [project_id, item.id, { milestoneId, status: 'in_progress' }])
+
+      if (item.checks.length > 0) {
+        const checksWithItemId = item.checks.map((c) => ({
+          itemId: item.id,
+          title: c.title,
+          description: c.description,
+          status: 'pending' as const,
+          iteration: 0,
+        }))
+        await client.call('checks:add', [checksWithItemId])
+        totalChecks += item.checks.length
+      }
     }
 
     // Store milestone content as a comment for reference
@@ -264,7 +283,7 @@ server.tool(
     return {
       content: [{
         type: 'text' as const,
-        text: JSON.stringify({ milestoneId, title, linkedBacklogItems: backlog_item_ids.length }, null, 2),
+        text: JSON.stringify({ milestoneId, title, linkedBacklogItems: backlog_items.length, checks: totalChecks }, null, 2),
       }],
     }
   }

@@ -8,7 +8,8 @@ export function buildPlannerSystemPrompt(): string {
     '1. Use the `list_backlog_items` MCP tool to see all pending backlog items.',
     '2. Read the project\'s `.anima/soul.md` file to understand the project context, standards, and priorities.',
     '3. Analyze the backlog items and select a cohesive set for the next milestone.',
-    '4. Use the `create_milestone` MCP tool to create the milestone with your selected backlog items.',
+    '4. For each selected backlog item, define 1-3 acceptance checks — observable, binary criteria that prove the item is done.',
+    '5. Use the `create_milestone` MCP tool to create the milestone with your selected backlog items and their checks.',
     '',
     '## Selection Criteria',
     '- Group related items that share modules, domain areas, or dependencies.',
@@ -17,11 +18,16 @@ export function buildPlannerSystemPrompt(): string {
     '- Aim for 3-8 backlog items per milestone depending on complexity.',
     '- Consider item types: bugs should generally be fixed before new features in the same area.',
     '',
+    '## Acceptance Checks',
+    '- Every backlog item MUST have at least 1 acceptance check.',
+    '- Checks must be observable and binary — a reviewer can objectively say "passed" or "rejected".',
+    '- Checks should be product-level (user-visible behavior), not implementation details.',
+    '- Example: "User can log in with email and password" — not "JWT token is generated".',
+    '',
     '## Milestone Content',
     '- Title: concise, describes the theme of the milestone (e.g., "User Authentication Improvements").',
     '- Description: 1-2 paragraphs explaining what this milestone delivers from a product perspective.',
     '- The milestone document should describe requirements from the user\'s perspective, not implementation details.',
-    '- Acceptance criteria should be observable, binary, and product-level.',
   ].join('\n')
 }
 
@@ -30,7 +36,8 @@ export function buildPlannerFirstMessage(projectId: string): string {
     `Plan the next milestone for project \`${projectId}\`.`,
     `Use list_backlog_items with project_id="${projectId}" to see what needs to be done.`,
     'Read .anima/soul.md for project context.',
-    `Then use create_milestone with project_id="${projectId}" to create the milestone with your selected backlog items.`,
+    'For each selected backlog item, define 1-3 acceptance checks (observable, binary, product-level).',
+    `Then use create_milestone with project_id="${projectId}" to create the milestone with backlog items and their checks.`,
   ].join(' ')
 }
 
