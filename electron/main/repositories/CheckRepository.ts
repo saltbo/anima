@@ -41,8 +41,8 @@ export class CheckRepository {
     const rows = this.db
       .prepare(
         `SELECT mc.* FROM milestone_checks mc
-         JOIN backlog_items bi ON mc.item_id = bi.id
-         WHERE bi.milestone_id = ?
+         JOIN milestone_items mi ON mi.item_id = mc.item_id
+         WHERE mi.milestone_id = ?
          ORDER BY mc.created_at`
       )
       .all(milestoneId) as CheckRow[]

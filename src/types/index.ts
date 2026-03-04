@@ -43,7 +43,6 @@ export interface BacklogItem {
   priority: BacklogItemPriority
   status: BacklogItemStatus
   createdAt: string
-  milestoneId?: string
 }
 
 export type MilestoneStatus = 'draft' | 'reviewing' | 'reviewed' | 'ready' | 'in-progress' | 'awaiting_review' | 'completed' | 'cancelled'

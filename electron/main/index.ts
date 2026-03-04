@@ -9,6 +9,7 @@ import { BacklogRepository } from './repositories/BacklogRepository'
 import { MilestoneRepository } from './repositories/MilestoneRepository'
 import { CommentRepository } from './repositories/CommentRepository'
 import { CheckRepository } from './repositories/CheckRepository'
+import { MilestoneItemRepository } from './repositories/MilestoneItemRepository'
 import { ProjectService } from './services/ProjectService'
 import { BacklogService } from './services/BacklogService'
 import { MilestoneService } from './services/MilestoneService'
@@ -98,6 +99,7 @@ app.whenReady().then(() => {
   const milestoneRepo = new MilestoneRepository(db)
   const commentRepo = new CommentRepository(db)
   const checkRepo = new CheckRepository(db)
+  const milestoneItemRepo = new MilestoneItemRepository(db)
 
   // ── Services ──────────────────────────────────────────────────────────
   const gitService = new GitService()
@@ -105,13 +107,13 @@ app.whenReady().then(() => {
   const projectService = new ProjectService(projectRepo)
   const backlogService = new BacklogService(backlogRepo)
   const milestoneService = new MilestoneService(
-    milestoneRepo, backlogRepo, projectRepo, commentRepo,
+    milestoneRepo, backlogRepo, milestoneItemRepo, projectRepo, commentRepo,
     getWindow,
     () => soulService!
   )
   const setupService = new SetupService(agentRunner)
   soulService = new SoulService(
-    projectRepo, milestoneRepo, commentRepo, backlogRepo, gitService, agentRunner, getWindow
+    projectRepo, milestoneRepo, commentRepo, backlogRepo, milestoneItemRepo, gitService, agentRunner, getWindow
   )
 
   // ── Wire up ───────────────────────────────────────────────────────────

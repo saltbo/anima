@@ -46,7 +46,6 @@ interface BacklogRow {
   description: string | null
   priority: string
   status: string
-  milestone_id: string | null
   created_at: string
 }
 
@@ -108,7 +107,6 @@ function backlogRowToItem(row: BacklogRow): BacklogItem {
     description: row.description ?? undefined,
     priority: row.priority as BacklogItemPriority,
     status: row.status as BacklogItemStatus,
-    milestoneId: row.milestone_id ?? undefined,
     createdAt: row.created_at,
   }
 }
@@ -138,7 +136,12 @@ export class MilestoneRepository {
 
   private getItems(milestoneId: string): BacklogItem[] {
     const rows = this.db
-      .prepare('SELECT * FROM backlog_items WHERE milestone_id = ? ORDER BY created_at')
+      .prepare(
+        `SELECT bi.* FROM backlog_items bi
+         JOIN milestone_items mi ON mi.item_id = bi.id
+         WHERE mi.milestone_id = ?
+         ORDER BY bi.created_at`
+      )
       .all(milestoneId) as BacklogRow[]
     return rows.map(backlogRowToItem)
   }
@@ -147,8 +150,8 @@ export class MilestoneRepository {
     const rows = this.db
       .prepare(
         `SELECT mc.* FROM milestone_checks mc
-         JOIN backlog_items bi ON mc.item_id = bi.id
-         WHERE bi.milestone_id = ?
+         JOIN milestone_items mi ON mi.item_id = mc.item_id
+         WHERE mi.milestone_id = ?
          ORDER BY mc.created_at`
       )
       .all(milestoneId) as CheckRow[]

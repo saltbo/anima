@@ -11,7 +11,6 @@ interface BacklogRow {
   description: string | null
   priority: string
   status: string
-  milestone_id: string | null
   created_at: string
 }
 
@@ -23,7 +22,6 @@ function rowToItem(row: BacklogRow): BacklogItem {
     description: row.description ?? undefined,
     priority: row.priority as BacklogItemPriority,
     status: row.status as BacklogItemStatus,
-    milestoneId: row.milestone_id ?? undefined,
     createdAt: row.created_at,
   }
 }
@@ -43,13 +41,6 @@ export class BacklogRepository {
     return row ? rowToItem(row) : null
   }
 
-  getByMilestoneId(milestoneId: string): BacklogItem[] {
-    const rows = this.db
-      .prepare('SELECT * FROM backlog_items WHERE milestone_id = ?')
-      .all(milestoneId) as BacklogRow[]
-    return rows.map(rowToItem)
-  }
-
   add(projectId: string, item: Omit<BacklogItem, 'id' | 'createdAt' | 'status'>): BacklogItem {
     const newItem: BacklogItem = {
       ...item,
@@ -59,8 +50,8 @@ export class BacklogRepository {
     }
     this.db
       .prepare(
-        `INSERT INTO backlog_items (id, project_id, type, title, description, priority, status, milestone_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO backlog_items (id, project_id, type, title, description, priority, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         newItem.id,
@@ -70,7 +61,6 @@ export class BacklogRepository {
         newItem.description ?? null,
         newItem.priority,
         newItem.status,
-        newItem.milestoneId ?? null,
         newItem.createdAt
       )
     return newItem
@@ -84,7 +74,7 @@ export class BacklogRepository {
     this.db
       .prepare(
         `UPDATE backlog_items SET
-           type = ?, title = ?, description = ?, priority = ?, status = ?, milestone_id = ?
+           type = ?, title = ?, description = ?, priority = ?, status = ?
          WHERE id = ?`
       )
       .run(
@@ -93,7 +83,6 @@ export class BacklogRepository {
         updated.description ?? null,
         updated.priority,
         updated.status,
-        updated.milestoneId ?? null,
         id
       )
     return updated

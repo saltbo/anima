@@ -4,6 +4,7 @@ import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
+import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepository'
 import type { GitService } from './GitService'
 import { Notifier } from '../soul/notifier'
 
@@ -15,6 +16,7 @@ export class MilestoneLifecycle {
     private milestoneRepo: MilestoneRepository,
     private commentRepo: CommentRepository,
     private backlogRepo: BacklogRepository,
+    private milestoneItemRepo: MilestoneItemRepository,
     private gitService: GitService,
     private notifier: Notifier
   ) {}
@@ -140,17 +142,17 @@ export class MilestoneLifecycle {
 
   /** Mark all backlog items linked to a milestone as a given status. */
   private markBacklogItems(milestoneId: string, status: 'done' | 'todo'): void {
-    const items = this.backlogRepo.getByMilestoneId(milestoneId)
-    for (const item of items) {
-      this.backlogRepo.update(item.id, { status })
+    const itemIds = this.milestoneItemRepo.getItemIds(milestoneId)
+    for (const itemId of itemIds) {
+      this.backlogRepo.update(itemId, { status })
     }
   }
 
-  /** Release backlog items from a cancelled milestone: set to todo, clear milestoneId. */
+  /** Release backlog items from a cancelled milestone: set to todo. */
   private releaseBacklogItems(milestoneId: string): void {
-    const items = this.backlogRepo.getByMilestoneId(milestoneId)
-    for (const item of items) {
-      this.backlogRepo.update(item.id, { status: 'todo', milestoneId: undefined })
+    const itemIds = this.milestoneItemRepo.getItemIds(milestoneId)
+    for (const itemId of itemIds) {
+      this.backlogRepo.update(itemId, { status: 'todo' })
     }
   }
 }

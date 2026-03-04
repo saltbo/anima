@@ -6,6 +6,7 @@ import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
+import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepository'
 import { validateTransition } from './milestoneTransitions'
 import type { SoulService } from './SoulService'
 
@@ -21,6 +22,7 @@ export class MilestoneService {
   constructor(
     private milestoneRepo: MilestoneRepository,
     private backlogRepo: BacklogRepository,
+    private milestoneItemRepo: MilestoneItemRepository,
     private projectRepo: ProjectRepository,
     private commentRepo: CommentRepository,
     private getWindow: () => BrowserWindow | null,
@@ -42,6 +44,11 @@ export class MilestoneService {
       this.milestoneRepo.save(projectId, { ...milestone, status: existing.status })
     } else {
       this.milestoneRepo.save(projectId, milestone)
+    }
+
+    // Sync milestone_items join table from milestone.items
+    for (const item of milestone.items) {
+      this.milestoneItemRepo.link(milestone.id, item.id)
     }
   }
 

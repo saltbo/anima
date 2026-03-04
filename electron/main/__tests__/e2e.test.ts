@@ -192,12 +192,6 @@ class InMemoryBacklogRepository {
     return this.items.get(id)?.item ?? null
   }
 
-  getByMilestoneId(milestoneId: string): BacklogItem[] {
-    return [...this.items.values()]
-      .filter((e) => e.item.milestoneId === milestoneId)
-      .map((e) => e.item)
-  }
-
   add(projectId: string, item: Omit<BacklogItem, 'id' | 'createdAt' | 'status'>): BacklogItem {
     const newItem: BacklogItem = {
       ...item,
@@ -251,6 +245,35 @@ class InMemoryCommentRepository {
     for (const [id, c] of this.comments.entries()) {
       if (c.milestoneId === milestoneId) this.comments.delete(id)
     }
+  }
+}
+
+class InMemoryMilestoneItemRepository {
+  private links = new Map<string, Set<string>>() // milestoneId → Set<itemId>
+
+  link(milestoneId: string, itemId: string): void {
+    let set = this.links.get(milestoneId)
+    if (!set) {
+      set = new Set()
+      this.links.set(milestoneId, set)
+    }
+    set.add(itemId)
+  }
+
+  unlink(milestoneId: string, itemId: string): void {
+    this.links.get(milestoneId)?.delete(itemId)
+  }
+
+  getItemIds(milestoneId: string): string[] {
+    return [...(this.links.get(milestoneId) ?? [])]
+  }
+
+  getMilestoneIds(itemId: string): string[] {
+    const result: string[] = []
+    for (const [msId, items] of this.links) {
+      if (items.has(itemId)) result.push(msId)
+    }
+    return result
   }
 }
 
@@ -329,6 +352,7 @@ interface Harness {
   milestoneRepo: InMemoryMilestoneRepository
   backlogRepo: InMemoryBacklogRepository
   commentRepo: InMemoryCommentRepository
+  milestoneItemRepo: InMemoryMilestoneItemRepository
   gitService: MockGitService
   agentRunner: MockAgentRunner
   soulService: SoulService
@@ -341,6 +365,7 @@ function createHarness(): Harness {
   const milestoneRepo = new InMemoryMilestoneRepository()
   const backlogRepo = new InMemoryBacklogRepository()
   const commentRepo = new InMemoryCommentRepository()
+  const milestoneItemRepo = new InMemoryMilestoneItemRepository()
   const gitService = new MockGitService()
   const agentRunner = new MockAgentRunner()
 
@@ -352,6 +377,7 @@ function createHarness(): Harness {
     milestoneRepo as unknown as MilestoneRepository,
     commentRepo as unknown as CommentRepository,
     backlogRepo as unknown as BacklogRepository,
+    milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
     gitService as unknown as GitService,
     agentRunner as unknown as AgentRunner,
     () => null,
@@ -360,13 +386,14 @@ function createHarness(): Harness {
   const milestoneService = new MilestoneService(
     milestoneRepo as unknown as MilestoneRepository,
     backlogRepo as unknown as BacklogRepository,
+    milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
     projectRepo as unknown as ProjectRepository,
     commentRepo as unknown as CommentRepository,
     () => null,
     () => soulService,
   )
 
-  return { projectRepo, milestoneRepo, backlogRepo, commentRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
+  return { projectRepo, milestoneRepo, backlogRepo, commentRepo, milestoneItemRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
 }
 
 function makeMs(overrides: Partial<Milestone> = {}): Milestone {
@@ -707,6 +734,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
         backlogRepo: h.backlogRepo as unknown as BacklogRepository,
+        milestoneItemRepo: h.milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
       })
@@ -797,6 +825,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       return new MilestoneLifecycle(
         h.projectRepo as unknown as ProjectRepository, h.milestoneRepo as unknown as MilestoneRepository,
         h.commentRepo as unknown as CommentRepository, h.backlogRepo as unknown as BacklogRepository,
+        h.milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
         h.gitService as unknown as GitService,
         new Notifier(projectId, () => null),
       )
@@ -809,7 +838,8 @@ describe('E2E: Full Milestone Lifecycle', () => {
         checks: [makeCheck({ title: 'A', status: 'passed', iteration: 1 })],
       }))
       const item = h.backlogRepo.add(project.id, { type: 'feature', title: 'Linked', priority: 'high' })
-      h.backlogRepo.update(item.id, { milestoneId: 'ms-lc', status: 'in_progress' })
+      h.backlogRepo.update(item.id, { status: 'in_progress' })
+      h.milestoneItemRepo.link('ms-lc', item.id)
 
       await createLifecycle(project.id).accept(project.id, 'ms-lc')
 
@@ -852,13 +882,13 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({ id: 'ms-cancel', status: 'ready' }))
       const item = h.backlogRepo.add(project.id, { type: 'feature', title: 'Linked', priority: 'medium' })
-      h.backlogRepo.update(item.id, { milestoneId: 'ms-cancel', status: 'in_progress' })
+      h.backlogRepo.update(item.id, { status: 'in_progress' })
+      h.milestoneItemRepo.link('ms-cancel', item.id)
 
       createLifecycle(project.id).cancel(project.id, 'ms-cancel')
 
       expect(h.milestoneRepo.getById('ms-cancel')!.status).toBe('cancelled')
       expect(h.backlogRepo.getById(item.id)!.status).toBe('todo')
-      expect(h.backlogRepo.getById(item.id)!.milestoneId).toBeUndefined()
     })
 
     it('rollback without baseCommit is a no-op', async () => {
@@ -1062,6 +1092,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
         backlogRepo: h.backlogRepo as unknown as BacklogRepository,
+        milestoneItemRepo: h.milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),
       })

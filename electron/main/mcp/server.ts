@@ -239,13 +239,13 @@ server.tool(
     const milestoneId = randomUUID()
     const now = nowISO()
 
-    // Save milestone record
+    // Save milestone record with linked item IDs
     await client.call('milestones:save', [project_id, {
       id: milestoneId,
       title,
       description,
       status: 'draft',
-      items: [],
+      items: backlog_items.map((bi) => ({ id: bi.id })),
       checks: [],
       createdAt: now,
       iterationCount: 0,
@@ -255,10 +255,10 @@ server.tool(
       assignees: getAllAgents().map((a) => a.id),
     }])
 
-    // Link backlog items and create checks
+    // Update backlog item statuses and create checks
     let totalChecks = 0
     for (const item of backlog_items) {
-      await client.call('backlog:update', [project_id, item.id, { milestoneId, status: 'in_progress' }])
+      await client.call('backlog:update', [project_id, item.id, { status: 'in_progress' }])
 
       if (item.checks.length > 0) {
         const checksWithItemId = item.checks.map((c) => ({

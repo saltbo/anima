@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS backlog_items (
   description  TEXT,
   priority     TEXT NOT NULL DEFAULT 'medium',
   status       TEXT NOT NULL DEFAULT 'todo',
-  milestone_id TEXT,
   created_at   TEXT NOT NULL
 );
 
@@ -85,6 +84,14 @@ CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(project_id, statu
 CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
 CREATE INDEX IF NOT EXISTS idx_comments_milestone ON milestone_comments(milestone_id);
 CREATE INDEX IF NOT EXISTS idx_checks_item ON milestone_checks(item_id);
+
+CREATE TABLE IF NOT EXISTS milestone_items (
+  milestone_id  TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+  item_id       TEXT NOT NULL REFERENCES backlog_items(id) ON DELETE CASCADE,
+  created_at    TEXT NOT NULL,
+  PRIMARY KEY (milestone_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_milestone_items_item ON milestone_items(item_id);
 `
 
 function migrateIterationUsageColumns(db: Database.Database): void {
@@ -225,6 +232,49 @@ function migrateMilestoneAssigneesColumn(db: Database.Database): void {
   db.exec(`ALTER TABLE milestones ADD COLUMN assignees TEXT NOT NULL DEFAULT '[]';`)
 }
 
+function migrateMilestoneItemsTable(db: Database.Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='milestone_items'").all()
+  if (tables.length > 0) return
+
+  log.info('migrating: creating milestone_items table + backfilling from backlog_items')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestone_items (
+      milestone_id  TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+      item_id       TEXT NOT NULL REFERENCES backlog_items(id) ON DELETE CASCADE,
+      created_at    TEXT NOT NULL,
+      PRIMARY KEY (milestone_id, item_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_milestone_items_item ON milestone_items(item_id);
+
+    INSERT OR IGNORE INTO milestone_items (milestone_id, item_id, created_at)
+    SELECT milestone_id, id, created_at FROM backlog_items WHERE milestone_id IS NOT NULL;
+  `)
+}
+
+function migrateDropBacklogMilestoneId(db: Database.Database): void {
+  const cols = db.pragma('table_info(backlog_items)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (!colNames.has('milestone_id')) return
+
+  log.info('migrating backlog_items: dropping milestone_id column')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS backlog_items_new (
+      id           TEXT PRIMARY KEY,
+      project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      type         TEXT NOT NULL DEFAULT 'idea',
+      title        TEXT NOT NULL,
+      description  TEXT,
+      priority     TEXT NOT NULL DEFAULT 'medium',
+      status       TEXT NOT NULL DEFAULT 'todo',
+      created_at   TEXT NOT NULL
+    );
+    INSERT INTO backlog_items_new SELECT id, project_id, type, title, description, priority, status, created_at FROM backlog_items;
+    DROP TABLE backlog_items;
+    ALTER TABLE backlog_items_new RENAME TO backlog_items;
+    CREATE INDEX IF NOT EXISTS idx_backlog_project ON backlog_items(project_id);
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
@@ -237,4 +287,6 @@ export function initSchema(db: Database.Database): void {
   migrateInboxToBacklog(db)
   migrateBacklogStatusToKanban(db)
   migrateMilestoneAssigneesColumn(db)
+  migrateMilestoneItemsTable(db)
+  migrateDropBacklogMilestoneId(db)
 }

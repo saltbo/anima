@@ -8,6 +8,7 @@ import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
 import type { CommentRepository } from '../../repositories/CommentRepository'
 import type { BacklogRepository } from '../../repositories/BacklogRepository'
+import type { MilestoneItemRepository } from '../../repositories/MilestoneItemRepository'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
@@ -30,6 +31,7 @@ export interface MilestonePlanningTaskOptions {
   milestoneRepo: MilestoneRepository
   commentRepo: CommentRepository
   backlogRepo: BacklogRepository
+  milestoneItemRepo: MilestoneItemRepository
   agentRunner: AgentRunner
   notifier: Notifier
 }
@@ -43,6 +45,7 @@ export class MilestonePlanningTask implements SoulTask {
   private milestoneRepo: MilestoneRepository
   private commentRepo: CommentRepository
   private backlogRepo: BacklogRepository
+  private milestoneItemRepo: MilestoneItemRepository
   private agentRunner: AgentRunner
   private notifier: Notifier
 
@@ -53,6 +56,7 @@ export class MilestonePlanningTask implements SoulTask {
     this.milestoneRepo = opts.milestoneRepo
     this.commentRepo = opts.commentRepo
     this.backlogRepo = opts.backlogRepo
+    this.milestoneItemRepo = opts.milestoneItemRepo
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier
   }
@@ -190,7 +194,10 @@ Walk through your analysis step by step, then give a clear verdict with specific
     const mdPath = path.join(dir, `${milestoneId}.md`)
 
     // Get linked backlog items for the markdown content
-    const backlogItems = this.backlogRepo.getByMilestoneId(milestoneId)
+    const itemIds = this.milestoneItemRepo.getItemIds(milestoneId)
+    const backlogItems = itemIds
+      .map((id) => this.backlogRepo.getById(id))
+      .filter((i) => i !== null)
     const backlogSection = backlogItems.length > 0
       ? `\n## Linked Backlog Items\n${backlogItems.map((i) => `- ${i.id}: ${i.title}`).join('\n')}`
       : ''
