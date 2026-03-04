@@ -23,7 +23,7 @@ export function ProjectDashboard() {
   const { projects } = useProjects()
   const navigate = useNavigate()
   const project = projects.find((p) => p.id === id)
-  const [svStatus, setSvStatus] = useState<{ hasVision: boolean; hasSoul: boolean } | null>(null)
+  const [svStatus, setSvStatus] = useState<{ hasSoul: boolean } | null>(null)
 
   useEffect(() => {
     if (!project) return
@@ -104,25 +104,16 @@ export function ProjectDashboard() {
         />
       </div>
 
-      {/* Soul & Vision card */}
+      {/* Soul card */}
       <button
-        onClick={() => navigate(`/projects/${id}/soul-vision`)}
+        onClick={() => navigate(`/projects/${id}/soul`)}
         className="w-full bg-card border border-border rounded-xl p-4 text-left hover:border-foreground/20 transition-colors group"
       >
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Soul & Vision</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Soul</p>
           <ChevronRight size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
         </div>
         <div className="flex gap-4">
-          <div className="flex items-center gap-2">
-            {svStatus?.hasVision
-              ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
-              : <Circle size={13} className="text-muted-foreground/40 shrink-0" />
-            }
-            <span className={cn('text-sm', svStatus?.hasVision ? 'text-foreground' : 'text-muted-foreground')}>
-              Vision
-            </span>
-          </div>
           <div className="flex items-center gap-2">
             {svStatus?.hasSoul
               ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
@@ -132,7 +123,7 @@ export function ProjectDashboard() {
               Soul
             </span>
           </div>
-          {svStatus && (!svStatus.hasVision || !svStatus.hasSoul) && (
+          {svStatus && !svStatus.hasSoul && (
             <span className="ml-auto text-xs text-primary font-medium">Configure →</span>
           )}
         </div>

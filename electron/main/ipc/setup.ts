@@ -13,7 +13,7 @@ export function registerSetupIPC(ctx: ServiceContext): void {
     return setupService.readSetupFiles(projectPath)
   })
 
-  safeHandle('setup:writeFile', (_, projectPath: string, type: 'vision' | 'soul', content: string) => {
+  safeHandle('setup:writeFile', (_, projectPath: string, type: 'soul', content: string) => {
     setupService.writeSetupFile(projectPath, type, content)
   })
 

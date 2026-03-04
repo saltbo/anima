@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('setup:check', projectPath),
   readSetupFiles: (projectPath: string) =>
     ipcRenderer.invoke('setup:readFiles', projectPath),
-  writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) =>
+  writeSetupFile: (projectPath: string, type: 'soul', content: string) =>
     ipcRenderer.invoke('setup:writeFile', projectPath, type, content),
   startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) =>
     ipcRenderer.invoke('setup:startAgent', id, projectPath, type, userContext),

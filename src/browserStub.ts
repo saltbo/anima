@@ -12,8 +12,8 @@ export function installBrowserStub() {
     removeProject: async () => true,
     navigateTo: async () => {},
 
-    checkProjectSetup: async () => ({ hasVision: false, hasSoul: false }),
-    readSetupFiles: async () => ({ vision: null, soul: null }),
+    checkProjectSetup: async () => ({ hasSoul: false }),
+    readSetupFiles: async () => ({ soul: null }),
     startSetupAgent: async () => {},
     listSoulTemplates: async () => [],
     applySoulTemplate: async () => {},

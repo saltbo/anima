@@ -85,9 +85,9 @@ function TemplatePicker({
   )
 }
 
-// ── SoulVision page ──────────────────────────────────────────────────────────
+// ── Soul page ───────────────────────────────────────────────────────────
 
-export function SoulVision() {
+export function Soul() {
   const { id } = useParams<{ id: string }>()
   const { projects } = useProjects()
   const { resolvedTheme } = useTheme()

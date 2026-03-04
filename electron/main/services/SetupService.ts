@@ -34,27 +34,14 @@ const SOUL_SYSTEM_PROMPT =
   'You may only write to one file: .anima/soul.md (create .anima/ if needed). ' +
   'Do not write any other files. Do not run shell commands that leave the project directory.'
 
-const SYSTEM_PROMPT =
-  'You are a project analyst. ' +
-  'CRITICAL RULE: You must ONLY read and write files inside the current working directory (cwd). ' +
-  'NEVER use `cd`, `../`, or absolute paths to access anything outside the project root. ' +
-  'All file paths you read or write MUST be relative paths that stay within cwd. ' +
-  'You may only write to two files: VISION.md and .anima/soul.md (create .anima/ if needed). ' +
-  'Do not write any other files. Do not run shell commands that leave the project directory.'
+const SYSTEM_PROMPT = SOUL_SYSTEM_PROMPT
 
-const FIRST_MESSAGE = `Read the project in the current working directory, then write two short context files.
+const FIRST_MESSAGE = `Read the project in the current working directory, then write a short context file.
 
 IMPORTANT: All file operations must stay within the current directory. Never use \`cd\`, \`../\`,
 or absolute paths. Only use relative paths like \`./src/...\`, \`package.json\`, etc.
 
 ---
-
-VISION.md — product positioning, one page or less.
-
-This file will be read by AI agents to decide whether an incoming feature request or user
-feedback fits the project. It is a decision filter, not a design document.
-Keep it short. Every sentence should help an agent answer "should we build this?".
-Cover: what this is, who it is for, what is explicitly in and out of scope, where it is headed.
 
 soul.md — engineering rulebook, one page or less.
 
@@ -63,8 +50,8 @@ It must be short enough to read in under a minute.
 Cover: non-negotiable engineering principles, tech stack choices, key conventions, red lines.
 Write directives, not descriptions. Bad: "We value simplicity." Good: "One component per file. No default exports."
 
-DO NOT include in either file: milestone plans, task lists, implementation roadmaps, or project specifications.
-Those belong elsewhere. These files are permanent context, not planning documents.
+DO NOT include: milestone plans, task lists, implementation roadmaps, or project specifications.
+Those belong elsewhere. This file is permanent context, not a planning document.
 
 For anything you cannot determine from the project files, write \`[TODO: <brief note>]\`.
 
@@ -72,10 +59,9 @@ For anything you cannot determine from the project files, write \`[TODO: <brief 
 
 Steps:
 1. List files, read README, package.json, config files, and a few source files.
-2. Write VISION.md to the project root.
-3. Write .anima/soul.md (create .anima/ first if needed).
+2. Write .anima/soul.md (create .anima/ first if needed).
 
-Do not ask questions. Write the files now.`
+Do not ask questions. Write the file now.`
 
 export class SetupService {
   constructor(private agentRunner: AgentRunner) {}
@@ -143,10 +129,9 @@ Now read the project and enrich this soul with project-specific knowledge. Write
     return sessionId
   }
 
-  checkProjectSetup(projectPath: string): { hasVision: boolean; hasSoul: boolean } {
-    const hasVision = fs.existsSync(path.join(projectPath, 'VISION.md'))
+  checkProjectSetup(projectPath: string): { hasSoul: boolean } {
     const hasSoul = fs.existsSync(path.join(projectPath, '.anima', 'soul.md'))
-    return { hasVision, hasSoul }
+    return { hasSoul }
   }
 
   startSetupSession(_id: string, projectPath: string, _type: SetupType, userContext?: string): string {
@@ -168,24 +153,18 @@ Now read the project and enrich this soul with project-specific knowledge. Write
     return sessionId
   }
 
-  readSetupFiles(projectPath: string): { vision: string | null; soul: string | null } {
-    const visionPath = path.join(projectPath, 'VISION.md')
+  readSetupFiles(projectPath: string): { soul: string | null } {
     const soulPath = path.join(projectPath, '.anima', 'soul.md')
     return {
-      vision: fs.existsSync(visionPath) ? fs.readFileSync(visionPath, 'utf8') : null,
       soul: fs.existsSync(soulPath) ? fs.readFileSync(soulPath, 'utf8') : null,
     }
   }
 
-  writeSetupFile(projectPath: string, type: 'vision' | 'soul', content: string): void {
-    if (type === 'vision') {
-      fs.writeFileSync(path.join(projectPath, 'VISION.md'), content, 'utf8')
-    } else {
-      const animaDir = path.join(projectPath, '.anima')
-      if (!fs.existsSync(animaDir)) {
-        fs.mkdirSync(animaDir, { recursive: true })
-      }
-      fs.writeFileSync(path.join(animaDir, 'soul.md'), content, 'utf8')
+  writeSetupFile(projectPath: string, type: 'soul', content: string): void {
+    const animaDir = path.join(projectPath, '.anima')
+    if (!fs.existsSync(animaDir)) {
+      fs.mkdirSync(animaDir, { recursive: true })
     }
+    fs.writeFileSync(path.join(animaDir, 'soul.md'), content, 'utf8')
   }
 }

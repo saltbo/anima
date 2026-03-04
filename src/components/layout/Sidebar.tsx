@@ -16,7 +16,7 @@ import type { Project } from '@/types'
 
 const PROJECT_TABS = [
   { label: 'Dashboard', path: '', icon: LayoutDashboard },
-  { label: 'Soul & Vision', path: '/soul-vision', icon: Sparkles },
+  { label: 'Soul', path: '/soul', icon: Sparkles },
   { label: 'Milestones', path: '/milestones', icon: Flag },
   { label: 'Inbox', path: '/inbox', icon: Inbox },
   { label: 'Settings', path: '/settings', icon: Settings },

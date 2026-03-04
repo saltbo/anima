@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProjects } from '@/store/projects'
-import { FileText, BookOpen, Plus, X, Save, Loader2 } from 'lucide-react'
+import { BookOpen, Plus, X, Save, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import type { WakeSchedule, WakeScheduleMode } from '@/types/index'
@@ -169,22 +169,7 @@ export function ProjectSettings() {
         </div>
       </Section>
 
-      <Section title="Vision &amp; Soul">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FileText size={14} className="text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium text-foreground">Vision</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Project identity and goals</p>
-            </div>
-          </div>
-          <button
-            onClick={() => navigate(`/projects/${id}/soul-vision`)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-accent transition-colors"
-          >
-            Recreate
-          </button>
-        </div>
+      <Section title="Soul">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen size={14} className="text-muted-foreground" />
@@ -194,7 +179,7 @@ export function ProjectSettings() {
             </div>
           </div>
           <button
-            onClick={() => navigate(`/projects/${id}/soul-vision`)}
+            onClick={() => navigate(`/projects/${id}/soul`)}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-accent transition-colors"
           >
             Recreate

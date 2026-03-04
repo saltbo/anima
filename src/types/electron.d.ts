@@ -32,9 +32,9 @@ declare global {
       onTriggerAddProject: (callback: () => void) => () => void
 
       // ── Setup ────────────────────────────────────────────────────────────
-      checkProjectSetup: (projectPath: string) => Promise<{ hasVision: boolean; hasSoul: boolean }>
-      readSetupFiles: (projectPath: string) => Promise<{ vision: string | null; soul: string | null }>
-      writeSetupFile: (projectPath: string, type: 'vision' | 'soul', content: string) => Promise<void>
+      checkProjectSetup: (projectPath: string) => Promise<{ hasSoul: boolean }>
+      readSetupFiles: (projectPath: string) => Promise<{ soul: string | null }>
+      writeSetupFile: (projectPath: string, type: 'soul', content: string) => Promise<void>
       startSetupAgent: (id: string, projectPath: string, type: 'init', userContext?: string) => Promise<string>
       listSoulTemplates: () => Promise<Array<{ id: string; name: string; description: string; content: string }>>
       applySoulTemplate: (projectPath: string, templateId: string) => Promise<void>

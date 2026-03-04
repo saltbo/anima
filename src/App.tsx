@@ -8,7 +8,7 @@ import { MilestoneNew } from '@/pages/MilestoneNew'
 import { Inbox } from '@/pages/Inbox'
 import { InboxDetail, inboxDetailLoader } from '@/pages/InboxDetail'
 import { ProjectSettings } from '@/pages/ProjectSettings'
-import { SoulVision } from '@/pages/SoulVision'
+import { Soul } from '@/pages/Soul'
 import { GlobalSettings } from '@/pages/GlobalSettings'
 import type { RouteHandle } from '@/types/router'
 
@@ -25,9 +25,9 @@ const router = createHashRouter([
         handle: { crumb: [{ label: 'Dashboard' }] } satisfies RouteHandle,
       },
       {
-        path: 'projects/:id/soul-vision',
-        element: <SoulVision />,
-        handle: { crumb: [{ label: 'Soul & Vision' }] } satisfies RouteHandle,
+        path: 'projects/:id/soul',
+        element: <Soul />,
+        handle: { crumb: [{ label: 'Soul' }] } satisfies RouteHandle,
       },
       {
         path: 'projects/:id/milestones',
