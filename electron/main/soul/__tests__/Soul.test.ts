@@ -88,7 +88,7 @@ describe('Soul', () => {
     soul.destroy()
   })
 
-  it('transitions to idle on wake()', () => {
+  it('transitions to idle on wake()', async () => {
     const project = makeProject()
     const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [])
 
@@ -102,7 +102,11 @@ describe('Soul', () => {
     })
 
     soul.wake()
-    // After wake + immediate tick (no work = stays idle)
+    // wake() sets state to idle immediately; tick is deferred
+    expect(soul.getState()).toBe('idle')
+
+    // Let deferred tick run (no work → stays idle)
+    await vi.advanceTimersByTimeAsync(0)
     expect(soul.getState()).toBe('idle')
     soul.destroy()
   })
@@ -139,7 +143,7 @@ describe('Soul', () => {
     soul.destroy()
   })
 
-  it('does not dispatch when no work available', () => {
+  it('does not dispatch when no work available', async () => {
     const project = makeProject()
     const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [
       makeMilestone({ status: 'draft' }),
@@ -160,6 +164,9 @@ describe('Soul', () => {
 
     soul.register('execute-milestone', mockTask)
     soul.wake()
+
+    // Let deferred tick run
+    await vi.advanceTimersByTimeAsync(0)
 
     expect(mockTask.execute).not.toHaveBeenCalled()
     expect(soul.getState()).toBe('idle')
@@ -230,7 +237,7 @@ describe('Soul', () => {
     soul.destroy()
   })
 
-  it('sleep() stops heartbeat', () => {
+  it('sleep() stops heartbeat', async () => {
     const project = makeProject()
     const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [])
 
@@ -247,6 +254,10 @@ describe('Soul', () => {
     expect(soul.getState()).toBe('idle')
 
     soul.sleep()
+    expect(soul.getState()).toBe('sleeping')
+
+    // Advance past the deferred tick — should NOT execute since sleep cancelled it
+    await vi.advanceTimersByTimeAsync(0)
     expect(soul.getState()).toBe('sleeping')
 
     soul.destroy()
@@ -267,7 +278,8 @@ describe('Soul', () => {
 
     soul.wake()
 
-    // sense() is called via getByProjectId — the initial tick calls it once
+    // Let the deferred first tick run — it calls sense() via getByProjectId
+    await vi.advanceTimersByTimeAsync(0)
     const initialCalls = milestoneRepo.getByProjectId.mock.calls.length
 
     // Advance by one heartbeat interval (60s)

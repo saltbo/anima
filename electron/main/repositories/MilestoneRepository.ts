@@ -180,9 +180,9 @@ export class MilestoneRepository {
 
     const ac = [...milestone.acceptanceCriteria]
     for (const c of criteria) {
-      const idx = ac.findIndex((e) => e.title === c.title && e.iteration === iteration)
+      const idx = ac.findIndex((e) => e.title === c.title)
       if (idx >= 0) {
-        ac[idx] = { ...ac[idx], status: c.status, description: c.description }
+        ac[idx] = { ...ac[idx], status: c.status, description: c.description, iteration }
       } else {
         ac.push({ title: c.title, status: c.status, description: c.description, iteration })
       }

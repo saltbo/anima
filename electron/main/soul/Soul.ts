@@ -30,6 +30,7 @@ export interface SoulOptions {
 export class Soul {
   private state: SoulState = 'sleeping'
   private heartbeat: ReturnType<typeof setInterval> | null = null
+  private pendingTick: ReturnType<typeof setTimeout> | null = null
   private abortController: AbortController | null = null
   private tasks = new Map<string, SoulTask>()
   private wakeRequested = false
@@ -105,11 +106,18 @@ export class Soul {
 
   private startHeartbeat(): void {
     if (this.heartbeat) return
-    this.tick() // immediate first tick
+    this.pendingTick = setTimeout(() => {
+      this.pendingTick = null
+      this.tick()
+    }, 0) // deferred first tick — avoids synchronous side effects from wake()
     this.heartbeat = setInterval(() => this.tick(), HEARTBEAT_INTERVAL)
   }
 
   private stopHeartbeat(): void {
+    if (this.pendingTick) {
+      clearTimeout(this.pendingTick)
+      this.pendingTick = null
+    }
     if (this.heartbeat) {
       clearInterval(this.heartbeat)
       this.heartbeat = null

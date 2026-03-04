@@ -133,14 +133,18 @@ export class SoulService {
       }
       case 'accept':
         await lifecycle.accept(projectId, milestoneId)
-        this.souls.get(projectId)?.wake()
+        // Only wake if there's more work to do (other ready/in-progress milestones)
+        this.wakeIfHasWork(projectId)
         break
       case 'rollback':
         await lifecycle.rollback(projectId, milestoneId)
+        // Rollback sets milestone to 'ready' — wake to pick it up
+        this.wakeIfHasWork(projectId)
         break
       case 'request_changes':
         if (!payload.comment) throw new Error('request_changes requires a comment')
         lifecycle.requestChanges(projectId, milestoneId, payload.comment)
+        // request_changes sets milestone to 'ready' — always wake
         this.souls.get(projectId)?.wake()
         break
       default:
@@ -187,5 +191,14 @@ export class SoulService {
       )
     }
     return this.lifecycle
+  }
+
+  /** Only wake the soul if there are ready or in-progress milestones to work on */
+  private wakeIfHasWork(projectId: string): void {
+    const milestones = this.milestoneRepo.getByProjectId(projectId)
+    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in-progress')
+    if (hasWork) {
+      this.souls.get(projectId)?.wake()
+    }
   }
 }

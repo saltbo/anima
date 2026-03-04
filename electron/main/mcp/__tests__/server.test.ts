@@ -55,9 +55,9 @@ function mergeAcceptanceCriteria(
 ): AcceptanceCriterion[] {
   const result = [...existing]
   for (const c of criteria) {
-    const idx = result.findIndex((e) => e.title === c.title && e.iteration === iteration)
+    const idx = result.findIndex((e) => e.title === c.title)
     if (idx >= 0) {
-      result[idx] = { ...result[idx], status: c.status, description: c.description }
+      result[idx] = { ...result[idx], status: c.status, description: c.description, iteration }
     } else {
       result.push({ title: c.title, status: c.status, description: c.description, iteration })
     }
@@ -120,7 +120,7 @@ describe('MCP tool: update_acceptance_criteria merge logic', () => {
     expect(result[0].status).toBe('passed')
   })
 
-  it('does not update criteria from different iteration', () => {
+  it('updates existing criteria from different iteration (cross-iteration upsert)', () => {
     const existing: AcceptanceCriterion[] = [{ title: 'Login works', status: 'pending', iteration: 1 }]
 
     const result = mergeAcceptanceCriteria(
@@ -129,9 +129,9 @@ describe('MCP tool: update_acceptance_criteria merge logic', () => {
       2
     )
 
-    expect(result).toHaveLength(2)
-    expect(result[0]).toMatchObject({ status: 'pending', iteration: 1 })
-    expect(result[1]).toMatchObject({ status: 'passed', iteration: 2 })
+    // Should update in place (not duplicate), iteration updated to 2
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({ title: 'Login works', status: 'passed', iteration: 2 })
   })
 
   it('preserves description when updating', () => {
