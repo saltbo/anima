@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/saltbo/anima/actions/workflows/ci.yml"><img src="https://github.com/saltbo/anima/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/saltbo/anima/releases/latest"><img src="https://img.shields.io/github/v/release/saltbo/anima?label=release" alt="Release"></a>
+  <a href="https://github.com/saltbo/anima/blob/master/LICENSE"><img src="https://img.shields.io/github/license/saltbo/anima" alt="License"></a>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> &bull;
   <a href="#how-it-works">How It Works</a> &bull;
   <a href="#installation">Installation</a> &bull;
@@ -17,6 +23,14 @@
   <a href="#contributing">Contributing</a> &bull;
   <a href="#license">License</a>
 </p>
+
+## Project Status
+
+> **Active Development** — Anima is under active development and things change fast. We welcome [issues](https://github.com/saltbo/anima/issues) for bug reports, feature requests, and ideas.
+
+As an autonomous development tool, Anima is progressively moving toward **driving its own development**. The goal is for Anima to plan, implement, and verify its own milestones — eating its own dog food.
+
+**This project does not accept Pull Requests — by design, not by phase.** Anima is built by its maintainers and, increasingly, by itself. If you have ideas, feedback, or bug reports, please [open an issue](https://github.com/saltbo/anima/issues). Your input shapes the direction; Anima writes the code.
 
 ## What is Anima?
 
@@ -77,7 +91,9 @@ Want support for another agent? [Open an issue](https://github.com/bogit/anima/i
 
 ## Contributing
 
-See the [Contributing Guide](CONTRIBUTING.md) for development setup, architecture overview, and how to submit changes.
+This project does not accept Pull Requests. Please [open an issue](https://github.com/saltbo/anima/issues) to report bugs, suggest features, or discuss ideas. Your input shapes the direction; Anima writes the code.
+
+For architecture details and local development setup, see the [Contributing Guide](CONTRIBUTING.md).
 
 ## License
 
