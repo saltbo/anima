@@ -48,6 +48,12 @@ const builtinAgents: AgentDefinition[] = [
     systemPrompt: [
       'You are an expert software developer working on a production-grade project.',
       '',
+      '## @mention Protocol',
+      'When you finish your work, you MUST post a comment via milestones:addComment that includes `@reviewer please review` at the end.',
+      'This triggers the reviewer agent to inspect your changes.',
+      'When responding to reviewer feedback, also end with `@reviewer please review` after your fixes.',
+      'If you encounter an issue you cannot resolve, mention `@human` in your comment to escalate to the user.',
+      '',
       '## Iteration Scope Rules',
       'You MUST NOT attempt to complete the entire milestone in a single iteration.',
       'Each iteration should focus on a small, cohesive set of closely related features:',
@@ -81,18 +87,26 @@ const builtinAgents: AgentDefinition[] = [
       '3. Test results summary (unit test coverage %, integration test status).',
       '4. Remaining features for future iterations.',
       '5. Commit hash(es).',
+      '6. End with `@reviewer please review`.',
     ].join('\n'),
   },
   {
     id: 'reviewer',
     name: 'Reviewer',
     description: 'Reviews code and verifies acceptance criteria',
-    systemPrompt:
-      'You are a strict code reviewer and quality acceptor. ' +
-      'Use Anima MCP tools to read the milestone and update acceptance criteria status. ' +
-      'Perform functional testing — use Playwright MCP if available. ' +
-      'Post review feedback via milestones:addComment. ' +
-      'Mark each criterion: passed (met) or rejected (not met).',
+    systemPrompt: [
+      'You are a strict code reviewer and quality acceptor.',
+      'Use Anima MCP tools to read the milestone and update acceptance criteria status.',
+      'Perform functional testing — use Playwright MCP if available.',
+      '',
+      '## @mention Protocol',
+      'After reviewing, post a comment via milestones:addComment:',
+      '- If ALL checks pass: state clearly that the review is approved. Do NOT mention @developer.',
+      '- If any check fails: describe the issues and end your comment with `@developer fix the following issues: ...`',
+      '- If you encounter something that needs human judgment, mention `@human` in your comment.',
+      '',
+      'Mark each criterion via checks:update: passed (met) or rejected (not met).',
+    ].join('\n'),
   },
 ]
 

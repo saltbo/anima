@@ -57,7 +57,24 @@ function createMockRepos(project: Project, milestones: Milestone[]) {
     backlogRepo: {
       getByProjectId: vi.fn().mockReturnValue([]),
     },
+    commentRepo: {
+      getUndispatchedMentions: vi.fn().mockReturnValue([]),
+      markMentionDispatched: vi.fn(),
+      getByMilestoneId: vi.fn().mockReturnValue([]),
+    },
   }
+}
+
+function createSoul(repos: ReturnType<typeof createMockRepos>) {
+  return new Soul({
+    projectId: 'p1',
+    projectPath: '/tmp/project',
+    getWindow: () => null,
+    projectRepo: repos.projectRepo as never,
+    milestoneRepo: repos.milestoneRepo as never,
+    backlogRepo: repos.backlogRepo as never,
+    commentRepo: repos.commentRepo as never,
+  })
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -74,16 +91,8 @@ describe('Soul', () => {
 
   it('starts in sleeping state', () => {
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [])
-
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
+    const repos = createMockRepos(project, [])
+    const soul = createSoul(repos)
 
     expect(soul.getState()).toBe('sleeping')
     soul.destroy()
@@ -91,16 +100,8 @@ describe('Soul', () => {
 
   it('transitions to idle on wake()', async () => {
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [])
-
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
+    const repos = createMockRepos(project, [])
+    const soul = createSoul(repos)
 
     soul.wake()
     // wake() sets state to idle immediately; tick is deferred
@@ -115,22 +116,14 @@ describe('Soul', () => {
   it('dispatches to registered task when ready milestone exists', async () => {
     const readyMilestone = makeMilestone({ status: 'ready' })
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [readyMilestone])
+    const repos = createMockRepos(project, [readyMilestone])
 
     const mockTask: SoulTask = {
       execute: vi.fn().mockResolvedValue(undefined),
     }
 
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
-
-    soul.register('execute-milestone', mockTask)
+    const soul = createSoul(repos)
+    soul.register('dispatch-agent', mockTask)
     soul.wake()
 
     // Allow tick + async act to complete
@@ -138,7 +131,7 @@ describe('Soul', () => {
 
     expect(mockTask.execute).toHaveBeenCalledOnce()
     const callArgs = (mockTask.execute as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(callArgs[0]).toEqual({ task: 'execute-milestone', milestone: readyMilestone })
+    expect(callArgs[0]).toEqual({ task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1' })
     expect(callArgs[1]).toBeInstanceOf(AbortSignal)
 
     soul.destroy()
@@ -146,24 +139,14 @@ describe('Soul', () => {
 
   it('does not dispatch when no work available', async () => {
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [
-      makeMilestone({ status: 'draft' }),
-    ])
+    const repos = createMockRepos(project, [makeMilestone({ status: 'draft' })])
 
     const mockTask: SoulTask = {
       execute: vi.fn().mockResolvedValue(undefined),
     }
 
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
-
-    soul.register('execute-milestone', mockTask)
+    const soul = createSoul(repos)
+    soul.register('dispatch-agent', mockTask)
     soul.wake()
 
     // Let deferred tick run
@@ -178,22 +161,14 @@ describe('Soul', () => {
   it('returns to idle after task completes', async () => {
     const readyMilestone = makeMilestone({ status: 'ready' })
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [readyMilestone])
+    const repos = createMockRepos(project, [readyMilestone])
 
     const mockTask: SoulTask = {
       execute: vi.fn().mockResolvedValue(undefined),
     }
 
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
-
-    soul.register('execute-milestone', mockTask)
+    const soul = createSoul(repos)
+    soul.register('dispatch-agent', mockTask)
     soul.wake()
 
     await vi.advanceTimersByTimeAsync(0)
@@ -205,7 +180,7 @@ describe('Soul', () => {
   it('abort() cancels running task and returns to idle', async () => {
     const readyMilestone = makeMilestone({ status: 'ready' })
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [readyMilestone])
+    const repos = createMockRepos(project, [readyMilestone])
 
     let capturedSignal: AbortSignal | undefined
     const mockTask: SoulTask = {
@@ -216,16 +191,8 @@ describe('Soul', () => {
       }),
     }
 
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
-
-    soul.register('execute-milestone', mockTask)
+    const soul = createSoul(repos)
+    soul.register('dispatch-agent', mockTask)
     soul.wake()
 
     // Let the task start
@@ -240,16 +207,8 @@ describe('Soul', () => {
 
   it('sleep() stops heartbeat', async () => {
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [])
-
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
+    const repos = createMockRepos(project, [])
+    const soul = createSoul(repos)
 
     soul.wake()
     expect(soul.getState()).toBe('idle')
@@ -266,22 +225,14 @@ describe('Soul', () => {
 
   it('heartbeat ticks at regular intervals', async () => {
     const project = makeProject()
-    const { projectRepo, milestoneRepo, backlogRepo } = createMockRepos(project, [])
-
-    const soul = new Soul({
-      projectId: 'p1',
-      projectPath: '/tmp/project',
-      getWindow: () => null,
-      projectRepo: projectRepo as never,
-      milestoneRepo: milestoneRepo as never,
-      backlogRepo: backlogRepo as never,
-    })
+    const repos = createMockRepos(project, [])
+    const soul = createSoul(repos)
 
     soul.wake()
 
     // Let the deferred first tick run — it calls sense() via getByProjectId
     await vi.advanceTimersByTimeAsync(0)
-    const initialCalls = milestoneRepo.getByProjectId.mock.calls.length
+    const initialCalls = repos.milestoneRepo.getByProjectId.mock.calls.length
 
     // Advance by one heartbeat interval (60s)
     // Note: without wakeRequested or scheduled wake, tick skips.
@@ -290,7 +241,39 @@ describe('Soul', () => {
     await vi.advanceTimersByTimeAsync(60_000)
 
     // No additional calls since wakeRequested was consumed and no schedule set
-    expect(milestoneRepo.getByProjectId.mock.calls.length).toBe(initialCalls)
+    expect(repos.milestoneRepo.getByProjectId.mock.calls.length).toBe(initialCalls)
+
+    soul.destroy()
+  })
+
+  it('collects pending mentions from in_progress milestones', async () => {
+    const inProgressMilestone = makeMilestone({ id: 'm1', status: 'in_progress' })
+    const project = makeProject()
+    const repos = createMockRepos(project, [inProgressMilestone])
+
+    // Mock undispatched mentions
+    repos.commentRepo.getUndispatchedMentions.mockReturnValue([
+      {
+        id: 'c1', milestoneId: 'm1', body: '@reviewer please review',
+        author: 'developer', createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z',
+      },
+    ])
+
+    const mockTask: SoulTask = {
+      execute: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const soul = createSoul(repos)
+    soul.register('dispatch-agent', mockTask)
+    soul.wake()
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(mockTask.execute).toHaveBeenCalledOnce()
+    const callArgs = (mockTask.execute as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(callArgs[0]).toEqual({
+      task: 'dispatch-agent', agentId: 'reviewer', milestoneId: 'm1', commentId: 'c1',
+    })
 
     soul.destroy()
   })

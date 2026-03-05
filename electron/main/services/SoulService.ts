@@ -9,7 +9,7 @@ import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepos
 import type { GitService } from './GitService'
 import { MilestoneLifecycle } from './MilestoneLifecycle'
 import { Soul } from '../soul/Soul'
-import { MilestoneExecutionTask } from '../soul/tasks/MilestoneExecutionTask'
+import { MilestoneAgentTask } from '../soul/tasks/MilestoneAgentTask'
 import { MilestonePlanningTask } from '../soul/tasks/MilestonePlanningTask'
 import { Notifier } from '../soul/notifier'
 import type { AgentRunner } from '../agents/AgentRunner'
@@ -51,21 +51,23 @@ export class SoulService {
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
       backlogRepo: this.backlogRepo,
+      commentRepo: this.commentRepo,
     })
 
     const notifier = new Notifier(project.id, this.getWindow)
 
-    // Register the milestone execution task
-    const executionTask = new MilestoneExecutionTask({
+    // Register the milestone agent dispatch task
+    const agentTask = new MilestoneAgentTask({
       projectId: project.id,
       projectPath: project.path,
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
+      commentRepo: this.commentRepo,
       gitService: this.gitService,
       agentRunner: this.agentRunner,
       notifier,
     })
-    soul.register('execute-milestone', executionTask)
+    soul.register('dispatch-agent', agentTask)
 
     // Register the milestone planning task
     const planningTask = new MilestonePlanningTask({

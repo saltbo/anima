@@ -1,4 +1,5 @@
 import { getAgent } from '../agents/registry'
+import type { MilestoneComment } from '../../../src/types/index'
 
 // ── Identity injection ──────────────────────────────────────────────────────
 
@@ -41,37 +42,40 @@ export function buildPlannerFirstMessage(projectId: string): string {
   ].join(' ')
 }
 
-export function buildDeveloperFirstMessage(milestoneId: string, branch: string): string {
-  return [
-    `Milestone: ${milestoneId}. Branch: ${branch}.`,
-    'Read it via milestones:getById, then select at most 3 closely related features for this iteration (max 5 items including bug fixes).',
-    'Check milestones:listComments for any prior feedback.',
-    'Implement with production quality, write unit tests (≥80% coverage) and integration tests (cover core flows), backlog:update to track progress, commit, milestones:addComment with full report.',
-  ].join(' ')
-}
+// ── Dispatch message (used by @mention dispatch) ────────────────────────────
 
-export function buildAcceptorFirstMessage(milestoneId: string): string {
-  return (
-    `Milestone: ${milestoneId}. ` +
-    `Read via milestones:getById, check developer comments, review code, test functionality, checks:update for each criterion, milestones:addComment.`
-  )
-}
+export function buildDispatchMessage(
+  agentId: string,
+  milestoneId: string,
+  branch: string,
+  mentionComment?: MilestoneComment
+): string {
+  const parts: string[] = []
 
-// ── Resume messages ──────────────────────────────────────────────────────────
+  if (agentId === 'developer') {
+    parts.push(`Milestone: ${milestoneId}. Branch: ${branch}.`)
+    parts.push('Read it via milestones:getById, then check milestones:listComments for context.')
 
-export function buildDeveloperResumeMessage(milestoneId: string): string {
-  return [
-    `The acceptor has reviewed your work on milestone ${milestoneId}.`,
-    'Read the latest state and comments via MCP.',
-    'Fix any issues raised by the acceptor, then continue with the current iteration scope.',
-    'Do NOT expand scope to new features — only address review feedback and bug fixes.',
-    'Ensure tests pass (unit ≥80% coverage, integration covers core flows), commit, and post an updated report.',
-  ].join(' ')
-}
+    if (mentionComment) {
+      parts.push(`\nYou were mentioned by @${mentionComment.author}:`)
+      parts.push(`> ${mentionComment.body}`)
+      parts.push('\nAddress the feedback above, then post your report via milestones:addComment ending with `@reviewer please review`.')
+    } else {
+      parts.push('Select at most 3 closely related features for this iteration (max 5 items including bug fixes).')
+      parts.push('Implement with production quality, write unit tests (≥80% coverage) and integration tests (cover core flows), backlog:update to track progress, commit, milestones:addComment with full report ending with `@reviewer please review`.')
+    }
+  } else if (agentId === 'reviewer') {
+    parts.push(`Milestone: ${milestoneId}.`)
+    parts.push('Read via milestones:getById, check developer comments, review code, test functionality, checks:update for each criterion, milestones:addComment.')
 
-export function buildAcceptorResumeMessage(milestoneId: string): string {
-  return (
-    `The developer has made fixes for milestone ${milestoneId}. ` +
-    `Read the latest state and comments via MCP, re-verify acceptance criteria, and post updated feedback.`
-  )
+    if (mentionComment) {
+      parts.push(`\nYou were mentioned by @${mentionComment.author}:`)
+      parts.push(`> ${mentionComment.body}`)
+      parts.push('\nReview the latest changes and post your feedback.')
+    }
+
+    parts.push('If all checks pass, state approval clearly. If any fail, end your comment with `@developer fix ...`.')
+  }
+
+  return parts.join(' ')
 }

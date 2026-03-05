@@ -13,6 +13,7 @@ interface CommentRow {
   in_reply_to_id: string | null
   created_at: string
   updated_at: string
+  mention_dispatched: number
 }
 
 function rowToComment(row: CommentRow): MilestoneComment {
@@ -28,6 +29,7 @@ function rowToComment(row: CommentRow): MilestoneComment {
     inReplyToId: row.in_reply_to_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    mentionDispatched: row.mention_dispatched === 1,
   }
 }
 
@@ -62,5 +64,20 @@ export class CommentRepository {
 
   delete(id: string): void {
     this.db.prepare('DELETE FROM milestone_comments WHERE id = ?').run(id)
+  }
+
+  getUndispatchedMentions(milestoneId: string): MilestoneComment[] {
+    const rows = this.db.prepare(
+      `SELECT * FROM milestone_comments
+       WHERE milestone_id = ? AND mention_dispatched = 0 AND body LIKE '%@%'
+       ORDER BY created_at ASC`
+    ).all(milestoneId) as CommentRow[]
+    return rows.map(rowToComment)
+  }
+
+  markMentionDispatched(commentId: string): void {
+    this.db.prepare(
+      'UPDATE milestone_comments SET mention_dispatched = 1 WHERE id = ?'
+    ).run(commentId)
   }
 }

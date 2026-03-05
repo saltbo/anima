@@ -36,6 +36,8 @@ interface IterationRow {
   total_tokens: number
   total_cost: number
   model: string | null
+  status: string
+  dispatch_count: number
 }
 
 interface BacklogRow {
@@ -96,6 +98,8 @@ function iterRowToIteration(row: IterationRow): Iteration {
     totalTokens: row.total_tokens || undefined,
     totalCost: row.total_cost || undefined,
     model: row.model ?? undefined,
+    status: row.status || 'pending',
+    dispatchCount: row.dispatch_count || 0,
   }
 }
 
@@ -243,5 +247,32 @@ export class MilestoneRepository {
       | { project_id: string }
       | undefined
     return row?.project_id ?? null
+  }
+
+  getCurrentIteration(milestoneId: string): (Iteration & { id: number }) | null {
+    const row = this.db.prepare(
+      "SELECT * FROM iterations WHERE milestone_id = ? AND status = 'in_progress' ORDER BY round DESC LIMIT 1"
+    ).get(milestoneId) as IterationRow | undefined
+    if (!row) return null
+    return { ...iterRowToIteration(row), id: row.id }
+  }
+
+  updateIterationStatus(id: number, status: string): void {
+    this.db.prepare('UPDATE iterations SET status = ? WHERE id = ?').run(status, id)
+  }
+
+  incrementDispatchCount(id: number): void {
+    this.db.prepare('UPDATE iterations SET dispatch_count = dispatch_count + 1 WHERE id = ?').run(id)
+  }
+
+  updateIterationSession(id: number, field: 'developer' | 'acceptor', sessionId: string): void {
+    const column = field === 'developer' ? 'developer_session_id' : 'acceptor_session_id'
+    this.db.prepare(`UPDATE iterations SET ${column} = ? WHERE id = ?`).run(sessionId, id)
+  }
+
+  updateIterationUsage(id: number, tokens: number, cost: number, model: string): void {
+    this.db.prepare(
+      'UPDATE iterations SET total_tokens = total_tokens + ?, total_cost = total_cost + ?, model = ? WHERE id = ?'
+    ).run(tokens, cost, model, id)
   }
 }

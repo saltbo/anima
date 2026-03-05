@@ -4,11 +4,13 @@ import { msUntil } from '../lib/time'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
+import type { CommentRepository } from '../repositories/CommentRepository'
 import type { WakeSchedule } from '../../../src/types/index'
-import type { SoulState, SoulTask, SoulContext, Decision } from './types'
+import type { SoulState, SoulTask, SoulContext, Decision, PendingMention } from './types'
 import { think } from './decide'
 import { calculateNextWake } from './wakeScheduler'
 import { Notifier } from './notifier'
+import { parseMentions } from '../agents/mention'
 
 const log = createLogger('soul')
 
@@ -23,6 +25,7 @@ export interface SoulOptions {
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
   backlogRepo: BacklogRepository
+  commentRepo: CommentRepository
 }
 
 // ── Soul ─────────────────────────────────────────────────────────────────────
@@ -141,10 +144,26 @@ export class Soul {
   // ── Sense / Think / Act ──────────────────────────────────────────────────
 
   private sense(): SoulContext {
+    const milestones = this.opts.milestoneRepo.getByProjectId(this.opts.projectId)
+
+    // Collect undispatched mentions from in-progress milestones
+    const pendingMentions: PendingMention[] = []
+    for (const m of milestones) {
+      if (m.status !== 'in_progress') continue
+      const comments = this.opts.commentRepo.getUndispatchedMentions(m.id)
+      for (const comment of comments) {
+        const mentions = parseMentions(comment.body)
+        for (const agentId of mentions) {
+          pendingMentions.push({ agentId, milestoneId: m.id, commentId: comment.id })
+        }
+      }
+    }
+
     return {
       project: this.opts.projectRepo.getById(this.opts.projectId) ?? null,
-      milestones: this.opts.milestoneRepo.getByProjectId(this.opts.projectId),
+      milestones,
       backlogItems: this.opts.backlogRepo.getByProjectId(this.opts.projectId),
+      pendingMentions,
     }
   }
 

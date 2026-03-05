@@ -53,6 +53,16 @@ function makeBacklogItem(overrides: Partial<BacklogItem> = {}): BacklogItem {
   }
 }
 
+function makeContext(overrides: Partial<SoulContext> = {}): SoulContext {
+  return {
+    project: makeProject(),
+    milestones: [],
+    backlogItems: [],
+    pendingMentions: [],
+    ...overrides,
+  }
+}
+
 describe('think()', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -64,84 +74,112 @@ describe('think()', () => {
   })
 
   it('returns idle when project is null', () => {
-    const ctx: SoulContext = { project: null, milestones: [], backlogItems: [] }
-    expect(think(ctx)).toEqual({ task: 'idle' })
+    expect(think(makeContext({ project: null }))).toEqual({ task: 'idle' })
   })
 
   it('returns idle when no milestones are ready or in_progress', () => {
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [
         makeMilestone({ status: 'draft' }),
         makeMilestone({ id: 'm2', status: 'completed' }),
       ],
-      backlogItems: [],
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
   it('returns idle when rate limited with future reset time', () => {
     const resetAt = dayjs().add(30, 'minute').toISOString()
-    const ctx: SoulContext = {
+    const ctx = makeContext({
       project: makeProject({ rateLimitResetAt: resetAt }),
       milestones: [makeMilestone({ status: 'ready' })],
-      backlogItems: [],
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
-  it('returns execute-milestone for a ready milestone when rate limit has expired', () => {
+  it('dispatches developer for a ready milestone when rate limit has expired', () => {
     const resetAt = dayjs().subtract(5, 'minute').toISOString()
     const milestone = makeMilestone({ status: 'ready' })
-    const ctx: SoulContext = {
+    const ctx = makeContext({
       project: makeProject({ rateLimitResetAt: resetAt }),
       milestones: [milestone],
-      backlogItems: [],
-    }
-    expect(think(ctx)).toEqual({ task: 'execute-milestone', milestone })
+    })
+    expect(think(ctx)).toEqual({ task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1' })
   })
 
-  it('returns execute-milestone for a ready milestone', () => {
+  it('dispatches developer for a ready milestone', () => {
     const milestone = makeMilestone({ status: 'ready' })
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [makeMilestone({ id: 'm0', status: 'draft' }), milestone],
-      backlogItems: [],
-    }
-    expect(think(ctx)).toEqual({ task: 'execute-milestone', milestone })
+    })
+    expect(think(ctx)).toEqual({ task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1' })
   })
 
-  it('prefers in_progress over ready milestone', () => {
+  it('dispatches mentioned agent for in_progress milestone', () => {
+    const inProgress = makeMilestone({ id: 'm1', status: 'in_progress' })
+    const ctx = makeContext({
+      milestones: [inProgress],
+      pendingMentions: [{ agentId: 'reviewer', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({
+      task: 'dispatch-agent', agentId: 'reviewer', milestoneId: 'm1', commentId: 'c1',
+    })
+  })
+
+  it('prefers in_progress with mentions over ready milestone', () => {
     const inProgress = makeMilestone({ id: 'm1', status: 'in_progress' })
     const ready = makeMilestone({ id: 'm2', status: 'ready' })
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [ready, inProgress],
-      backlogItems: [],
-    }
-    expect(think(ctx)).toEqual({ task: 'execute-milestone', milestone: inProgress })
+      pendingMentions: [{ agentId: 'developer', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({
+      task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1', commentId: 'c1',
+    })
+  })
+
+  it('returns idle when @human mention on in_progress milestone', () => {
+    const inProgress = makeMilestone({ id: 'm1', status: 'in_progress' })
+    const ctx = makeContext({
+      milestones: [inProgress],
+      pendingMentions: [{ agentId: 'human', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
+  it('returns idle when dispatch_count exceeds limit', () => {
+    const inProgress = makeMilestone({
+      id: 'm1',
+      status: 'in_progress',
+      iterations: [{ milestoneId: 'm1', round: 1, status: 'in_progress', dispatchCount: 10 }],
+    })
+    const ctx = makeContext({
+      milestones: [inProgress],
+      pendingMentions: [{ agentId: 'developer', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
+  it('returns idle when in_progress milestone has no mentions and no passed iteration', () => {
+    const inProgress = makeMilestone({ id: 'm1', status: 'in_progress' })
+    const ctx = makeContext({
+      milestones: [inProgress],
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
   it('returns idle when all milestones are completed or cancelled', () => {
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [
         makeMilestone({ id: 'm1', status: 'completed' }),
         makeMilestone({ id: 'm2', status: 'cancelled' }),
         makeMilestone({ id: 'm3', status: 'in_review' }),
       ],
-      backlogItems: [],
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
   it('returns idle with empty milestones array', () => {
-    const ctx: SoulContext = {
-      project: makeProject(),
-      milestones: [],
-      backlogItems: [],
-    }
-    expect(think(ctx)).toEqual({ task: 'idle' })
+    expect(think(makeContext())).toEqual({ task: 'idle' })
   })
 
   // ── plan-milestone tests ────────────────────────────────────────────────
@@ -150,40 +188,28 @@ describe('think()', () => {
     const backlogItems = Array.from({ length: 10 }, (_, i) =>
       makeBacklogItem({ id: `b${i}`, title: `Item ${i}` })
     )
-    const ctx: SoulContext = {
-      project: makeProject(),
-      milestones: [],
-      backlogItems,
-    }
-    expect(think(ctx)).toEqual({ task: 'plan-milestone' })
+    expect(think(makeContext({ backlogItems }))).toEqual({ task: 'plan-milestone' })
   })
 
   it('returns plan-milestone when 1 todo backlog item and no completed milestones ever', () => {
-    const ctx: SoulContext = {
-      project: makeProject(),
-      milestones: [],
-      backlogItems: [makeBacklogItem()],
-    }
-    expect(think(ctx)).toEqual({ task: 'plan-milestone' })
+    expect(think(makeContext({ backlogItems: [makeBacklogItem()] }))).toEqual({ task: 'plan-milestone' })
   })
 
   it('returns plan-milestone when 1 todo backlog item and last milestone completed >30 days ago', () => {
     const completedAt = dayjs().subtract(31, 'day').toISOString()
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [makeMilestone({ id: 'm1', status: 'completed', completedAt })],
       backlogItems: [makeBacklogItem()],
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'plan-milestone' })
   })
 
   it('returns idle when 1 todo backlog item and last milestone completed <30 days ago', () => {
     const completedAt = dayjs().subtract(10, 'day').toISOString()
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [makeMilestone({ id: 'm1', status: 'completed', completedAt })],
       backlogItems: [makeBacklogItem()],
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
@@ -191,29 +217,43 @@ describe('think()', () => {
     const backlogItems = Array.from({ length: 15 }, (_, i) =>
       makeBacklogItem({ id: `b${i}`, title: `Item ${i}` })
     )
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [makeMilestone({ status: 'draft' })],
       backlogItems,
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
   it('returns idle when todo backlog items exist but planning milestone is pending', () => {
-    const ctx: SoulContext = {
-      project: makeProject(),
+    const ctx = makeContext({
       milestones: [makeMilestone({ status: 'planning' })],
       backlogItems: [makeBacklogItem()],
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
   it('returns idle when no todo backlog items', () => {
-    const ctx: SoulContext = {
-      project: makeProject(),
-      milestones: [],
+    const ctx = makeContext({
       backlogItems: [makeBacklogItem({ status: 'done' })],
-    }
+    })
     expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
+  // ── iteration passed → dispatch developer for new iteration ────────────
+
+  it('dispatches developer when iteration passed but checks remain', () => {
+    const inProgress = makeMilestone({
+      id: 'm1',
+      status: 'in_progress',
+      checks: [
+        { id: 'c1', itemId: 'i1', title: 'A', status: 'passed', iteration: 1, createdAt: '', updatedAt: '' },
+        { id: 'c2', itemId: 'i1', title: 'B', status: 'pending', iteration: 0, createdAt: '', updatedAt: '' },
+      ],
+      iterations: [{ milestoneId: 'm1', round: 1, status: 'passed', outcome: 'passed' }],
+    })
+    const ctx = makeContext({
+      milestones: [inProgress],
+    })
+    expect(think(ctx)).toEqual({ task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1' })
   })
 })

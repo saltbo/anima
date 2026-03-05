@@ -14,10 +14,10 @@
  *  2.  Backlog CRUD
  *  3.  Milestone CRUD + iterations + checks
  *  4.  Soul decide() integration with real data
- *  5.  MilestoneExecutionTask — 1-round pass
- *  6.  MilestoneExecutionTask — multi-round (reject→pass)
- *  7.  MilestoneExecutionTask — rate limit handling
- *  8.  MilestoneExecutionTask — auto-merge
+ *  5.  MilestoneAgentTask — dispatch developer (ready milestone)
+ *  6.  MilestoneAgentTask — @mention dispatch (reviewer → developer → reviewer)
+ *  7.  MilestoneAgentTask — rate limit handling
+ *  8.  MilestoneAgentTask — auto-merge
  *  9.  MilestonePlanningTask — draft→planning→planned
  *  10. MilestonePlanningTask — auto-approve
  *  11. Milestone state transitions validation
@@ -26,7 +26,7 @@
  *  14. MilestoneService — transition validation + status preservation
  *  15. Comment system
  *  16. Cascade deletion
- *  17. Full E2E: backlog → plan → execute → accept
+ *  17. Full E2E: backlog → plan → dispatch → accept
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -38,7 +38,7 @@ import { MilestoneLifecycle } from '../services/MilestoneLifecycle'
 import { MilestoneService } from '../services/MilestoneService'
 import { SoulService } from '../services/SoulService'
 import { validateTransition, availableActions } from '../services/milestoneTransitions'
-import { MilestoneExecutionTask } from '../soul/tasks/MilestoneExecutionTask'
+import { MilestoneAgentTask } from '../soul/tasks/MilestoneAgentTask'
 import { MilestonePlanningTask } from '../soul/tasks/MilestonePlanningTask'
 import { Notifier } from '../soul/notifier'
 import { think } from '../soul/decide'
@@ -149,6 +149,50 @@ class InMemoryMilestoneRepository {
     return this.milestones.get(milestoneId)?.projectId ?? null
   }
 
+  getCurrentIteration(milestoneId: string): (Iteration & { id: number }) | null {
+    const match = this.iterations.find(
+      (i) => i.milestoneId === milestoneId && i.status === 'in_progress'
+    )
+    if (!match) return null
+    return { ...match, id: this.iterations.indexOf(match) }
+  }
+
+  updateIterationStatus(id: number, status: string): void {
+    if (this.iterations[id]) {
+      this.iterations[id] = { ...this.iterations[id], status }
+    }
+  }
+
+  incrementDispatchCount(id: number): void {
+    if (this.iterations[id]) {
+      const iter = this.iterations[id]
+      this.iterations[id] = { ...iter, dispatchCount: (iter.dispatchCount ?? 0) + 1 }
+    }
+  }
+
+  updateIterationSession(id: number, field: 'developer' | 'acceptor', sessionId: string): void {
+    if (this.iterations[id]) {
+      const iter = this.iterations[id]
+      if (field === 'developer') {
+        this.iterations[id] = { ...iter, developerSessionId: sessionId }
+      } else {
+        this.iterations[id] = { ...iter, acceptorSessionId: sessionId }
+      }
+    }
+  }
+
+  updateIterationUsage(id: number, tokens: number, cost: number, model: string): void {
+    if (this.iterations[id]) {
+      const iter = this.iterations[id]
+      this.iterations[id] = {
+        ...iter,
+        totalTokens: (iter.totalTokens ?? 0) + tokens,
+        totalCost: (iter.totalCost ?? 0) + cost,
+        model,
+      }
+    }
+  }
+
   /** Update checks on a milestone by mutating in place */
   updateChecks(milestoneId: string, checks: MilestoneCheck[]): void {
     const entry = this.milestones.get(milestoneId)
@@ -239,6 +283,19 @@ class InMemoryCommentRepository {
 
   delete(id: string): void {
     this.comments.delete(id)
+  }
+
+  getUndispatchedMentions(milestoneId: string): MilestoneComment[] {
+    return [...this.comments.values()]
+      .filter((c) => c.milestoneId === milestoneId && !c.mentionDispatched && c.body.includes('@'))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }
+
+  markMentionDispatched(commentId: string): void {
+    const comment = this.comments.get(commentId)
+    if (comment) {
+      this.comments.set(commentId, { ...comment, mentionDispatched: true })
+    }
   }
 
   /** Remove all comments for a milestone (for cascade delete) */
@@ -597,16 +654,40 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
   describe('Soul decide()', () => {
     it('returns idle when no project', () => {
-      expect(think({ project: null, milestones: [], backlogItems: [] })).toEqual({ task: 'idle' })
+      expect(think({ project: null, milestones: [], backlogItems: [], pendingMentions: [] })).toEqual({ task: 'idle' })
     })
 
-    it('picks in_progress over ready', () => {
+    it('dispatches developer for ready milestone', () => {
       const project = h.projectRepo.add('/tmp/decide')
+      const ready = makeMs({ id: 'ms-r', status: 'ready' })
+      expect(think({ project, milestones: [ready], backlogItems: [], pendingMentions: [] })).toEqual({
+        task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-r',
+      })
+    })
+
+    it('dispatches mentioned agent for in_progress milestone', () => {
+      const project = h.projectRepo.add('/tmp/decide-mention')
       const ip = makeMs({ id: 'ms-ip', status: 'in_progress' })
       const ready = makeMs({ id: 'ms-r', status: 'ready' })
-      expect(think({ project, milestones: [ready, ip], backlogItems: [] })).toEqual({
-        task: 'execute-milestone', milestone: ip,
+      expect(think({
+        project,
+        milestones: [ready, ip],
+        backlogItems: [],
+        pendingMentions: [{ agentId: 'reviewer', milestoneId: 'ms-ip', commentId: 'c1' }],
+      })).toEqual({
+        task: 'dispatch-agent', agentId: 'reviewer', milestoneId: 'ms-ip', commentId: 'c1',
       })
+    })
+
+    it('idles when @human mention on in_progress milestone', () => {
+      const project = h.projectRepo.add('/tmp/decide-human')
+      const ip = makeMs({ id: 'ms-ip', status: 'in_progress' })
+      expect(think({
+        project,
+        milestones: [ip],
+        backlogItems: [],
+        pendingMentions: [{ agentId: 'human', milestoneId: 'ms-ip', commentId: 'c1' }],
+      })).toEqual({ task: 'idle' })
     })
 
     it('triggers plan-milestone with ≥10 backlog items', () => {
@@ -614,7 +695,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const todos = Array.from({ length: 12 }, (_, i) =>
         h.backlogRepo.add(project.id, { type: 'feature', title: `Item ${i}`, priority: 'medium' })
       )
-      expect(think({ project, milestones: [], backlogItems: todos })).toEqual({ task: 'plan-milestone' })
+      expect(think({ project, milestones: [], backlogItems: todos, pendingMentions: [] })).toEqual({ task: 'plan-milestone' })
     })
 
     it('idles when draft exists (prevents duplicate planning)', () => {
@@ -623,92 +704,68 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const todos = Array.from({ length: 12 }, (_, i) =>
         h.backlogRepo.add(project.id, { type: 'feature', title: `Item ${i}`, priority: 'medium' })
       )
-      expect(think({ project, milestones: [draft], backlogItems: todos })).toEqual({ task: 'idle' })
+      expect(think({ project, milestones: [draft], backlogItems: todos, pendingMentions: [] })).toEqual({ task: 'idle' })
     })
   })
 
-  // ── 5. MilestoneExecutionTask — 1-round pass ───────────────────────────
+  // ── 5. MilestoneAgentTask — dispatch agent ──────────────────────────────
 
-  describe('MilestoneExecutionTask', () => {
-    function createExecTask(projectId: string, projectPath: string) {
-      return new MilestoneExecutionTask({
+  describe('MilestoneAgentTask', () => {
+    function createAgentTask(projectId: string, projectPath: string) {
+      return new MilestoneAgentTask({
         projectId, projectPath,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        commentRepo: h.commentRepo as unknown as CommentRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
       })
     }
 
-    it('ready → in_progress → in_review (1-round pass)', async () => {
+    it('dispatch developer on ready milestone → creates branch, sets in_progress, runs agent', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
-        id: 'ms-exec', status: 'ready',
+        id: 'ms-dispatch', status: 'ready',
         checks: [makeCheck({ title: 'Works', status: 'pending' })],
       })
       h.milestoneRepo.save(project.id, ms)
 
-      let callCount = 0
-      h.agentRunner.onRun = () => {
-        callCount++
-        if (callCount === 2) { // acceptor: update checks (simulates MCP update)
-          h.milestoneRepo.updateChecks('ms-exec', [
-            makeCheck({ title: 'Works', status: 'passed', iteration: 1 }),
-          ])
-        }
-      }
+      const task = createAgentTask(project.id, project.path)
+      await task.execute(
+        { task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-dispatch' },
+        new AbortController().signal
+      )
 
-      const task = createExecTask(project.id, project.path)
-      await task.execute({ task: 'execute-milestone', milestone: ms }, new AbortController().signal)
-
-      const updated = h.milestoneRepo.getById('ms-exec')!
-      expect(updated.status).toBe('in_review')
-      expect(updated.iterationCount).toBe(1)
-      expect(updated.iterations).toHaveLength(1)
-      expect(updated.iterations[0].outcome).toBe('passed')
-      expect(h.gitService.branchCreated).toContain('milestone/ms-exec')
-      expect(h.agentRunner.calls).toHaveLength(2) // dev + acc
+      const updated = h.milestoneRepo.getById('ms-dispatch')!
+      expect(updated.status).toBe('in_progress')
+      expect(h.gitService.branchCreated).toContain('milestone/ms-dispatch')
+      expect(h.agentRunner.calls).toHaveLength(1)
       expect(h.agentRunner.calls[0].method).toBe('run')
-      expect(h.agentRunner.calls[1].method).toBe('run')
-
-      const proj = h.projectRepo.getById(project.id)!
-      expect(proj.status).toBe('idle')
     })
 
-    it('multi-round: reject → pass uses resume on round 2', async () => {
+    it('dispatch developer with all checks passed → completes milestone', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
-        id: 'ms-multi', status: 'ready',
-        checks: [makeCheck({ title: 'X', status: 'pending' })],
+        id: 'ms-complete', status: 'ready',
+        checks: [makeCheck({ title: 'Done', status: 'pending' })],
       })
       h.milestoneRepo.save(project.id, ms)
 
-      let callCount = 0
       h.agentRunner.onRun = () => {
-        callCount++
-        // Round 1 acceptor (call 2): does NOT pass all criteria → rejected
-        // Round 2 acceptor (call 4): passes all criteria
-        if (callCount === 4) {
-          h.milestoneRepo.updateChecks('ms-multi', [
-            makeCheck({ title: 'X', status: 'passed', iteration: 2 }),
-          ])
-        }
+        h.milestoneRepo.updateChecks('ms-complete', [
+          makeCheck({ title: 'Done', status: 'passed', iteration: 1 }),
+        ])
       }
 
-      const task = createExecTask(project.id, project.path)
-      await task.execute({ task: 'execute-milestone', milestone: ms }, new AbortController().signal)
+      const task = createAgentTask(project.id, project.path)
+      await task.execute(
+        { task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-complete' },
+        new AbortController().signal
+      )
 
-      const updated = h.milestoneRepo.getById('ms-multi')!
+      const updated = h.milestoneRepo.getById('ms-complete')!
       expect(updated.status).toBe('in_review')
-      expect(updated.iterationCount).toBe(2)
-      expect(updated.iterations).toHaveLength(2)
-      expect(updated.iterations[0].outcome).toBe('rejected')
-      expect(updated.iterations[1].outcome).toBe('passed')
-
-      // Round 2 should use resume
-      expect(h.agentRunner.calls[2].method).toBe('resume')
-      expect(h.agentRunner.calls[3].method).toBe('resume')
     })
 
     it('handles rate limit error', async () => {
@@ -721,8 +778,11 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
       h.agentRunner.nextError = 'rate limit exceeded. retry after 2026-03-01T13:00:00.000Z'
 
-      const task = createExecTask(project.id, project.path)
-      await task.execute({ task: 'execute-milestone', milestone: ms }, new AbortController().signal)
+      const task = createAgentTask(project.id, project.path)
+      await task.execute(
+        { task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-rl' },
+        new AbortController().signal
+      )
 
       const proj = h.projectRepo.getById(project.id)!
       expect(proj.status).toBe('rate_limited')
@@ -733,6 +793,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         project: proj,
         milestones: h.milestoneRepo.getByProjectId(project.id),
         backlogItems: [],
+        pendingMentions: [],
       })).toEqual({ task: 'idle' })
     })
 
@@ -746,24 +807,59 @@ describe('E2E: Full Milestone Lifecycle', () => {
       })
       h.milestoneRepo.save(project.id, ms)
 
-      let callCount = 0
       h.agentRunner.onRun = () => {
-        callCount++
-        if (callCount === 2) {
-          h.milestoneRepo.updateChecks('ms-am', [
-            makeCheck({ title: 'Done', status: 'passed', iteration: 1 }),
-          ])
-        }
+        h.milestoneRepo.updateChecks('ms-am', [
+          makeCheck({ title: 'Done', status: 'passed', iteration: 1 }),
+        ])
       }
 
-      const task = createExecTask(project.id, project.path)
-      await task.execute({ task: 'execute-milestone', milestone: ms }, new AbortController().signal)
+      const task = createAgentTask(project.id, project.path)
+      await task.execute(
+        { task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-am' },
+        new AbortController().signal
+      )
 
       const updated = h.milestoneRepo.getById('ms-am')!
       expect(updated.status).toBe('completed')
       expect(updated.completedAt).toBeTruthy()
       expect(h.gitService.mergedBranches).toContain('milestone/ms-am')
       expect(h.gitService.deletedBranches).toContain('milestone/ms-am')
+    })
+
+    it('resumes session for same agent in same iteration', async () => {
+      const project = h.projectRepo.add(h.tmpDir)
+      const ms = makeMs({
+        id: 'ms-resume', status: 'in_progress',
+        checks: [makeCheck({ title: 'A', status: 'pending' })],
+        iterationCount: 1,
+      })
+      h.milestoneRepo.save(project.id, ms)
+
+      // Pre-create an iteration with a developer session
+      h.milestoneRepo.addIteration({
+        milestoneId: 'ms-resume', round: 1, startedAt: '2026-03-01T12:00:00Z',
+        status: 'in_progress', developerSessionId: 'dev-session-1',
+      })
+
+      // Add a mention comment to trigger dispatch
+      h.commentRepo.add({
+        id: 'c-mention', milestoneId: 'ms-resume', body: '@developer fix the bug',
+        author: 'reviewer', createdAt: '2026-03-01T12:01:00Z', updatedAt: '2026-03-01T12:01:00Z',
+      })
+
+      const task = createAgentTask(project.id, project.path)
+      await task.execute(
+        { task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-resume', commentId: 'c-mention' },
+        new AbortController().signal
+      )
+
+      // Should resume the existing session
+      expect(h.agentRunner.calls).toHaveLength(1)
+      expect(h.agentRunner.calls[0].method).toBe('resume')
+
+      // Comment should be marked dispatched
+      const comment = h.commentRepo.getByMilestoneId('ms-resume').find((c) => c.id === 'c-mention')!
+      expect(comment.mentionDispatched).toBe(true)
     })
   })
 
@@ -945,27 +1041,25 @@ describe('E2E: Full Milestone Lifecycle', () => {
   // ── 9. SoulService orchestration ────────────────────────────────────────
 
   describe('SoulService', () => {
-    it('wakes soul and executes when ready milestone exists', async () => {
+    it('wakes soul and dispatches when ready milestone exists', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.milestoneRepo.save(project.id, makeMs({
         id: 'ms-soul', status: 'ready',
         checks: [makeCheck({ title: 'OK', status: 'pending' })],
       }))
 
-      let callCount = 0
       h.agentRunner.onRun = () => {
-        callCount++
-        if (callCount === 2) {
-          h.milestoneRepo.updateChecks('ms-soul', [
-            makeCheck({ title: 'OK', status: 'passed', iteration: 1 }),
-          ])
-        }
+        h.milestoneRepo.updateChecks('ms-soul', [
+          makeCheck({ title: 'OK', status: 'passed', iteration: 1 }),
+        ])
       }
 
       h.soulService.add(project)
       await vi.advanceTimersByTimeAsync(100)
 
-      expect(h.milestoneRepo.getById('ms-soul')!.status).toBe('in_review')
+      const updated = h.milestoneRepo.getById('ms-soul')!
+      // After dispatch-agent(developer) runs, checks pass → complete → in_review
+      expect(updated.status).toBe('in_review')
       expect(h.projectRepo.getById(project.id)!.status).toBe('idle')
     })
 
@@ -1093,10 +1187,10 @@ describe('E2E: Full Milestone Lifecycle', () => {
     })
   })
 
-  // ── 12. Full E2E: backlog → plan → execute → accept ────────────────────
+  // ── 12. Full E2E: backlog → plan → dispatch → accept ────────────────────
 
   describe('Complete E2E flow', () => {
-    it('backlog → plan → approve → execute → accept', async () => {
+    it('backlog → plan → approve → dispatch → accept', async () => {
       // Step 1: Create project with autoApprove
       const project = h.projectRepo.add(h.tmpDir)
       h.projectRepo.patch(project.id, { autoApprove: true })
@@ -1111,6 +1205,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         project: h.projectRepo.getById(project.id)!,
         milestones: [],
         backlogItems: h.backlogRepo.getByProjectId(project.id),
+        pendingMentions: [],
       })).toEqual({ task: 'plan-milestone' })
 
       // Step 4: Run planning
@@ -1142,39 +1237,36 @@ describe('E2E: Full Milestone Lifecycle', () => {
       // With autoApprove → ready
       expect(h.milestoneRepo.getById('ms-e2e')!.status).toBe('ready')
 
-      // Step 5: Verify decide() wants to execute
+      // Step 5: Verify decide() wants to dispatch developer
       const ctx2 = {
         project: h.projectRepo.getById(project.id)!,
         milestones: h.milestoneRepo.getByProjectId(project.id),
         backlogItems: h.backlogRepo.getByProjectId(project.id),
+        pendingMentions: [],
       }
-      expect(think(ctx2).task).toBe('execute-milestone')
+      const decision = think(ctx2)
+      expect(decision.task).toBe('dispatch-agent')
 
-      // Step 6: Run execution
+      // Step 6: Run agent dispatch (developer)
       h.agentRunner.calls = []
-      h.agentRunner.onRun = null
-      let execCallCount = 0
       h.agentRunner.onRun = () => {
-        execCallCount++
-        if (execCallCount === 2) { // acceptor passes all checks
-          h.milestoneRepo.updateChecks('ms-e2e', [
-            makeCheck({ title: 'All features work', status: 'passed', iteration: 1 }),
-            makeCheck({ title: 'Tests pass', status: 'passed', iteration: 1 }),
-          ])
-        }
+        h.milestoneRepo.updateChecks('ms-e2e', [
+          makeCheck({ title: 'All features work', status: 'passed', iteration: 1 }),
+          makeCheck({ title: 'Tests pass', status: 'passed', iteration: 1 }),
+        ])
       }
 
-      const planned = h.milestoneRepo.getById('ms-e2e')!
-      const execTask = new MilestoneExecutionTask({
+      const agentTask = new MilestoneAgentTask({
         projectId: project.id, projectPath: project.path,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        commentRepo: h.commentRepo as unknown as CommentRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),
       })
-      await execTask.execute(
-        { task: 'execute-milestone', milestone: planned },
+      await agentTask.execute(
+        { task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-e2e' },
         new AbortController().signal,
       )
 

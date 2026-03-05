@@ -13,6 +13,8 @@ export interface Iteration {
   totalTokens?: number
   totalCost?: number
   model?: string
+  status?: string
+  dispatchCount?: number
 }
 
 export interface Project {
@@ -97,6 +99,7 @@ export interface MilestoneComment {
   inReplyToId?: string
   createdAt: string
   updatedAt: string
+  mentionDispatched?: boolean
 }
 
 export interface MilestoneGitInfo {

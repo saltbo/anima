@@ -132,8 +132,11 @@ export function createRoutes(
 
     // ── Milestone comments ────────────────────────────────────────────────
     'milestones:listComments': (milestoneId: string) => commentRepo.getByMilestoneId(milestoneId),
-    'milestones:addComment': (comment: { id: string; milestoneId: string; body: string; author: string; createdAt: string; updatedAt: string }) =>
-      commentRepo.add(comment),
+    'milestones:addComment': (comment: { id: string; milestoneId: string; body: string; author: string; createdAt: string; updatedAt: string }) => {
+      commentRepo.add(comment)
+      const projectId = milestoneRepo.getProjectIdForMilestone(comment.milestoneId)
+      if (projectId) soulService.wake(projectId)
+    },
 
     // ── Checks ────────────────────────────────────────────────────────────
     'checks:list': (milestoneId: string) => checkRepo.getByMilestoneId(milestoneId),

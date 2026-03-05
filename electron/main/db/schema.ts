@@ -275,6 +275,27 @@ function migrateDropBacklogMilestoneId(db: Database.Database): void {
   `)
 }
 
+function migrateMentionDispatchedColumn(db: Database.Database): void {
+  const cols = db.pragma('table_info(milestone_comments)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (colNames.has('mention_dispatched')) return
+
+  log.info('migrating milestone_comments table: adding mention_dispatched column')
+  db.exec(`ALTER TABLE milestone_comments ADD COLUMN mention_dispatched INTEGER NOT NULL DEFAULT 0;`)
+}
+
+function migrateIterationStatusColumns(db: Database.Database): void {
+  const cols = db.pragma('table_info(iterations)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (colNames.has('status')) return
+
+  log.info('migrating iterations table: adding status and dispatch_count columns')
+  db.exec(`
+    ALTER TABLE iterations ADD COLUMN status TEXT NOT NULL DEFAULT 'pending';
+    ALTER TABLE iterations ADD COLUMN dispatch_count INTEGER NOT NULL DEFAULT 0;
+  `)
+}
+
 function migrateMilestoneStatusV3(db: Database.Database): void {
   const oldRows = db.prepare("SELECT COUNT(*) as cnt FROM milestones WHERE status IN ('reviewing', 'reviewed', 'in-progress', 'awaiting_review')").get() as { cnt: number }
   if (oldRows.cnt === 0) return
@@ -303,4 +324,6 @@ export function initSchema(db: Database.Database): void {
   migrateMilestoneItemsTable(db)
   migrateDropBacklogMilestoneId(db)
   migrateMilestoneStatusV3(db)
+  migrateMentionDispatchedColumn(db)
+  migrateIterationStatusColumns(db)
 }
