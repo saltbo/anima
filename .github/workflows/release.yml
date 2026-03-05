@@ -35,15 +35,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Build & package
+      - name: Build & publish
         env:
           APP_VERSION: ${{ steps.version.outputs.VERSION }}
-        run: npm run build && npx electron-builder --${{ matrix.arch }}
-
-      - name: Upload artifacts to release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          files: |
-            dist/*.dmg
-            dist/*.dmg.blockmap
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build && npx electron-builder --${{ matrix.arch }} --publish always
