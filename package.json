@@ -64,7 +64,9 @@
         }
       ],
       "category": "public.app-category.developer-tools",
-      "notarize": true
+      "notarize": {
+        "teamId": "9CKZB9227P"
+      }
     },
     "win": {
       "target": "nsis"
