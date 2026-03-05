@@ -92,6 +92,7 @@ declare global {
 
       // ── Actions ────────────────────────────────────────────────────────────
       getActionsByMilestone: (milestoneId: string) => Promise<Action[]>
+      getActionsByProject: (projectId: string, limit: number) => Promise<Action[]>
       getRecentActions: (limit: number) => Promise<Action[]>
     }
   }

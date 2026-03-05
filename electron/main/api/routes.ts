@@ -151,6 +151,7 @@ export function createRoutes(
 
     // ── Actions ────────────────────────────────────────────────────────────
     'actions:listByMilestone': (milestoneId: string) => actionRepo.getByMilestoneId(milestoneId),
+    'actions:listByProject': (projectId: string, limit: number) => actionRepo.getByProjectId(projectId, limit ?? 20),
     'actions:listRecent': (limit: number) => actionRepo.getRecent(limit ?? 50),
 
     // ── Scheduler / Project ───────────────────────────────────────────────

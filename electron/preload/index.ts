@@ -140,5 +140,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Actions ──────────────────────────────────────────────────────────────
   getActionsByMilestone: (milestoneId: string) => ipcRenderer.invoke('actions:listByMilestone', milestoneId),
+  getActionsByProject: (projectId: string, limit: number) => ipcRenderer.invoke('actions:listByProject', projectId, limit),
   getRecentActions: (limit: number) => ipcRenderer.invoke('actions:listRecent', limit),
 })

@@ -1,10 +1,11 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity, ChevronRight, CheckCircle2, Circle, Play } from 'lucide-react'
+import { Clock, Zap, DollarSign, RefreshCw, AlertTriangle, Activity, ChevronRight, CheckCircle2, Circle, Play, ArrowRight, Code, ShieldCheck, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useProjects } from '@/store/projects'
 import { cn, statusBgColor, statusColor, statusLabel } from '@/lib/utils'
-import { formatElapsed, formatTokens, formatTime } from '@/lib/time'
+import { formatElapsed, formatTokens, formatTime, timeAgo } from '@/lib/time'
+import type { Action, StatusChangedDetail, AgentStartedDetail } from '@/types/index'
 
 function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
@@ -24,10 +25,12 @@ export function ProjectDashboard() {
   const navigate = useNavigate()
   const project = projects.find((p) => p.id === id)
   const [svStatus, setSvStatus] = useState<{ hasSoul: boolean } | null>(null)
+  const [actions, setActions] = useState<Action[]>([])
 
   useEffect(() => {
     if (!project) return
     window.electronAPI.checkProjectSetup(project.path).then(setSvStatus)
+    window.electronAPI.getActionsByProject(project.id, 20).then(setActions)
   }, [project])
 
   if (!project) {
@@ -132,19 +135,144 @@ export function ProjectDashboard() {
       {/* Activity */}
       <div className="bg-card border border-border rounded-xl p-5">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Activity</p>
-        <div className="flex flex-col items-center justify-center gap-3 text-center py-6">
-          <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-            <Activity size={16} className="text-muted-foreground" />
+        {actions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 text-center py-6">
+            <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+              <Activity size={16} className="text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">No activity yet</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Activity will appear here once your project starts running.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">No activity yet</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Activity will appear here once your project starts running.
-            </p>
-          </div>
-        </div>
+        ) : (
+          <ActivityFeed actions={actions} />
+        )}
       </div>
 
+    </div>
+  )
+}
+
+// ── Activity Feed ────────────────────────────────────────────────────────────
+
+const AGENT_LABELS: Record<string, string> = {
+  human: 'You',
+  planner: 'Planner',
+  developer: 'Developer',
+  reviewer: 'Reviewer',
+}
+
+const AGENT_ICONS: Record<string, React.ElementType> = {
+  developer: Code,
+  reviewer: ShieldCheck,
+  planner: Sparkles,
+}
+
+const AGENT_COLORS: Record<string, { icon: string; bg: string }> = {
+  developer: { icon: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+  reviewer: { icon: 'text-green-600', bg: 'bg-green-600/10' },
+  planner: { icon: 'text-amber-500', bg: 'bg-amber-500/10' },
+}
+
+function statusActionLabel(detail: StatusChangedDetail): string {
+  if (detail.action === 'create') return 'created milestone'
+  if (detail.action === 'start_execution') return 'started execution'
+  if (detail.action === 'approve') return 'approved milestone'
+  if (detail.action === 'accept') return 'accepted milestone'
+  if (detail.action === 'rollback') return 'rolled back milestone'
+  if (detail.action === 'cancel') return 'cancelled milestone'
+  if (detail.action === 'close') return 'closed milestone'
+  return `${detail.from} \u2192 ${detail.to}`
+}
+
+function ActivityFeed({ actions }: { actions: Action[] }) {
+  return (
+    <div>
+      {actions.map((action, idx) => {
+        const isLast = idx === actions.length - 1
+
+        if (action.type === 'status_changed' && action.detail) {
+          const detail: StatusChangedDetail = JSON.parse(action.detail)
+          return (
+            <ActivityRow key={action.id} showLine={!isLast} icon={ArrowRight} iconClass="text-muted-foreground" bgClass="bg-muted">
+              <div className="flex items-baseline gap-1.5 flex-wrap min-w-0">
+                <span className="text-xs font-medium text-foreground">
+                  {AGENT_LABELS[action.actor] ?? action.actor}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {statusActionLabel(detail)}
+                </span>
+                {action.milestoneId && (
+                  <span className="text-xs text-muted-foreground/70 font-mono truncate max-w-[120px]">
+                    {action.milestoneId}
+                  </span>
+                )}
+                <span className="text-[11px] text-muted-foreground/50 ml-auto shrink-0">
+                  {timeAgo(action.createdAt)}
+                </span>
+              </div>
+            </ActivityRow>
+          )
+        }
+
+        if (action.type === 'agent_started' && action.detail) {
+          const detail: AgentStartedDetail = JSON.parse(action.detail)
+          const agentId = action.actor
+          const Icon = AGENT_ICONS[agentId] ?? Code
+          const colors = AGENT_COLORS[agentId] ?? { icon: 'text-muted-foreground', bg: 'bg-muted' }
+
+          return (
+            <ActivityRow key={action.id} showLine={!isLast} icon={Icon} iconClass={colors.icon} bgClass={colors.bg}>
+              <div className="flex items-baseline gap-1.5 flex-wrap min-w-0">
+                <span className="text-xs font-medium text-foreground">
+                  {AGENT_LABELS[agentId] ?? agentId}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  started round #{detail.iterationRound}
+                </span>
+                <span className="text-[11px] text-muted-foreground/50 ml-auto shrink-0">
+                  {timeAgo(action.createdAt)}
+                </span>
+              </div>
+            </ActivityRow>
+          )
+        }
+
+        return null
+      })}
+    </div>
+  )
+}
+
+function ActivityRow({
+  showLine,
+  icon: Icon,
+  iconClass,
+  bgClass,
+  children,
+}: {
+  showLine: boolean
+  icon: React.ElementType
+  iconClass: string
+  bgClass: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex gap-3 min-h-[32px]">
+      {/* Dot + line column */}
+      <div className="flex flex-col items-center shrink-0 w-5">
+        <div className={cn('flex items-center justify-center w-5 h-5 rounded-full shrink-0', bgClass)}>
+          <Icon size={11} className={iconClass} />
+        </div>
+        {showLine && <div className="w-px flex-1 bg-border" />}
+      </div>
+      {/* Content */}
+      <div className="flex-1 min-w-0 pb-3 pt-0.5">
+        {children}
+      </div>
     </div>
   )
 }
