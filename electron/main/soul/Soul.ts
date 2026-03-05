@@ -11,6 +11,7 @@ import { think } from './decide'
 import { calculateNextWake } from './wakeScheduler'
 import { Notifier } from './notifier'
 import { parseMentions } from '../agents/mention'
+import { getAgent } from '../agents/registry'
 
 const log = createLogger('soul')
 
@@ -155,6 +156,7 @@ export class Soul {
       for (const comment of comments) {
         const mentions = parseMentions(comment.body)
         for (const agentId of mentions) {
+          if (agentId !== 'human' && !getAgent(agentId)) continue
           pendingMentions.push({ agentId, milestoneId: m.id, commentId: comment.id })
         }
       }
