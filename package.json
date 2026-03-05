@@ -2,6 +2,14 @@
   "name": "anima",
   "version": "0.1.0",
   "description": "Give your project a soul",
+  "author": "saltbo",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saltbo/anima"
+  },
+  "homepage": "https://github.com/saltbo/anima",
+  "keywords": ["electron", "ai", "autonomous", "coding-agent", "developer-tools"],
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
