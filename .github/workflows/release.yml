@@ -9,8 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -45,3 +46,12 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run build && npx electron-builder --${{ matrix.arch }} --publish always
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
