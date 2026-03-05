@@ -7,6 +7,7 @@ const RATE_LIMIT_PATTERNS = [
   /quota/i,
   /too many requests/i,
   /429/,
+  /402/,
 ]
 
 export function isRateLimitError(message: string): boolean {

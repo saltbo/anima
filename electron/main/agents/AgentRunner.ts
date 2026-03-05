@@ -107,7 +107,7 @@ export class AgentRunner {
       let cost = 0
       let stdoutBuffer = ''
       let resultSeen = false
-      let stderrErrorEmitted = false
+      let lastErrorMessage = ''
       let messageSent = false
 
       const handleEvent = (event: AgentEvent): void => {
@@ -115,6 +115,10 @@ export class AgentRunner {
 
         if (event.event === 'system') {
           model = event.model || model
+        }
+        if (event.event === 'error') {
+          lastErrorMessage = event.message
+          log.error('agent error event', { message: event.message })
         }
         if (event.event === 'done') {
           resultSeen = true
@@ -156,7 +160,7 @@ export class AgentRunner {
         const trimmed = data.toString().trim()
         if (trimmed) {
           log.warn('stderr', { stderr: trimmed })
-          stderrErrorEmitted = true
+          lastErrorMessage = trimmed
           onEvent?.({ event: 'error', message: trimmed })
         }
       })
@@ -180,8 +184,8 @@ export class AgentRunner {
         if (stdoutBuffer.trim()) parseLine(stdoutBuffer, handleEvent)
 
         if (!resultSeen) {
-          if (code !== 0 && !stderrErrorEmitted) {
-            onEvent?.({ event: 'error', message: `Process exited with code ${code}` })
+          if (code !== 0) {
+            onEvent?.({ event: 'error', message: lastErrorMessage || `Process exited with code ${code}` })
           } else if (code === 0) {
             onEvent?.({ event: 'done' })
           }
@@ -189,8 +193,8 @@ export class AgentRunner {
 
         if (signal?.aborted) {
           reject(new Error('Aborted'))
-        } else if (code !== 0 && !resultSeen) {
-          reject(new Error(`Process exited with code ${code}`))
+        } else if (code !== 0) {
+          reject(new Error(lastErrorMessage || `Process exited with code ${code}`))
         } else {
           resolve({ sessionId, usage, cost, model })
         }

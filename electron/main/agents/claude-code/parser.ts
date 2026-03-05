@@ -46,7 +46,17 @@ export function parseLine(line: string, onEvent: (event: AgentEvent) => void): v
     const json = JSON.parse(line)
 
     if (json.type === 'error' || json.error) {
-      onEvent({ event: 'error', message: String(json.error?.message || json.error || json.message || 'Unknown error') })
+      // Extract meaningful error message — CLI sometimes wraps API errors
+      // inside assistant messages with a top-level error:"unknown"
+      let detail: string | undefined
+      if (json.type === 'assistant' && Array.isArray(json.message?.content)) {
+        const textBlock = (json.message.content as ContentEntry[]).find((e) => e.type === 'text' && e.text)
+        if (textBlock?.text) detail = textBlock.text
+      }
+      if (!detail) {
+        detail = json.error?.message || (json.error !== 'unknown' ? json.error : undefined) || json.message || JSON.stringify(json)
+      }
+      onEvent({ event: 'error', message: String(detail) })
       return
     }
     if (json.type === 'system' && json.subtype === 'init') {
