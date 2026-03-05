@@ -7,6 +7,7 @@ import type { SessionRepository } from '../repositories/SessionRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepository'
+import type { ActionRepository } from '../repositories/ActionRepository'
 import type { GitService } from './GitService'
 import { MilestoneLifecycle } from './MilestoneLifecycle'
 import { Soul } from '../soul/Soul'
@@ -27,6 +28,7 @@ export class SoulService {
     private commentRepo: CommentRepository,
     private backlogRepo: BacklogRepository,
     private milestoneItemRepo: MilestoneItemRepository,
+    private actionRepo: ActionRepository,
     private gitService: GitService,
     private agentRunner: AgentRunner,
     private getWindow: () => BrowserWindow | null,
@@ -65,6 +67,7 @@ export class SoulService {
       milestoneRepo: this.milestoneRepo,
       sessionRepo: this.sessionRepo,
       commentRepo: this.commentRepo,
+      actionRepo: this.actionRepo,
       gitService: this.gitService,
       agentRunner: this.agentRunner,
       notifier,
@@ -174,6 +177,7 @@ export class SoulService {
         this.commentRepo,
         this.backlogRepo,
         this.milestoneItemRepo,
+        this.actionRepo,
         this.gitService,
         new Notifier(projectId, this.getWindow)
       )

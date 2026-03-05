@@ -1,7 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import type { LoaderFunctionArgs } from 'react-router-dom'
 import type { MilestoneDetailLoaderData } from '@/types/router'
-import type { Iteration } from '@/types/index'
 import {
   MilestoneDetailHeader,
   ReviewBanner,
@@ -19,27 +18,30 @@ import {
 
 export const milestoneDetailLoader = async ({ params }: LoaderFunctionArgs) => {
   const { id, mid } = params
-  const [milestones, backlogItems, comments] = await Promise.all([
+  const [milestones, backlogItems, comments, actions] = await Promise.all([
     window.electronAPI.getMilestones(id!),
     window.electronAPI.getBacklogItems(id!),
     window.electronAPI.getMilestoneComments(mid!),
+    window.electronAPI.getActionsByMilestone(mid!),
   ])
   const milestone = milestones.find((m) => m.id === mid) ?? null
   return {
     meta: { title: milestone?.title ?? '' },
-    milestone, backlogItems, comments,
+    milestone, backlogItems, comments, actions,
   } satisfies MilestoneDetailLoaderData
 }
 
 export function MilestoneDetail() {
   const {
     // Core data
-    milestone, comments, gitInfo, iterations,
+    milestone, comments, gitInfo,
+    actions, sessions,
     commentText, setCommentText,
 
     // Derived
     completedTaskCount, totalTaskCount,
     passedACCount, totalACCount,
+    iterations,
 
     // Dialog state
     deleteOpen, setDeleteOpen,
@@ -55,21 +57,11 @@ export function MilestoneDetail() {
     handleCloseWithComment, handleMarkReady,
   } = useMilestoneDetail()
 
-  // Session drawer state
-  const [drawerSession, setDrawerSession] = useState<{
-    iteration: Iteration
-    role: 'developer' | 'acceptor'
-    displayNum: number
-  } | null>(null)
-
-  const handleViewSession = useCallback(
-    (role: 'developer' | 'acceptor', iteration: Iteration) => {
-      // Compute 1-based display number from iterations array order
-      const displayNum = iterations.findIndex((it) => it === iteration) + 1
-      setDrawerSession({ iteration, role, displayNum: displayNum || iteration.round })
-    },
-    [iterations],
-  )
+  // Session drawer state — now driven by sessionId
+  const [drawerSessionId, setDrawerSessionId] = useState<string | null>(null)
+  const drawerSession = drawerSessionId
+    ? sessions.find((s) => s.id === drawerSessionId) ?? null
+    : null
 
   if (!milestone) {
     return (
@@ -94,8 +86,9 @@ export function MilestoneDetail() {
 
           <Timeline
             comments={comments}
-            iterations={iterations}
-            onViewSession={handleViewSession}
+            actions={actions}
+            sessions={sessions}
+            onViewSession={setDrawerSessionId}
           />
 
           <BottomActionBar
@@ -150,11 +143,9 @@ export function MilestoneDetail() {
         onSubmit={handleRequestChanges}
       />
       <SessionDrawer
-        open={drawerSession !== null}
-        onOpenChange={(open) => { if (!open) setDrawerSession(null) }}
-        iteration={drawerSession?.iteration ?? null}
-        initialRole={drawerSession?.role}
-        displayNum={drawerSession?.displayNum}
+        open={drawerSessionId !== null}
+        onOpenChange={(open) => { if (!open) setDrawerSessionId(null) }}
+        session={drawerSession}
       />
     </div>
   )

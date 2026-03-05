@@ -56,5 +56,13 @@ export function installBrowserStub() {
     getMilestoneGitStatus: async () => null,
     getMilestoneComments: async () => [],
     addMilestoneComment: async () => {},
+
+    getActionsByMilestone: async () => [],
+    getRecentActions: async () => [],
+
+    getMcpServers: async () => ({}),
+    addMcpServer: async () => {},
+    updateMcpServer: async () => {},
+    removeMcpServer: async () => {},
   }
 }

@@ -1,75 +1,81 @@
-import { MessageSquare, Check, CircleCheck } from 'lucide-react'
+import { MessageSquare, ArrowRight, Code, ShieldCheck, Sparkles } from 'lucide-react'
 import MDEditor from '@uiw/react-md-editor'
 import { useTheme } from '@/store/theme'
-import { timeAgo, formatElapsed } from '@/lib/time'
+import { timeAgo } from '@/lib/time'
+import { formatTokens } from '@/lib/time'
 import { TimelineEvent, TimelineEventHeader } from './TimelineEvent'
-import { IterationAgentCard } from './IterationAgentCard'
-import type { Iteration, MilestoneComment, IterationOutcome } from '@/types/index'
+import type { MilestoneComment, Action, AgentSession, StatusChangedDetail, AgentStartedDetail } from '@/types/index'
 
 // ── Agent display names ─────────────────────────────────────────────────────
 
 const AGENT_DISPLAY_NAMES: Record<string, string> = {
+  human: 'You',
   planner: 'Planner',
   developer: 'Developer',
   reviewer: 'Reviewer',
 }
 
-function getAuthorDisplay(author: string): string {
-  if (author === 'human') return 'You'
-  return AGENT_DISPLAY_NAMES[author] ?? author
+const AGENT_ICONS: Record<string, typeof Code> = {
+  developer: Code,
+  reviewer: ShieldCheck,
+  planner: Sparkles,
 }
+
+const AGENT_ICON_COLORS: Record<string, string> = {
+  developer: 'text-indigo-500',
+  reviewer: 'text-green-600',
+  planner: 'text-amber-500',
+}
+
+function getActorDisplay(actor: string): string {
+  return AGENT_DISPLAY_NAMES[actor] ?? actor
+}
+
+// ── Status change labels ────────────────────────────────────────────────────
+
+function statusChangeLabel(detail: StatusChangedDetail): string {
+  if (detail.action === 'create') return 'created this milestone'
+  if (detail.action === 'start_execution') return `started execution`
+  return `${detail.action}: ${detail.from} → ${detail.to}`
+}
+
+// ── Props ───────────────────────────────────────────────────────────────────
 
 interface TimelineProps {
   comments: MilestoneComment[]
-  iterations: Iteration[]
-  onViewSession?: (role: 'developer' | 'acceptor', iteration: Iteration) => void
+  actions: Action[]
+  sessions: AgentSession[]
+  onViewSession?: (sessionId: string) => void
 }
 
-function outcomeBadgeClass(outcome?: IterationOutcome): string {
-  switch (outcome) {
-    case 'passed': return 'bg-green-100 text-green-600'
-    case 'rejected': return 'bg-orange-100 text-orange-600'
-    case 'error': return 'bg-red-100 text-red-600'
-    case 'rate_limited': return 'bg-red-100 text-red-600'
-    case 'cancelled': return 'bg-muted text-muted-foreground'
-    default: return 'bg-muted text-muted-foreground'
-  }
-}
-
-function outcomeLabel(outcome?: IterationOutcome): string {
-  switch (outcome) {
-    case 'passed': return 'Passed'
-    case 'rejected': return 'Rejected'
-    case 'cancelled': return 'Cancelled'
-    case 'rate_limited': return 'Rate Limited'
-    case 'error': return 'Error'
-    default: return 'In Progress'
-  }
-}
-
-export function Timeline({ comments, iterations, onViewSession }: TimelineProps) {
+export function Timeline({ comments, actions, sessions, onViewSession }: TimelineProps) {
   const { resolvedTheme } = useTheme()
-  // Build timeline events in chronological order
+
+  // Build a session lookup by id
+  const sessionMap = new Map(sessions.map((s) => [s.id, s]))
+
+  // Build timeline entries in chronological order
   type TimelineEntry =
     | { type: 'comment'; comment: MilestoneComment; time: string }
-    | { type: 'iteration'; iteration: Iteration; time: string }
-    | { type: 'acceptor_passed'; iteration: Iteration; time: string }
+    | { type: 'status_changed'; action: Action; detail: StatusChangedDetail; time: string }
+    | { type: 'agent_started'; action: Action; detail: AgentStartedDetail; session?: AgentSession; time: string }
 
   const entries: TimelineEntry[] = []
 
-  // Add system comments (reviews)
+  // Add comments
   comments.forEach((c) => {
     entries.push({ type: 'comment', comment: c, time: c.createdAt })
   })
 
-  // Add iterations
-  iterations.forEach((iter) => {
-    if (iter.startedAt) {
-      entries.push({ type: 'iteration', iteration: iter, time: iter.startedAt })
-    }
-    // Add "Acceptor review passed" as a separate chronological entry
-    if (iter.outcome === 'passed' && iter.completedAt) {
-      entries.push({ type: 'acceptor_passed', iteration: iter, time: iter.completedAt })
+  // Add actions
+  actions.forEach((a) => {
+    if (!a.detail) return
+    const detail = JSON.parse(a.detail)
+    if (a.type === 'status_changed') {
+      entries.push({ type: 'status_changed', action: a, detail, time: a.createdAt })
+    } else if (a.type === 'agent_started') {
+      const session = detail.sessionId ? sessionMap.get(detail.sessionId) : undefined
+      entries.push({ type: 'agent_started', action: a, detail, session, time: a.createdAt })
     }
   })
 
@@ -84,16 +90,6 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
     )
   }
 
-  // Compute display numbers for iterations (1-based index among iteration entries only)
-  const iterDisplayNum = new Map<Iteration, number>()
-  let iterCounter = 0
-  for (const e of entries) {
-    if (e.type === 'iteration') {
-      iterCounter++
-      iterDisplayNum.set(e.iteration, iterCounter)
-    }
-  }
-
   return (
     <div className="pr-6 py-5">
       {entries.map((entry, idx) => {
@@ -102,7 +98,6 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
 
         if (entry.type === 'comment') {
           const c = entry.comment
-          const authorName = getAuthorDisplay(c.author)
           return (
             <TimelineEvent
               key={`e-${idx}`}
@@ -112,7 +107,7 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
               className="pt-5 pb-1"
             >
               <TimelineEventHeader
-                author={authorName}
+                author={getActorDisplay(c.author)}
                 action="posted a comment"
                 time={timeAgo(c.createdAt)}
               />
@@ -123,71 +118,78 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
           )
         }
 
-        if (entry.type === 'iteration') {
-          const iter = entry.iteration
-          const displayNum = iterDisplayNum.get(iter) ?? iter.round
+        if (entry.type === 'status_changed') {
           return (
             <TimelineEvent
               key={`e-${idx}`}
-              icon={<Check size={14} className="text-green-600" />}
-              iconBg="bg-green-100"
-              showLine={showLine}
-              className="pt-3 pb-1"
-            >
-              {/* Iteration header */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-foreground">
-                  Iteration #{displayNum}
-                </span>
-                {iter.outcome && (
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${outcomeBadgeClass(iter.outcome)}`}>
-                    {outcomeLabel(iter.outcome)}
-                  </span>
-                )}
-                <span className="text-[11px] text-muted-foreground">
-                  {formatElapsed(iter.startedAt, iter.completedAt)}
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  {iter.startedAt ? timeAgo(iter.startedAt) : ''}
-                </span>
-              </div>
-
-              {/* Agent cards */}
-              <div className="flex gap-2.5 mt-2.5">
-                <div className="flex-1">
-                  <IterationAgentCard
-                    role="developer"
-                    session={iter.sessions?.find((s) => s.agentId === 'developer')}
-                    onViewSession={onViewSession ? () => onViewSession('developer', iter) : undefined}
-                  />
-                </div>
-                <div className="flex-1">
-                  <IterationAgentCard
-                    role="acceptor"
-                    session={iter.sessions?.find((s) => s.agentId === 'reviewer')}
-                    onViewSession={onViewSession ? () => onViewSession('acceptor', iter) : undefined}
-                  />
-                </div>
-              </div>
-            </TimelineEvent>
-          )
-        }
-
-        if (entry.type === 'acceptor_passed') {
-          const iter = entry.iteration
-          return (
-            <TimelineEvent
-              key={`e-${idx}`}
-              icon={<CircleCheck size={14} className="text-green-600" />}
-              iconBg="bg-green-100"
+              icon={<ArrowRight size={14} className="text-muted-foreground" />}
+              iconBg="bg-muted"
               showLine={showLine}
               className="pt-3 pb-1"
             >
               <TimelineEventHeader
-                author="Acceptor"
-                action="review passed — milestone awaiting human review"
-                time={iter.completedAt ? timeAgo(iter.completedAt) : ''}
+                author={getActorDisplay(entry.action.actor)}
+                action={statusChangeLabel(entry.detail)}
+                time={timeAgo(entry.action.createdAt)}
               />
+            </TimelineEvent>
+          )
+        }
+
+        if (entry.type === 'agent_started') {
+          const agentId = entry.action.actor
+          const Icon = AGENT_ICONS[agentId] ?? Code
+          const iconColor = AGENT_ICON_COLORS[agentId] ?? 'text-muted-foreground'
+          const session = entry.session
+          const label = getActorDisplay(agentId)
+
+          return (
+            <TimelineEvent
+              key={`e-${idx}`}
+              icon={<Icon size={14} className={iconColor} />}
+              iconBg={agentId === 'developer' ? 'bg-indigo-100' : agentId === 'reviewer' ? 'bg-green-100' : 'bg-amber-100'}
+              showLine={showLine}
+              className="pt-3 pb-1"
+            >
+              <div className="rounded-lg border border-border bg-background/50 p-3 space-y-2">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Icon size={14} className={iconColor} />
+                    <span className="text-xs font-semibold text-foreground">{label}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Round #{entry.detail.iterationRound}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {timeAgo(entry.action.createdAt)}
+                    </span>
+                  </div>
+                  {session && onViewSession && (
+                    <button
+                      onClick={() => onViewSession(session.id)}
+                      className="text-[11px] font-medium text-foreground hover:text-foreground/80 transition-colors cursor-pointer"
+                    >
+                      View Session &rarr;
+                    </button>
+                  )}
+                </div>
+
+                {/* Meta */}
+                {session && (session.totalTokens > 0 || session.totalCost > 0) && (
+                  <div className="flex items-center gap-3">
+                    {session.totalTokens > 0 && (
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        {formatTokens(session.totalTokens)} tokens
+                      </span>
+                    )}
+                    {session.totalCost > 0 && (
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        ${session.totalCost.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </TimelineEvent>
           )
         }

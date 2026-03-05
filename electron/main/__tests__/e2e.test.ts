@@ -51,6 +51,7 @@ import type {
   MilestoneComment,
   AgentSession,
 } from '../../../src/types/index'
+import type { Action } from '../../../src/types/index'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
@@ -437,6 +438,29 @@ class InMemorySessionRepository {
   }
 }
 
+class InMemoryActionRepository {
+  private actions: Action[] = []
+  private nextId = 1
+
+  add(action: Omit<Action, 'id'>): void {
+    this.actions.push({ ...action, id: this.nextId++ } as Action)
+  }
+
+  getByMilestoneId(milestoneId: string): Action[] {
+    return this.actions.filter((a) => a.milestoneId === milestoneId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }
+
+  getRecent(limit: number): Action[] {
+    return [...this.actions].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
+  }
+
+  getByProjectId(projectId: string, limit: number): Action[] {
+    return this.actions.filter((a) => a.projectId === projectId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
+  }
+}
+
 // ── Mock AgentRunner ──────────────────────────────────────────────────────────
 
 function makeRunResult(sessionId: string): RunResult {
@@ -511,6 +535,7 @@ interface Harness {
   projectRepo: InMemoryProjectRepository
   milestoneRepo: InMemoryMilestoneRepository
   sessionRepo: InMemorySessionRepository
+  actionRepo: InMemoryActionRepository
   backlogRepo: InMemoryBacklogRepository
   commentRepo: InMemoryCommentRepository
   milestoneItemRepo: InMemoryMilestoneItemRepository
@@ -526,6 +551,7 @@ function createHarness(): Harness {
   const projectRepo = new InMemoryProjectRepository()
   const milestoneRepo = new InMemoryMilestoneRepository()
   const sessionRepo = new InMemorySessionRepository()
+  const actionRepo = new InMemoryActionRepository()
   const backlogRepo = new InMemoryBacklogRepository()
   const commentRepo = new InMemoryCommentRepository()
   const milestoneItemRepo = new InMemoryMilestoneItemRepository()
@@ -546,6 +572,7 @@ function createHarness(): Harness {
     commentRepo as unknown as CommentRepository,
     backlogRepo as unknown as BacklogRepository,
     milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
+    actionRepo as unknown as import('../repositories/ActionRepository').ActionRepository,
     gitService as unknown as GitService,
     agentRunner as unknown as AgentRunner,
     () => null,
@@ -558,11 +585,12 @@ function createHarness(): Harness {
     projectRepo as unknown as ProjectRepository,
     commentRepo as unknown as CommentRepository,
     checkRepo as unknown as CheckRepository,
+    actionRepo as unknown as import('../repositories/ActionRepository').ActionRepository,
     () => null,
     () => soulService,
   )
 
-  return { projectRepo, milestoneRepo, sessionRepo, backlogRepo, commentRepo, milestoneItemRepo, checkRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
+  return { projectRepo, milestoneRepo, sessionRepo, actionRepo, backlogRepo, commentRepo, milestoneItemRepo, checkRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
 }
 
 function makeMs(overrides: Partial<Milestone> = {}): Milestone {
@@ -798,6 +826,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
         sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
+        actionRepo: h.actionRepo as unknown as import('../repositories/ActionRepository').ActionRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
@@ -961,6 +990,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
         sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
+        actionRepo: h.actionRepo as unknown as import('../repositories/ActionRepository').ActionRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
@@ -1041,6 +1071,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         h.projectRepo as unknown as ProjectRepository, h.milestoneRepo as unknown as MilestoneRepository,
         h.commentRepo as unknown as CommentRepository, h.backlogRepo as unknown as BacklogRepository,
         h.milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
+        h.actionRepo as unknown as import('../repositories/ActionRepository').ActionRepository,
         h.gitService as unknown as GitService,
         new Notifier(projectId, () => null),
       )
@@ -1304,6 +1335,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
         sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
+        actionRepo: h.actionRepo as unknown as import('../repositories/ActionRepository').ActionRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),
@@ -1342,6 +1374,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
         sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
+        actionRepo: h.actionRepo as unknown as import('../repositories/ActionRepository').ActionRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),

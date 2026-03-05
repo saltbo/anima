@@ -5,6 +5,7 @@ import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepository'
+import type { ActionRepository } from '../repositories/ActionRepository'
 import type { GitService } from './GitService'
 import { Notifier } from '../soul/notifier'
 
@@ -17,6 +18,7 @@ export class MilestoneLifecycle {
     private commentRepo: CommentRepository,
     private backlogRepo: BacklogRepository,
     private milestoneItemRepo: MilestoneItemRepository,
+    private actionRepo: ActionRepository,
     private gitService: GitService,
     private notifier: Notifier
   ) {}
@@ -43,6 +45,7 @@ export class MilestoneLifecycle {
     })
     this.markBacklogItems(milestoneId, 'done')
     this.projectRepo.patch(projectId, { status: 'sleeping' })
+    this.logAction(projectId, milestoneId, 'in_review', 'completed', 'accept', 'human')
     this.broadcastStatus(projectId)
     this.notifier.notifyMilestoneCompleted(milestoneId)
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'completed', completedAt: nowISO() })
@@ -73,6 +76,7 @@ export class MilestoneLifecycle {
       completedAt: undefined,
     })
     this.projectRepo.patch(projectId, { status: 'sleeping' })
+    this.logAction(projectId, milestoneId, milestone.status, 'ready', 'rollback', 'human')
     this.broadcastStatus(projectId)
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'ready', iterationCount: 0 })
     log.info('milestone rolled back', { milestone: milestoneId })
@@ -97,8 +101,8 @@ export class MilestoneLifecycle {
     })
 
     this.milestoneRepo.save(projectId, { ...milestone, status: 'ready' })
+    this.logAction(projectId, milestoneId, 'in_review', 'ready', 'request_changes', 'human')
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'ready' })
-    log.info('changes requested, milestone set to ready', { milestone: milestoneId })
   }
 
   cancel(projectId: string, milestoneId: string): void {
@@ -113,6 +117,7 @@ export class MilestoneLifecycle {
     this.milestoneRepo.save(projectId, { ...milestone, status: 'cancelled' })
     this.releaseBacklogItems(milestoneId)
     this.projectRepo.patch(projectId, { status: 'sleeping', currentIteration: null })
+    this.logAction(projectId, milestoneId, milestone.status, 'cancelled', 'cancel', 'human')
     this.broadcastStatus(projectId)
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'cancelled' })
     log.info('milestone cancelled', { milestone: milestoneId })
@@ -130,6 +135,7 @@ export class MilestoneLifecycle {
     this.milestoneRepo.save(projectId, { ...milestone, status: 'closed' })
     this.releaseBacklogItems(milestoneId)
     this.projectRepo.patch(projectId, { status: 'sleeping', currentIteration: null })
+    this.logAction(projectId, milestoneId, milestone.status, 'closed', 'close', 'human')
     this.broadcastStatus(projectId)
     this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'closed' })
     log.info('milestone closed', { milestone: milestoneId })
@@ -154,5 +160,16 @@ export class MilestoneLifecycle {
     for (const itemId of itemIds) {
       this.backlogRepo.update(itemId, { status: 'todo' })
     }
+  }
+
+  private logAction(projectId: string, milestoneId: string, from: string, to: string, action: string, actor: string): void {
+    this.actionRepo.add({
+      projectId,
+      milestoneId,
+      type: 'status_changed',
+      actor,
+      detail: JSON.stringify({ from, to, action }),
+      createdAt: nowISO(),
+    })
   }
 }

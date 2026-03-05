@@ -1,4 +1,4 @@
-import type { Project, BacklogItem, Milestone, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload } from './index'
+import type { Project, BacklogItem, Milestone, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload, Action } from './index'
 import type { AgentEvent } from './agent'
 
 export type AgentRole = 'developer' | 'acceptor'
@@ -87,6 +87,10 @@ declare global {
       addMcpServer: (name: string, entry: McpServerEntry) => Promise<void>
       updateMcpServer: (name: string, entry: McpServerEntry) => Promise<void>
       removeMcpServer: (name: string) => Promise<void>
+
+      // ── Actions ────────────────────────────────────────────────────────────
+      getActionsByMilestone: (milestoneId: string) => Promise<Action[]>
+      getRecentActions: (limit: number) => Promise<Action[]>
     }
   }
 }

@@ -2,6 +2,7 @@ import { createLogger } from '../../logger'
 import { nowISO } from '../../lib/time'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
 import type { SessionRepository } from '../../repositories/SessionRepository'
+import type { ActionRepository } from '../../repositories/ActionRepository'
 import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { GitService } from '../../services/GitService'
 import type { Milestone, Iteration } from '../../../../src/types/index'
@@ -18,6 +19,7 @@ export interface ExecutionContextOptions {
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
   sessionRepo: SessionRepository
+  actionRepo: ActionRepository
   gitService: GitService
   notifier: Notifier
 }
@@ -42,6 +44,7 @@ export class MilestoneExecutionContext {
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
   private sessionRepo: SessionRepository
+  private actionRepo: ActionRepository
   private gitService: GitService
   private notifier: Notifier
 
@@ -51,6 +54,7 @@ export class MilestoneExecutionContext {
     this.projectRepo = opts.projectRepo
     this.milestoneRepo = opts.milestoneRepo
     this.sessionRepo = opts.sessionRepo
+    this.actionRepo = opts.actionRepo
     this.gitService = opts.gitService
     this.notifier = opts.notifier
   }
@@ -65,7 +69,16 @@ export class MilestoneExecutionContext {
 
     // Create branch and transition to in_progress if needed
     if (milestone.status === 'ready') {
+      const prevStatus = milestone.status
       milestone = await this.prepareBranch(milestone)
+      this.actionRepo.add({
+        projectId: this.projectId,
+        milestoneId: milestone.id,
+        type: 'status_changed',
+        actor: 'developer',
+        detail: JSON.stringify({ from: prevStatus, to: 'in_progress', action: 'start_execution' }),
+        createdAt: nowISO(),
+      })
     }
 
     const branch = `milestone/${milestone.id}`
@@ -102,7 +115,7 @@ export class MilestoneExecutionContext {
   }
 
   /** Register a new session ID on the agent_sessions table */
-  registerSession(iterationId: number, milestoneId: string, agentId: string, sessionId: string): void {
+  registerSession(iterationId: number, milestoneId: string, agentId: string, sessionId: string, iterationRound: number): void {
     this.sessionRepo.insert({
       id: sessionId,
       projectId: this.projectId,
@@ -113,6 +126,14 @@ export class MilestoneExecutionContext {
       totalTokens: 0,
       totalCost: 0,
       status: 'running',
+    })
+    this.actionRepo.add({
+      projectId: this.projectId,
+      milestoneId,
+      type: 'agent_started',
+      actor: agentId,
+      detail: JSON.stringify({ sessionId, iterationRound }),
+      createdAt: nowISO(),
     })
   }
 
@@ -128,6 +149,14 @@ export class MilestoneExecutionContext {
     const milestone = this.milestoneRepo.getById(state.milestone.id)
     if (milestone && agentId === 'reviewer' && this.isIterationApproved(milestone)) {
       this.milestoneRepo.updateIterationStatus(state.iteration.id, 'passed')
+      this.actionRepo.add({
+        projectId: this.projectId,
+        milestoneId: milestone.id,
+        type: 'status_changed',
+        actor: 'reviewer',
+        detail: JSON.stringify({ from: 'in_progress', to: 'in_review', action: 'approve' }),
+        createdAt: nowISO(),
+      })
       log.info('iteration approved by reviewer', { milestoneId: milestone.id })
     }
 

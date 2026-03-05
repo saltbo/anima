@@ -137,4 +137,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addMcpServer: (name: string, entry: unknown) => ipcRenderer.invoke('mcp:add', name, entry),
   updateMcpServer: (name: string, entry: unknown) => ipcRenderer.invoke('mcp:update', name, entry),
   removeMcpServer: (name: string) => ipcRenderer.invoke('mcp:remove', name),
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+  getActionsByMilestone: (milestoneId: string) => ipcRenderer.invoke('actions:listByMilestone', milestoneId),
+  getRecentActions: (limit: number) => ipcRenderer.invoke('actions:listRecent', limit),
 })

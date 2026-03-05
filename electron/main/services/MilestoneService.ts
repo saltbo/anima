@@ -7,6 +7,7 @@ import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { CheckRepository } from '../repositories/CheckRepository'
 import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepository'
+import type { ActionRepository } from '../repositories/ActionRepository'
 import { validateTransition } from './milestoneTransitions'
 import { nowISO } from '../lib/time'
 import { getAllAgents } from '../agents/registry'
@@ -34,6 +35,7 @@ export class MilestoneService {
     private projectRepo: ProjectRepository,
     private commentRepo: CommentRepository,
     private checkRepo: CheckRepository,
+    private actionRepo: ActionRepository,
     private getWindow: () => BrowserWindow | null,
     getSoulService: () => SoulService
   ) {
@@ -79,6 +81,16 @@ export class MilestoneService {
     if (!rule) {
       throw new Error(`Invalid transition: ${milestone.status} → ${payload.action}`)
     }
+
+    // Log action for timeline
+    this.actionRepo.add({
+      projectId,
+      milestoneId,
+      type: 'status_changed',
+      actor: 'human',
+      detail: JSON.stringify({ from: milestone.status, to: rule.to, action: payload.action }),
+      createdAt: nowISO(),
+    })
 
     if (rule.needsScheduler) {
       await this.getSoulService().transition(projectId, milestoneId, payload)
@@ -165,6 +177,16 @@ export class MilestoneService {
         totalChecks++
       }
     }
+
+    // Log milestone creation as status_changed (→ draft)
+    this.actionRepo.add({
+      projectId,
+      milestoneId,
+      type: 'status_changed',
+      actor: 'human',
+      detail: JSON.stringify({ from: null, to: 'draft', action: 'create' }),
+      createdAt: now,
+    })
 
     return { milestoneId, linkedBacklogItems: input.backlogItems.length, checks: totalChecks }
   }

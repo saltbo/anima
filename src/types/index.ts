@@ -123,6 +123,31 @@ export interface MilestoneGitInfo {
   diffStats: { filesChanged: number; insertions: number; deletions: number }
 }
 
+// ── Actions (timeline / activity feed) ───────────────────────────────────────
+
+export type ActionType = 'status_changed' | 'agent_started'
+
+export interface Action {
+  id: number
+  projectId: string
+  milestoneId?: string
+  type: ActionType
+  actor: string            // 'human' | agent id ('developer' | 'reviewer' | 'planner')
+  detail?: string          // JSON string
+  createdAt: string
+}
+
+export interface StatusChangedDetail {
+  from: string
+  to: string
+  action: string
+}
+
+export interface AgentStartedDetail {
+  sessionId: string
+  iterationRound: number
+}
+
 // ── Milestone state machine ──────────────────────────────────────────────────
 
 export type MilestoneAction =

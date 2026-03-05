@@ -108,6 +108,20 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON agent_sessions(project_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_milestone ON agent_sessions(milestone_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_iteration ON agent_sessions(iteration_id);
+
+CREATE TABLE IF NOT EXISTS actions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  milestone_id TEXT REFERENCES milestones(id) ON DELETE CASCADE,
+  type         TEXT NOT NULL,
+  actor        TEXT NOT NULL,
+  detail       TEXT,
+  created_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_actions_project ON actions(project_id);
+CREATE INDEX IF NOT EXISTS idx_actions_milestone ON actions(milestone_id);
+CREATE INDEX IF NOT EXISTS idx_actions_created ON actions(created_at);
 `
 
 function migrateIterationUsageColumns(db: Database.Database): void {
@@ -454,6 +468,27 @@ function migrateMilestoneStatusV3(db: Database.Database): void {
   `)
 }
 
+function migrateActionsTable(db: Database.Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='actions'").all()
+  if (tables.length > 0) return
+
+  log.info('migrating: creating actions table')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS actions (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      milestone_id TEXT REFERENCES milestones(id) ON DELETE CASCADE,
+      type         TEXT NOT NULL,
+      actor        TEXT NOT NULL,
+      detail       TEXT,
+      created_at   TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_actions_project ON actions(project_id);
+    CREATE INDEX IF NOT EXISTS idx_actions_milestone ON actions(milestone_id);
+    CREATE INDEX IF NOT EXISTS idx_actions_created ON actions(created_at);
+  `)
+}
+
 export function initSchema(db: Database.Database): void {
   log.info('initializing schema')
   db.exec(SCHEMA_SQL)
@@ -474,4 +509,5 @@ export function initSchema(db: Database.Database): void {
   migrateChecksMilestoneIdColumn(db)
   migrateAgentSessionsTable(db)
   migrateDropIterationSessionColumns(db)
+  migrateActionsTable(db)
 }

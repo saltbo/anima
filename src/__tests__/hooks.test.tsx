@@ -116,6 +116,10 @@ function createMockElectronAPI(projects: Project[] = []): MockElectronAPI {
     }),
     onIterationPaused: vi.fn(() => () => {}),
     onRateLimited: vi.fn(() => () => {}),
+
+    // Actions
+    getActionsByMilestone: vi.fn().mockResolvedValue([]),
+    getRecentActions: vi.fn().mockResolvedValue([]),
   }
 }
 
@@ -374,6 +378,7 @@ describe('useMilestoneDetail', () => {
       milestone,
       backlogItems: [],
       comments: [],
+      actions: [],
     }
     mockNavigate.mockClear()
   })
@@ -420,6 +425,7 @@ describe('useMilestoneDetail', () => {
         milestone: makeMilestone({ items: [], checks: [] }),
         backlogItems: [],
         comments: [],
+        actions: [],
       }
 
       const useMilestoneDetail = await importUseMilestoneDetail()
@@ -461,6 +467,7 @@ describe('useMilestoneDetail', () => {
         milestone: makeMilestone({ status: 'planned' }),
         backlogItems: [],
         comments: [],
+        actions: [],
       }
 
       const useMilestoneDetail = await importUseMilestoneDetail()
@@ -525,6 +532,7 @@ describe('useMilestoneDetail', () => {
         milestone: makeMilestone({ status: 'cancelled' }),
         backlogItems: [],
         comments: [],
+        actions: [],
       }
 
       const useMilestoneDetail = await importUseMilestoneDetail()
@@ -827,6 +835,7 @@ describe('useMilestoneDetail', () => {
         milestone: makeMilestone({ status: 'in_progress' }),
         backlogItems: [],
         comments: [],
+        actions: [],
       }
 
       const useMilestoneDetail = await importUseMilestoneDetail()
@@ -846,6 +855,7 @@ describe('useMilestoneDetail', () => {
         milestone: makeMilestone({ status: 'draft' }),
         backlogItems: [],
         comments: [],
+        actions: [],
       }
 
       const useMilestoneDetail = await importUseMilestoneDetail()

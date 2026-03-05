@@ -1,65 +1,28 @@
-import { useState, useCallback, useEffect } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { X, Code, ShieldCheck } from 'lucide-react'
+import { X } from 'lucide-react'
 import { formatTokens, formatElapsed } from '@/lib/time'
 import { AgentChat } from '@/components/AgentChat'
-import { cn } from '@/lib/utils'
-import type { Iteration } from '@/types/index'
-
-type Role = 'developer' | 'acceptor'
+import type { AgentSession } from '@/types/index'
 
 export interface SessionDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  iteration: Iteration | null
-  /** Which tab to show initially */
-  initialRole?: Role
-  /** 1-based display number for the iteration */
-  displayNum?: number
+  session: AgentSession | null
 }
 
-export function SessionDrawer({
-  open,
-  onOpenChange,
-  iteration,
-  initialRole = 'developer',
-  displayNum,
-}: SessionDrawerProps) {
-  const [activeRole, setActiveRole] = useState<Role>(initialRole)
+const AGENT_LABELS: Record<string, string> = {
+  developer: 'Developer',
+  reviewer: 'Acceptor',
+  planner: 'Planner',
+}
 
-  // Sync active tab whenever the caller changes initialRole (e.g. clicking
-  // Acceptor "View Session →" while drawer is already open for Developer)
-  useEffect(() => {
-    setActiveRole(initialRole)
-  }, [initialRole])
+export function SessionDrawer({ open, onOpenChange, session }: SessionDrawerProps) {
+  if (!session) return null
 
-  // Reset active role when the drawer opens with a new initial role
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (nextOpen) setActiveRole(initialRole)
-      onOpenChange(nextOpen)
-    },
-    [initialRole, onOpenChange],
-  )
-
-  if (!iteration) return null
-
-  const devSession = iteration.sessions?.find((s) => s.agentId === 'developer')
-  const accSession = iteration.sessions?.find((s) => s.agentId === 'reviewer')
-
-  const sessionId =
-    activeRole === 'developer'
-      ? devSession?.id
-      : accSession?.id
-
-  const activeSession = activeRole === 'developer' ? devSession : accSession
-
-  const num = displayNum ?? iteration.round
-  const tokens = activeSession?.totalTokens
-  const cost = activeSession?.totalCost
+  const label = AGENT_LABELS[session.agentId] ?? session.agentId
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         {/* Overlay */}
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out" />
@@ -69,16 +32,16 @@ export function SessionDrawer({
           className="fixed right-0 top-0 z-50 flex h-full w-[480px] flex-col border-l border-border bg-background shadow-2xl data-[state=open]:animate-slide-in-from-right data-[state=closed]:animate-slide-out-to-right focus:outline-none"
           aria-describedby={undefined}
         >
-          {/* ── Header ──────────────────────────────────── */}
+          {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
             <div className="min-w-0">
               <DialogPrimitive.Title className="text-sm font-semibold text-foreground truncate">
-                Iteration #{num} — {activeRole === 'developer' ? 'Developer' : 'Acceptor'} Session
+                {label} Session
               </DialogPrimitive.Title>
               <div className="mt-0.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span>{formatElapsed(iteration.startedAt, iteration.completedAt)}</span>
-                {tokens !== undefined && tokens > 0 && <span>{formatTokens(tokens)} tokens</span>}
-                {cost !== undefined && cost > 0 && <span>${cost.toFixed(2)}</span>}
+                <span>{formatElapsed(session.startedAt, session.completedAt)}</span>
+                {session.totalTokens > 0 && <span>{formatTokens(session.totalTokens)} tokens</span>}
+                {session.totalCost > 0 && <span>${session.totalCost.toFixed(2)}</span>}
               </div>
             </div>
             <DialogPrimitive.Close className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
@@ -87,73 +50,12 @@ export function SessionDrawer({
             </DialogPrimitive.Close>
           </div>
 
-          {/* ── Tab Bar ──────────────────────────────────── */}
-          <div className="flex border-b border-border px-5">
-            <TabButton
-              active={activeRole === 'developer'}
-              onClick={() => setActiveRole('developer')}
-              icon={<Code size={13} />}
-              label="Developer"
-              disabled={!devSession}
-            />
-            <TabButton
-              active={activeRole === 'acceptor'}
-              onClick={() => setActiveRole('acceptor')}
-              icon={<ShieldCheck size={13} />}
-              label="Acceptor"
-              disabled={!accSession}
-            />
-          </div>
-
-          {/* ── Content ─────────────────────────────────── */}
+          {/* Content */}
           <div className="flex-1 min-h-0 overflow-hidden">
-            {sessionId ? (
-              <AgentChat sessionId={sessionId} className="h-full" />
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <p className="text-sm text-muted-foreground">No session recorded.</p>
-              </div>
-            )}
+            <AgentChat sessionId={session.id} className="h-full" />
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
-  )
-}
-
-/* ── TabButton ──────────────────────────────────────────────────────────── */
-
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-  disabled,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-  disabled?: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors',
-        active
-          ? 'text-foreground'
-          : 'text-muted-foreground hover:text-foreground/80',
-        disabled && 'opacity-40 cursor-not-allowed',
-      )}
-    >
-      {icon}
-      {label}
-      {/* Active underline */}
-      {active && (
-        <span className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full bg-primary" />
-      )}
-    </button>
   )
 }

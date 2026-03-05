@@ -5,6 +5,7 @@ import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
 import type { SessionRepository } from '../../repositories/SessionRepository'
 import type { CommentRepository } from '../../repositories/CommentRepository'
+import type { ActionRepository } from '../../repositories/ActionRepository'
 import type { GitService } from '../../services/GitService'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
@@ -29,6 +30,7 @@ export interface AgentDispatchTaskOptions {
   milestoneRepo: MilestoneRepository
   sessionRepo: SessionRepository
   commentRepo: CommentRepository
+  actionRepo: ActionRepository
   gitService: GitService
   agentRunner: AgentRunner
   notifier: Notifier
@@ -72,6 +74,7 @@ export class AgentDispatchTask implements SoulTask {
       projectRepo: opts.projectRepo,
       milestoneRepo: opts.milestoneRepo,
       sessionRepo: opts.sessionRepo,
+      actionRepo: opts.actionRepo,
       gitService: opts.gitService,
       notifier: opts.notifier,
     })
@@ -188,7 +191,7 @@ export class AgentDispatchTask implements SoulTask {
         // New session
         const sessionId = randomUUID()
         log.info('starting new agent session', { agentId, sessionId, milestoneId: state.milestone.id })
-        this.executionCtx.registerSession(state.iteration.id, state.milestone.id, agentId, sessionId)
+        this.executionCtx.registerSession(state.iteration.id, state.milestone.id, agentId, sessionId, state.iteration.round)
         this.notifier.broadcastAgentEvent(agentId === 'developer' ? 'developer' : 'acceptor', sessionId)
         result = await this.agentRunner.run({
           projectPath: this.projectPath,

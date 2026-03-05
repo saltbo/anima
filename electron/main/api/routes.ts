@@ -8,6 +8,7 @@ import type { SetupService } from '../services/SetupService'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { CheckRepository } from '../repositories/CheckRepository'
+import type { ActionRepository } from '../repositories/ActionRepository'
 import type { Milestone, TransitionPayload, BacklogItem, BacklogItemPriority, WakeSchedule } from '../../../src/types/index'
 import type { McpServerEntry } from '../mcp/mcpConfig'
 import type { SetupType } from '../services/SetupService'
@@ -36,6 +37,7 @@ export interface ServiceContext {
   setupService: SetupService
   commentRepo: CommentRepository
   checkRepo: CheckRepository
+  actionRepo: ActionRepository
   sessionWatcher: SessionWatcher
 }
 
@@ -45,7 +47,7 @@ export function createRoutes(
   ctx: ServiceContext,
   getWindow: () => BrowserWindow | null
 ): Record<string, ApiHandler> {
-  const { projectService, backlogService, milestoneService, milestoneRepo, soulService, setupService, commentRepo, checkRepo, sessionWatcher } = ctx
+  const { projectService, backlogService, milestoneService, milestoneRepo, soulService, setupService, commentRepo, checkRepo, actionRepo, sessionWatcher } = ctx
 
   return {
     // ── Projects ──────────────────────────────────────────────────────────
@@ -146,6 +148,10 @@ export function createRoutes(
       checkRepo.bulkAdd(checks),
     'checks:update': (checkId: string, patch: Partial<Pick<import('../../../src/types/index').MilestoneCheck, 'status' | 'title' | 'description' | 'iteration'>>) =>
       checkRepo.update(checkId, patch),
+
+    // ── Actions ────────────────────────────────────────────────────────────
+    'actions:listByMilestone': (milestoneId: string) => actionRepo.getByMilestoneId(milestoneId),
+    'actions:listRecent': (limit: number) => actionRepo.getRecent(limit ?? 50),
 
     // ── Scheduler / Project ───────────────────────────────────────────────
     'project:wake': (projectId: string) => soulService.wake(projectId),

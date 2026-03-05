@@ -6,6 +6,7 @@ import type { ProjectIterationStatus } from '@/types/electron.d'
 import type {
   Milestone, BacklogItem, Iteration,
   MilestoneComment, MilestoneGitInfo, MilestoneAction,
+  Action, AgentSession,
 } from '@/types/index'
 import type { MilestoneDetailLoaderData } from '@/types/router'
 
@@ -20,6 +21,8 @@ export function useMilestoneDetail() {
   const [milestone, setMilestone] = useState<Milestone | null>(loaderData.milestone)
   const [backlogItems] = useState<BacklogItem[]>(loaderData.backlogItems)
   const [comments, setComments] = useState<MilestoneComment[]>(loaderData.comments)
+  const [actions, setActions] = useState<Action[]>(loaderData.actions)
+  const [sessions, setSessions] = useState<AgentSession[]>(loaderData.milestone?.iterations?.flatMap((i) => i.sessions ?? []) ?? [])
   const [gitInfo, setGitInfo] = useState<MilestoneGitInfo | null>(null)
 
   // ── Dialog state ────────────────────────────────────────────────────────
@@ -57,8 +60,12 @@ export function useMilestoneDetail() {
       window.electronAPI.getMilestones(project.id).then((milestones) => {
         const m = milestones.find((ms) => ms.id === mid) ?? null
         setMilestone(m)
-        if (m) setIterations(m.iterations ?? [])
+        if (m) {
+          setIterations(m.iterations ?? [])
+          setSessions(m.iterations?.flatMap((i) => i.sessions ?? []) ?? [])
+        }
       })
+      window.electronAPI.getActionsByMilestone(mid!).then(setActions)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mid, project?.id])
@@ -96,6 +103,9 @@ export function useMilestoneDetail() {
         if (d.milestone.id !== mid) return
         setMilestone(d.milestone)
         setIterations(d.milestone.iterations ?? [])
+        setSessions(d.milestone.iterations?.flatMap((i) => i.sessions ?? []) ?? [])
+        // Refresh actions
+        window.electronAPI.getActionsByMilestone(mid!).then(setActions)
       })
     )
 
@@ -217,7 +227,7 @@ export function useMilestoneDetail() {
 
     // Core data
     milestone, backlogItems, comments, gitInfo,
-    iterations, status, activeAgent,
+    iterations, actions, sessions, status, activeAgent,
     commentText, setCommentText,
 
     // Derived

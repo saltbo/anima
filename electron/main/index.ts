@@ -11,6 +11,7 @@ import { CommentRepository } from './repositories/CommentRepository'
 import { CheckRepository } from './repositories/CheckRepository'
 import { MilestoneItemRepository } from './repositories/MilestoneItemRepository'
 import { SessionRepository } from './repositories/SessionRepository'
+import { ActionRepository } from './repositories/ActionRepository'
 import { ProjectService } from './services/ProjectService'
 import { BacklogService } from './services/BacklogService'
 import { MilestoneService } from './services/MilestoneService'
@@ -104,6 +105,7 @@ app.whenReady().then(() => {
   const checkRepo = new CheckRepository(db)
   const milestoneItemRepo = new MilestoneItemRepository(db)
   const sessionRepo = new SessionRepository(db)
+  const actionRepo = new ActionRepository(db)
 
   // ── Services ──────────────────────────────────────────────────────────
   const gitService = new GitService()
@@ -111,14 +113,14 @@ app.whenReady().then(() => {
   const projectService = new ProjectService(projectRepo)
   const backlogService = new BacklogService(backlogRepo)
   const milestoneService = new MilestoneService(
-    milestoneRepo, backlogRepo, milestoneItemRepo, projectRepo, commentRepo, checkRepo,
+    milestoneRepo, backlogRepo, milestoneItemRepo, projectRepo, commentRepo, checkRepo, actionRepo,
     getWindow,
     () => soulService!
   )
   const setupService = new SetupService(agentRunner)
   sessionWatcher = new SessionWatcher(getWindow)
   soulService = new SoulService(
-    projectRepo, milestoneRepo, sessionRepo, commentRepo, backlogRepo, milestoneItemRepo, gitService, agentRunner, getWindow
+    projectRepo, milestoneRepo, sessionRepo, commentRepo, backlogRepo, milestoneItemRepo, actionRepo, gitService, agentRunner, getWindow
   )
 
   // ── Wire up ───────────────────────────────────────────────────────────
@@ -133,6 +135,7 @@ app.whenReady().then(() => {
     setupService,
     commentRepo,
     checkRepo,
+    actionRepo,
     sessionWatcher,
   }, getWindow)
   registerIpcAdapter(routes)
