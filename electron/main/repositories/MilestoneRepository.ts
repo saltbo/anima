@@ -222,8 +222,8 @@ export class MilestoneRepository {
     this.db
       .prepare(
         `INSERT INTO iterations
-         (milestone_id, round, developer_session_id, acceptor_session_id, outcome, started_at, completed_at, total_tokens, total_cost, model)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (milestone_id, round, developer_session_id, acceptor_session_id, outcome, started_at, completed_at, total_tokens, total_cost, model, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         iteration.milestoneId,
@@ -235,7 +235,8 @@ export class MilestoneRepository {
         iteration.completedAt ?? null,
         iteration.totalTokens ?? 0,
         iteration.totalCost ?? 0,
-        iteration.model ?? null
+        iteration.model ?? null,
+        iteration.status ?? 'pending'
       )
   }
 

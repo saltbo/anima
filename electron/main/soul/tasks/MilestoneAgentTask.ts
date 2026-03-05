@@ -65,61 +65,61 @@ export class MilestoneAgentTask implements SoulTask {
       return
     }
 
-    // Prepare if needed (create branch, set in-progress)
-    if (milestone.status === 'ready') {
-      milestone = await this.prepare(milestone)
-    }
-
     const mcpConfigPath = getMcpConfigPath()
-    const branch = `milestone/${milestone.id}`
     const agentId = d.agentId
 
-    // Get or create current iteration
-    let iteration = this.milestoneRepo.getCurrentIteration(milestone.id)
-    if (!iteration) {
-      // Create new iteration
-      const round = (milestone.iterationCount ?? 0) + 1
-      this.milestoneRepo.addIteration({
-        milestoneId: milestone.id,
-        round,
-        startedAt: nowISO(),
-        status: 'in_progress',
-      })
-      // Update milestone iteration count
-      this.milestoneRepo.save(this.projectId, {
-        ...milestone,
-        iterationCount: round,
-      })
-      iteration = this.milestoneRepo.getCurrentIteration(milestone.id)
-      if (!iteration) {
-        log.error('failed to create iteration')
-        return
-      }
-    }
-
-    // Increment dispatch count
-    this.milestoneRepo.incrementDispatchCount(iteration.id)
-
-    // Mark the triggering comment as dispatched
-    if (d.commentId) {
-      this.commentRepo.markMentionDispatched(d.commentId)
-    }
-
-    // Determine run vs resume
-    const sessionField = agentId === 'developer' ? 'developer' : 'acceptor'
-    const existingSessionId =
-      sessionField === 'developer' ? iteration.developerSessionId : iteration.acceptorSessionId
-
-    const systemPrompt =
-      agentId === 'developer' ? buildDeveloperSystemPrompt() : buildAcceptorSystemPrompt()
-
-    // Build the dispatch message
-    const mentionComment = d.commentId
-      ? this.commentRepo.getByMilestoneId(milestone.id).find((c) => c.id === d.commentId)
-      : undefined
-    const message = buildDispatchMessage(agentId, milestone.id, branch, mentionComment)
-
     try {
+      // Prepare if needed (create branch, set in-progress)
+      if (milestone.status === 'ready') {
+        milestone = await this.prepare(milestone)
+      }
+
+      const branch = `milestone/${milestone.id}`
+
+      // Get or create current iteration
+      let iteration = this.milestoneRepo.getCurrentIteration(milestone.id)
+      if (!iteration) {
+        // Create new iteration
+        const round = (milestone.iterationCount ?? 0) + 1
+        this.milestoneRepo.addIteration({
+          milestoneId: milestone.id,
+          round,
+          startedAt: nowISO(),
+          status: 'in_progress',
+        })
+        // Update milestone iteration count
+        this.milestoneRepo.save(this.projectId, {
+          ...milestone,
+          iterationCount: round,
+        })
+        iteration = this.milestoneRepo.getCurrentIteration(milestone.id)
+        if (!iteration) {
+          log.error('failed to create iteration')
+          return
+        }
+      }
+
+      // Increment dispatch count
+      this.milestoneRepo.incrementDispatchCount(iteration.id)
+
+      // Mark the triggering comment as dispatched
+      if (d.commentId) {
+        this.commentRepo.markMentionDispatched(d.commentId)
+      }
+
+      // Determine run vs resume
+      const sessionField = agentId === 'developer' ? 'developer' : 'acceptor'
+      const existingSessionId =
+        sessionField === 'developer' ? iteration.developerSessionId : iteration.acceptorSessionId
+
+      const systemPrompt =
+        agentId === 'developer' ? buildDeveloperSystemPrompt() : buildAcceptorSystemPrompt()
+
+      // Build the dispatch message
+      const mentionComment = d.commentId
+        ? this.commentRepo.getByMilestoneId(milestone.id).find((c) => c.id === d.commentId)
+        : undefined
+      const message = buildDispatchMessage(agentId, milestone.id, branch, mentionComment)
       let result: RunResult
 
       if (existingSessionId) {
@@ -185,7 +185,16 @@ export class MilestoneAgentTask implements SoulTask {
         return
       }
 
-      log.warn('agent execution error', { error: msg, agentId, milestoneId: milestone.id })
+      log.error('agent execution error', { error: msg, agentId, milestoneId: milestone.id })
+
+      // Rollback milestone to cancelled so it doesn't stay stuck in in_progress
+      const current = this.milestoneRepo.getById(milestone.id)
+      if (current && current.status === 'in_progress') {
+        this.milestoneRepo.save(this.projectId, { ...current, status: 'cancelled' })
+        this.projectRepo.patch(this.projectId, { status: 'idle', currentIteration: null })
+        this.broadcastStatus()
+        this.notifier.broadcastMilestoneUpdate({ ...current, status: 'cancelled' })
+      }
     }
   }
 

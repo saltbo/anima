@@ -113,6 +113,7 @@ export function MilestoneDetail() {
             onRollback={() => setRollbackOpen(true)}
             onCloseWithComment={handleCloseWithComment}
             onApprove={handleMarkReady}
+            onCancel={() => setCancelOpen(true)}
           />
         </div>
 

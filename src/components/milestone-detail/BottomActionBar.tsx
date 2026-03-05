@@ -1,5 +1,6 @@
 import { MergeDecisionCard } from './MergeDecisionCard'
 import { ApproveCard } from './ApproveCard'
+import { CancelCard } from './CancelCard'
 import { CommentInput } from './CommentInput'
 import type { MilestoneStatus } from '@/types/index'
 
@@ -17,10 +18,14 @@ interface BottomActionBarProps {
   onRollback: () => void
   onCloseWithComment?: () => void
   onApprove?: () => void
+  onCancel?: () => void
 }
 
-// Terminal statuses where close is not available
-const TERMINAL_STATUSES: MilestoneStatus[] = ['completed', 'cancelled', 'closed']
+// Statuses where close is not available (terminal + in_progress which must cancel first)
+const NO_CLOSE_STATUSES: MilestoneStatus[] = ['completed', 'cancelled', 'closed', 'in_progress']
+
+// Statuses that support cancel
+const CANCELLABLE_STATUSES: MilestoneStatus[] = ['ready', 'in_progress']
 
 export function BottomActionBar({
   status,
@@ -28,11 +33,12 @@ export function BottomActionBar({
   passedACCount, totalACCount, iterationCount,
   commentText, onCommentChange, onCommentSubmit,
   onAcceptMerge, onRollback, onCloseWithComment,
-  onApprove,
+  onApprove, onCancel,
 }: BottomActionBarProps) {
   const isInReview = status === 'in_review'
   const isPlanned = status === 'planned'
-  const canClose = !TERMINAL_STATUSES.includes(status)
+  const canClose = !NO_CLOSE_STATUSES.includes(status)
+  const canCancel = CANCELLABLE_STATUSES.includes(status)
 
   return (
     <div className="pr-6 pt-4 pb-5 border-t border-border bg-card space-y-3.5 shrink-0">
@@ -49,6 +55,9 @@ export function BottomActionBar({
           onAcceptMerge={onAcceptMerge}
           onRollback={onRollback}
         />
+      )}
+      {canCancel && onCancel && (
+        <CancelCard onCancel={onCancel} />
       )}
       <CommentInput
         value={commentText}
