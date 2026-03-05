@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Monitor, Moon, Sun, Plus, Trash2, Server, type LucideIcon } from 'lucide-react'
+import { Monitor, Moon, Sun, Plus, Trash2, Server, RefreshCw, Download, RotateCcw, Check, type LucideIcon } from 'lucide-react'
 import { useTheme, type Theme } from '@/store/theme'
 import { cn } from '@/lib/utils'
-import type { McpServerEntry } from '@/types/electron'
+import type { McpServerEntry, UpdaterStatus } from '@/types/electron'
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: LucideIcon }[] = [
   { value: 'light', label: 'Light', icon: Sun },
@@ -35,6 +35,96 @@ function ThemePicker() {
 }
 
 // ── MCP Servers ──────────────────────────────────────────────────────────────
+
+function UpdateSection() {
+  const [status, setStatus] = useState<UpdaterStatus | null>(null)
+
+  useEffect(() => {
+    return window.electronAPI.onUpdaterStatus(setStatus)
+  }, [])
+
+  const handleCheck = async () => {
+    setStatus({ status: 'checking' })
+    try {
+      await window.electronAPI.checkForUpdates()
+    } catch {
+      setStatus({ status: 'error', error: 'Failed to check for updates' })
+    }
+  }
+
+  const handleDownload = async () => {
+    try {
+      await window.electronAPI.downloadUpdate()
+    } catch {
+      setStatus({ status: 'error', error: 'Download failed' })
+    }
+  }
+
+  const handleInstall = () => {
+    window.electronAPI.installUpdate()
+  }
+
+  const s = status?.status
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="min-w-0">
+        <p className="text-sm text-foreground">Software Update</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {!status && 'Check for new versions.'}
+          {s === 'checking' && 'Checking for updates...'}
+          {s === 'up-to-date' && 'You\'re on the latest version.'}
+          {s === 'available' && `Version ${status.version} is available.`}
+          {s === 'downloading' && `Downloading... ${status.percent}%`}
+          {s === 'ready' && `Version ${status.version} is ready to install.`}
+          {s === 'error' && status.error}
+        </p>
+      </div>
+      <div className="flex-shrink-0">
+        {(!status || s === 'up-to-date' || s === 'error') && (
+          <button
+            onClick={handleCheck}
+            disabled={s === 'checking'}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+              'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30',
+              s === 'checking' && 'opacity-50 cursor-not-allowed'
+            )}
+          >
+            {s === 'up-to-date' ? <Check size={13} /> : <RefreshCw size={13} className={s === 'checking' ? 'animate-spin' : ''} />}
+            Check
+          </button>
+        )}
+        {s === 'available' && (
+          <button
+            onClick={handleDownload}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Download size={13} />
+            Download
+          </button>
+        )}
+        {s === 'downloading' && (
+          <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-300"
+              style={{ width: `${status.percent}%` }}
+            />
+          </div>
+        )}
+        {s === 'ready' && (
+          <button
+            onClick={handleInstall}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <RotateCcw size={13} />
+            Restart & Update
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function McpServersSection() {
   const [servers, setServers] = useState<Record<string, McpServerEntry>>({})
@@ -201,8 +291,11 @@ export function GlobalSettings() {
       </Section>
 
       <Section title="About">
-        <div className="space-y-2">
+        <div className="space-y-4">
           <Field label="Version" value={__APP_VERSION__} />
+          <div className="border-t border-border pt-4">
+            <UpdateSection />
+          </div>
         </div>
       </Section>
     </div>

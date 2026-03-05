@@ -1,7 +1,9 @@
 import './logger' // must be first — initializes electron-log & IPC transport
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
+import log from 'electron-log'
 import { getDb, closeDb } from './db/index'
 import { initSchema } from './db/schema'
 import { ProjectRepository } from './repositories/ProjectRepository'
@@ -34,6 +36,56 @@ let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 let soulService: SoulService | null = null
 let sessionWatcher: SessionWatcher | null = null
+
+// ── Auto Updater ────────────────────────────────────────────────────────────
+
+function setupAutoUpdater(getWindow: () => BrowserWindow | null): void {
+  autoUpdater.logger = log
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+
+  const send = (channel: string, data?: unknown) => {
+    getWindow()?.webContents.send(channel, data)
+  }
+
+  autoUpdater.on('checking-for-update', () => {
+    send('updater:status', { status: 'checking' })
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    send('updater:status', { status: 'available', version: info.version })
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    send('updater:status', { status: 'up-to-date' })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    send('updater:status', { status: 'downloading', percent: Math.round(progress.percent) })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    send('updater:status', { status: 'ready', version: info.version })
+  })
+
+  autoUpdater.on('error', (err) => {
+    log.error('Auto-updater error:', err)
+    send('updater:status', { status: 'error', error: err.message })
+  })
+
+  ipcMain.handle('updater:check', async () => {
+    const result = await autoUpdater.checkForUpdates()
+    return result?.updateInfo?.version ?? null
+  })
+
+  ipcMain.handle('updater:download', async () => {
+    await autoUpdater.downloadUpdate()
+  })
+
+  ipcMain.handle('updater:install', () => {
+    autoUpdater.quitAndInstall()
+  })
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -150,6 +202,12 @@ app.whenReady().then(() => {
   }, getWindow)
   registerIpcAdapter(routes)
   startSocketServer(routes, bridgeSocketPath)
+
+  // ── Auto Updater ─────────────────────────────────────────────────────
+  setupAutoUpdater(getWindow)
+  if (!is.dev) {
+    autoUpdater.checkForUpdates().catch((err) => log.warn('Update check failed:', err))
+  }
 
   soulService.startAll()
 

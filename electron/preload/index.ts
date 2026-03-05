@@ -145,4 +145,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getActionsByMilestone: (milestoneId: string) => ipcRenderer.invoke('actions:listByMilestone', milestoneId),
   getActionsByProject: (projectId: string, limit: number) => ipcRenderer.invoke('actions:listByProject', projectId, limit),
   getRecentActions: (limit: number) => ipcRenderer.invoke('actions:listRecent', limit),
+
+  // ── Auto Updater ──────────────────────────────────────────────────────────
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onUpdaterStatus: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('updater:status', handler)
+    return () => ipcRenderer.removeListener('updater:status', handler)
+  },
 })

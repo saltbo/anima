@@ -9,7 +9,13 @@
     "url": "https://github.com/saltbo/anima"
   },
   "homepage": "https://github.com/saltbo/anima",
-  "keywords": ["electron", "ai", "autonomous", "coding-agent", "developer-tools"],
+  "keywords": [
+    "electron",
+    "ai",
+    "autonomous",
+    "coding-agent",
+    "developer-tools"
+  ],
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -48,12 +54,25 @@
             "arm64",
             "x64"
           ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ],
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "notarize": true
     },
     "win": {
       "target": "nsis"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "saltbo",
+      "repo": "anima"
     }
   },
   "dependencies": {
@@ -91,6 +110,7 @@
     "cmdk": "^1.1.1",
     "dayjs": "^1.11.19",
     "electron-log": "^5.4.3",
+    "electron-updater": "^6.8.3",
     "embla-carousel-react": "^8.6.0",
     "lucide-react": "^0.575.0",
     "media-chrome": "^4.18.0",

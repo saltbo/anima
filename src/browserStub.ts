@@ -65,5 +65,10 @@ export function installBrowserStub() {
     addMcpServer: async () => {},
     updateMcpServer: async () => {},
     removeMcpServer: async () => {},
+
+    checkForUpdates: async () => null,
+    downloadUpdate: async () => {},
+    installUpdate: () => {},
+    onUpdaterStatus: () => () => {},
   }
 }

@@ -1,6 +1,14 @@
 import type { Project, BacklogItem, Milestone, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload, Action } from './index'
 import type { AgentEvent } from './agent'
 
+export type UpdaterStatus =
+  | { status: 'checking' }
+  | { status: 'available'; version: string }
+  | { status: 'up-to-date' }
+  | { status: 'downloading'; percent: number }
+  | { status: 'ready'; version: string }
+  | { status: 'error'; error: string }
+
 export type AgentRole = 'developer' | 'reviewer'
 
 export interface McpServerEntry {
@@ -97,6 +105,12 @@ declare global {
       getActionsByMilestone: (milestoneId: string) => Promise<Action[]>
       getActionsByProject: (projectId: string, limit: number) => Promise<Action[]>
       getRecentActions: (limit: number) => Promise<Action[]>
+
+      // ── Auto Updater ──────────────────────────────────────────────────────
+      checkForUpdates: () => Promise<string | null>
+      downloadUpdate: () => Promise<void>
+      installUpdate: () => void
+      onUpdaterStatus: (callback: (data: UpdaterStatus) => void) => () => void
     }
   }
 }
