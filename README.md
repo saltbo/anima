@@ -77,6 +77,12 @@ Download the latest release for your platform from the [Releases](https://github
 | macOS (Intel) | `.dmg` (x64) |
 | Windows | `.exe` |
 
+### Homebrew (macOS)
+
+```bash
+brew install saltbo/tap/anima
+```
+
 ## Supported Agents
 
 Anima is designed to work with multiple AI coding agents. Current support status:
