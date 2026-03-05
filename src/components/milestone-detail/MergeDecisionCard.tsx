@@ -1,4 +1,4 @@
-import { CircleCheck, Check, RotateCcw } from 'lucide-react'
+import { CircleCheck, Check, RotateCcw, MessageSquare } from 'lucide-react'
 
 interface MergeDecisionCardProps {
   completedTaskCount: number
@@ -7,6 +7,7 @@ interface MergeDecisionCardProps {
   totalACCount: number
   iterationCount: number
   onAcceptMerge: () => void
+  onRequestChanges: () => void
   onRollback: () => void
 }
 
@@ -14,7 +15,7 @@ export function MergeDecisionCard({
   completedTaskCount, totalTaskCount,
   passedACCount, totalACCount,
   iterationCount,
-  onAcceptMerge, onRollback,
+  onAcceptMerge, onRequestChanges, onRollback,
 }: MergeDecisionCardProps) {
   const allTasksDone = completedTaskCount === totalTaskCount && totalTaskCount > 0
   const allACPassed = passedACCount === totalACCount && totalACCount > 0
@@ -48,6 +49,13 @@ export function MergeDecisionCard({
         >
           <Check size={14} />
           Accept && Merge
+        </button>
+        <button
+          onClick={onRequestChanges}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-background text-amber-600 text-[13px] font-medium border border-border hover:bg-amber-50 transition-colors cursor-pointer"
+        >
+          <MessageSquare size={14} />
+          Request Changes
         </button>
         <button
           onClick={onRollback}

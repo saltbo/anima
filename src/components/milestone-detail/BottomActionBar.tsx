@@ -15,6 +15,7 @@ interface BottomActionBarProps {
   onCommentChange: (value: string) => void
   onCommentSubmit: () => void
   onAcceptMerge: () => void
+  onRequestChanges: () => void
   onRollback: () => void
   onCloseWithComment?: () => void
   onApprove?: () => void
@@ -32,7 +33,7 @@ export function BottomActionBar({
   completedTaskCount, totalTaskCount,
   passedACCount, totalACCount, iterationCount,
   commentText, onCommentChange, onCommentSubmit,
-  onAcceptMerge, onRollback, onCloseWithComment,
+  onAcceptMerge, onRequestChanges, onRollback, onCloseWithComment,
   onApprove, onCancel,
 }: BottomActionBarProps) {
   const isInReview = status === 'in_review'
@@ -53,6 +54,7 @@ export function BottomActionBar({
           totalACCount={totalACCount}
           iterationCount={iterationCount}
           onAcceptMerge={onAcceptMerge}
+          onRequestChanges={onRequestChanges}
           onRollback={onRollback}
         />
       )}

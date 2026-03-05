@@ -36,7 +36,7 @@ export interface ExecutionState {
 //
 // Manages the execution-phase lifecycle around an agent run:
 //   before(): prepare git branch, ensure iteration, resolve session
-//   after():  update usage, check iteration approval, broadcast
+//   after():  update usage, broadcast
 
 export class MilestoneExecutionContext {
   private projectId: string
@@ -145,18 +145,10 @@ export class MilestoneExecutionContext {
       result.usage.cacheReadTokens + result.usage.cacheCreationTokens
     this.sessionRepo.updateUsage(result.sessionId, tokens, result.cost, result.model)
 
-    // Check if reviewer approved this iteration
+    // After reviewer finishes, check if this iteration is approved
     const milestone = this.milestoneRepo.getById(state.milestone.id)
     if (milestone && agentId === 'reviewer' && this.isIterationApproved(milestone)) {
       this.milestoneRepo.updateIterationStatus(state.iteration.id, 'passed')
-      this.actionRepo.add({
-        projectId: this.projectId,
-        milestoneId: milestone.id,
-        type: 'status_changed',
-        actor: 'reviewer',
-        detail: JSON.stringify({ from: 'in_progress', to: 'in_review', action: 'approve' }),
-        createdAt: nowISO(),
-      })
       log.info('iteration approved by reviewer', { milestoneId: milestone.id })
     }
 

@@ -93,8 +93,8 @@ export function buildDispatchMessage(
         parts.push('\nReview the latest changes and post your feedback.')
       }
 
-      parts.push('If all checks for this iteration pass, state approval clearly. If any fail, end your comment with `@developer fix ...`.')
-      parts.push('When ALL checks for the ENTIRE milestone have passed, call milestones:transition with action="approve" to move it from in_progress to in_review.')
+      parts.push('If the checks you reviewed all pass, state approval clearly. If any fail, end your comment with `@developer fix ...`.')
+      parts.push('IMPORTANT: Only call milestones:transition with action="approve" when ALL checks for the ENTIRE milestone (not just this iteration) have status "passed". Use checks:list to verify before transitioning.')
     }
   }
 

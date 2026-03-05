@@ -102,6 +102,7 @@ export function MilestoneDetail() {
             onCommentChange={setCommentText}
             onCommentSubmit={handleAddComment}
             onAcceptMerge={handleAcceptMerge}
+            onRequestChanges={() => setRequestChangesOpen(true)}
             onRollback={() => setRollbackOpen(true)}
             onCloseWithComment={handleCloseWithComment}
             onApprove={handleMarkReady}

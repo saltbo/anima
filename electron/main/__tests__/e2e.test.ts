@@ -854,7 +854,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       expect(h.agentRunner.calls[0].method).toBe('run')
     })
 
-    it('dispatch developer with all checks passed → iteration marked passed (reviewer drives completion)', async () => {
+    it('dispatch reviewer with all checks passed → iteration marked passed (reviewer drives transition via MCP)', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
         id: 'ms-complete', status: 'ready',
