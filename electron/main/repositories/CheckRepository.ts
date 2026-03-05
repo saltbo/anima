@@ -5,6 +5,7 @@ import type { MilestoneCheck, MilestoneCheckStatus } from '../../../src/types/in
 
 interface CheckRow {
   id: string
+  milestone_id: string
   item_id: string
   title: string
   description: string | null
@@ -17,6 +18,7 @@ interface CheckRow {
 function rowToCheck(row: CheckRow): MilestoneCheck {
   return {
     id: row.id,
+    milestoneId: row.milestone_id,
     itemId: row.item_id,
     title: row.title,
     description: row.description ?? undefined,
@@ -39,12 +41,7 @@ export class CheckRepository {
 
   getByMilestoneId(milestoneId: string): MilestoneCheck[] {
     const rows = this.db
-      .prepare(
-        `SELECT mc.* FROM milestone_checks mc
-         JOIN milestone_items mi ON mi.item_id = mc.item_id
-         WHERE mi.milestone_id = ?
-         ORDER BY mc.created_at`
-      )
+      .prepare('SELECT * FROM milestone_checks WHERE milestone_id = ? ORDER BY created_at')
       .all(milestoneId) as CheckRow[]
     return rows.map(rowToCheck)
   }
@@ -59,11 +56,12 @@ export class CheckRepository {
     }
     this.db
       .prepare(
-        `INSERT INTO milestone_checks (id, item_id, title, description, status, iteration, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO milestone_checks (id, milestone_id, item_id, title, description, status, iteration, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         newCheck.id,
+        newCheck.milestoneId,
         newCheck.itemId,
         newCheck.title,
         newCheck.description ?? null,

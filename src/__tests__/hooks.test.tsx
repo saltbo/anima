@@ -148,8 +148,8 @@ function makeMilestone(overrides: Partial<Milestone> = {}): Milestone {
     description: 'Test description',
     status: 'in_review',
     checks: [
-      { id: 'chk-1', itemId: 'item-1', title: 'Feature A works', status: 'passed', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
-      { id: 'chk-2', itemId: 'item-1', title: 'Feature B works', status: 'pending', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
+      { id: 'chk-1', milestoneId: 'ms-1', itemId: 'item-1', title: 'Feature A works', status: 'passed', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
+      { id: 'chk-2', milestoneId: 'ms-1', itemId: 'item-1', title: 'Feature B works', status: 'pending', iteration: 1, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' },
     ],
     items: [
       { id: 'item-1', type: 'feature', title: 'Add login', priority: 'high', status: 'done', createdAt: '2026-03-01T12:00:00Z' },

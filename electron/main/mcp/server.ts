@@ -183,6 +183,7 @@ server.tool(
   'checks:add',
   'Add checks to a backlog item. Each check represents a verification criterion.',
   {
+    milestone_id: z.string().describe('The milestone ID these checks belong to'),
     item_id: z.string().describe('The backlog item ID to add checks to'),
     checks: z.array(z.object({
       title: z.string().describe('Check title'),
@@ -191,9 +192,9 @@ server.tool(
       iteration: z.number().default(0).describe('Iteration number'),
     })).describe('Checks to add'),
   },
-  async ({ item_id, checks }) => {
-    const checksWithItemId = checks.map((c) => ({ ...c, itemId: item_id }))
-    const created = await client.call('checks:add', [checksWithItemId])
+  async ({ milestone_id, item_id, checks }) => {
+    const checksWithIds = checks.map((c) => ({ ...c, milestoneId: milestone_id, itemId: item_id }))
+    const created = await client.call('checks:add', [checksWithIds])
     return textResult(`Added ${(created as unknown[]).length} checks`)
   }
 )

@@ -154,6 +154,7 @@ export class MilestoneService {
 
       for (const check of item.checks) {
         this.checkRepo.add({
+          milestoneId,
           itemId: item.id,
           title: check.title,
           description: check.description,

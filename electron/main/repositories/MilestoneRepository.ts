@@ -53,6 +53,7 @@ interface BacklogRow {
 
 interface CheckRow {
   id: string
+  milestone_id: string
   item_id: string
   title: string
   description: string | null
@@ -118,6 +119,7 @@ function backlogRowToItem(row: BacklogRow): BacklogItem {
 function checkRowToCheck(row: CheckRow): MilestoneCheck {
   return {
     id: row.id,
+    milestoneId: row.milestone_id,
     itemId: row.item_id,
     title: row.title,
     description: row.description ?? undefined,
@@ -152,12 +154,7 @@ export class MilestoneRepository {
 
   private getChecks(milestoneId: string): MilestoneCheck[] {
     const rows = this.db
-      .prepare(
-        `SELECT mc.* FROM milestone_checks mc
-         JOIN milestone_items mi ON mi.item_id = mc.item_id
-         WHERE mi.milestone_id = ?
-         ORDER BY mc.created_at`
-      )
+      .prepare('SELECT * FROM milestone_checks WHERE milestone_id = ? ORDER BY created_at')
       .all(milestoneId) as CheckRow[]
     return rows.map(checkRowToCheck)
   }

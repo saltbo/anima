@@ -53,6 +53,7 @@ export type MilestoneCheckStatus = 'pending' | 'checking' | 'passed' | 'rejected
 
 export interface MilestoneCheck {
   id: string
+  milestoneId: string
   itemId: string
   title: string
   description?: string

@@ -246,8 +246,8 @@ describe('think()', () => {
       id: 'm1',
       status: 'in_progress',
       checks: [
-        { id: 'c1', itemId: 'i1', title: 'A', status: 'passed', iteration: 1, createdAt: '', updatedAt: '' },
-        { id: 'c2', itemId: 'i1', title: 'B', status: 'pending', iteration: 0, createdAt: '', updatedAt: '' },
+        { id: 'c1', milestoneId: 'm1', itemId: 'i1', title: 'A', status: 'passed', iteration: 1, createdAt: '', updatedAt: '' },
+        { id: 'c2', milestoneId: 'm1', itemId: 'i1', title: 'B', status: 'pending', iteration: 0, createdAt: '', updatedAt: '' },
       ],
       iterations: [{ milestoneId: 'm1', round: 1, status: 'passed', outcome: 'passed' }],
     })

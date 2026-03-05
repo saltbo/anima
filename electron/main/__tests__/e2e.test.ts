@@ -366,8 +366,8 @@ class InMemoryCheckRepository {
     return [...this.checks.values()].filter((c) => c.itemId === itemId)
   }
 
-  getByMilestoneId(_milestoneId: string): MilestoneCheck[] {
-    return [...this.checks.values()]
+  getByMilestoneId(milestoneId: string): MilestoneCheck[] {
+    return [...this.checks.values()].filter((c) => c.milestoneId === milestoneId)
   }
 
   delete(id: string): void {
@@ -518,6 +518,7 @@ function makeMs(overrides: Partial<Milestone> = {}): Milestone {
 function makeCheck(overrides: Partial<MilestoneCheck> = {}): MilestoneCheck {
   return {
     id: `chk-${Math.random().toString(36).slice(2, 8)}`,
+    milestoneId: 'ms-1',
     itemId: 'item-1',
     title: 'Check',
     status: 'pending',
