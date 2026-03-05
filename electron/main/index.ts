@@ -82,7 +82,7 @@ if (is.dev) {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.bogit.anima')
+  electronApp.setAppUserModelId('cc.tftt.anima')
 
   // Set dock icon for dev mode (macOS)
   if (process.platform === 'darwin' && app.dock) {

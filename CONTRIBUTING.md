@@ -12,7 +12,7 @@ Thanks for your interest in contributing to Anima!
 ### Install
 
 ```bash
-git clone https://github.com/bogit/anima.git
+git clone https://github.com/saltbo/anima.git
 cd anima
 npm install
 ```

@@ -67,7 +67,7 @@ sense → think → act → sleep → wake → repeat
 
 ### Download
 
-Download the latest release for your platform from the [Releases](https://github.com/bogit/anima/releases) page:
+Download the latest release for your platform from the [Releases](https://github.com/saltbo/anima/releases) page:
 
 | Platform | Format |
 |----------|--------|
@@ -87,7 +87,7 @@ Anima is designed to work with multiple AI coding agents. Current support status
 | [Aider](https://github.com/paul-gauthier/aider) | Planned |
 | [Cline](https://github.com/cline/cline) | Planned |
 
-Want support for another agent? [Open an issue](https://github.com/bogit/anima/issues).
+Want support for another agent? [Open an issue](https://github.com/saltbo/anima/issues).
 
 ## Contributing
 

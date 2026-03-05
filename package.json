@@ -22,7 +22,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
-    "appId": "com.bogit.anima",
+    "appId": "cc.tftt.anima",
     "productName": "Anima",
     "directories": {
       "output": "dist"

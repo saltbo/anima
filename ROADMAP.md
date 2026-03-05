@@ -1,65 +1,112 @@
 # Anima — Roadmap
 
-## Tech Stack
+## Completed
 
-- **Platform**: Electron (macOS + Windows)
-- **Frontend**: React + TypeScript + Tailwind CSS + shadcn/ui
-- **Build**: electron-vite + electron-builder
-- **Agent**: Claude Code CLI via `node-pty`
-- **Git**: `simple-git`
+### v0.1 ~ v0.8 — Python Kernel (Experimental)
 
-## Architecture Overview
+Anima started as a Python CLI kernel to validate the core concept of autonomous iteration:
 
-Anima 同时管理多个项目，每个项目有独立的迭代循环并发运行：
+- Autonomous iteration loop (sleep → wake → iterate → sleep)
+- Agent execution driven by Claude Code CLI
+- Automatic milestone detection from Roadmap Markdown
+- Three-phase iteration engine: Planner / Executor / Verifier
+- Change tracking via conventional commits
+- Rate limit detection and automatic recovery
+- Rich TUI console output
 
-```
-[Project A]                          [Project B]
-Inbox → Milestone Planning           Inbox → Milestone Planning
-          ↓ status: ready                      ↓ status: ready
-       Scheduler (per-project)              Scheduler (per-project)
-       wake_schedule 触发                   wake_schedule 触发
-          ↓ checking → awake                   ↓ checking → awake
-  Developer Agent (node-pty)           Developer Agent (node-pty)
-    实现功能 → git commit → 报告           实现功能 → git commit → 报告
-  Reviewer Agent (node-pty)            Reviewer Agent (node-pty)
-    git diff → ACCEPTED / REJECTED        git diff → ACCEPTED / REJECTED
-          ↓ ALL_FEATURES_COMPLETE                ↓ ALL_FEATURES_COMPLETE
-    Reviewer 整体验收 AC                   Reviewer 整体验收 AC
-          ↓                                      ↓
-  人工验收（若需要）或自动流转             人工验收（若需要）或自动流转
-          ↓                                      ↓
-  Git: merge to main + tag               Git: merge to main + tag
-          ↓                                      ↓
-  checking → 下一个 ready 里程碑         checking → 下一个 ready 里程碑
-```
+> v0.0–v0.8 were entirely built by Anima itself in two days (2026-02-27/28), proving the feasibility of self-building software.
 
-## Milestones
+### v0.10 — Electron Desktop App
 
-| # | 里程碑 | 核心交付 | 状态 |
-|---|--------|----------|------|
-| M1 | [UI Foundation](.anima/milestones/M1-ui-foundation.md) | 多项目管理 UI、系统托盘、项目卡片总览 | pending |
-| M2 | [Project Setup](.anima/milestones/M2-project-setup.md) | 引导创建 VISION.md + .anima/soul.md | pending |
-| M3 | [Inbox & Milestone Planning](.anima/milestones/M3-inbox-and-planning.md) | Inbox CRUD + 对话式创建 Milestone + draft/ready 状态机 | pending |
-| M4 | [Iteration Loop](.anima/milestones/M4-iteration-loop.md) | 多项目并发调度、睡眠/唤醒生命周期、Developer-Reviewer 迭代引擎 | pending |
-| M5 | [Human Acceptance](.anima/milestones/M5-human-acceptance.md) | 人工验收流、retry 介入、自动流转 | pending |
-| M6 | [Git Integration](.anima/milestones/M6-git-integration.md) | merge + tag + rollback | pending |
-| M7 | [GitHub Issues](.anima/milestones/M7-github-issues.md) | GitHub Issues 自动同步到 Inbox | pending |
+Full rewrite from Python CLI to an Electron + React desktop application for production-grade multi-project autonomous management:
 
-## Key Design Decisions
+**UI & Infrastructure**
+- Multi-project management dashboard with system tray
+- Project add/remove, per-project settings (wake schedule, auto-merge, auto-approve)
+- SQLite persistence (WAL mode), 3-layer architecture (IPC → Service → Repository)
 
-1. **Vision + Soul 是前置条件**：没有 `VISION.md` 和 `.anima/soul.md` 就无法使用 Anima。Vision 放项目根目录（公开），Soul 放 `.anima/`（Anima 上下文）。
-2. **全部 Agent 走 Claude Code CLI**：所有 Agent 交互通过 `node-pty` 驱动 `claude` CLI，保持一致性。
-3. **Milestone 内容在 .md 文件中**：Agent 直接读取 Markdown 文档，JSON 状态文件只存运行时字段（status、branch、tokens 等）。
-4. **Inbox 是素材库**：Inbox 条目是轻量的待办项（bug / feature / optimization），规划 Milestone 时从中挑选整合。
-5. **开发即提交**：Developer Agent 在实现并验证通过后立即 commit，Reviewer 通过 `git show` / `git diff` 审查真实代码。
-6. **人工验收在创建时标注**：`requires_human_review` 字段在 Milestone 创建对话中确定。
-7. **分支随迭代开始创建**：M4 启动时建立 `milestone/{id}` 分支。M6 负责 merge + tag + rollback。
-8. **Main 分支保护**：只有里程碑完成后才 merge 到 main，中间过程完全隔离。
-9. **多项目并发管理**：Anima 同时管理多个项目，每个项目有独立的调度器和 Agent 进程，并发运行互不干扰。项目列表存储在 Anima app-level 配置（`~/Library/Application Support/Anima/config.json`），被管理项目的数据全部在各自的 `.anima/` 目录内。
-10. **每项目独立唤醒调度**：唤醒周期（interval / times / manual）在各项目的 `.anima/config.json` 中单独配置。Scheduler 唤醒后先进入 `checking` 状态扫描 `ready` 里程碑，有则开始迭代，无则回到 `sleeping`。
-11. **Milestone 两阶段就绪**：Milestone 创建后初始状态为 `draft`（Scheduler 忽略），用户审阅后手动标记为 `ready` 才可被 Scheduler 拾取。`ready` 里程碑支持拖拽排序，Scheduler 按排序顺序依次处理。
-12. **Claude Code CLI 两种调用模式**：
-    - **对话模式**（M2 Vision/Soul 创建、M3 Milestone 创建）：通过 `node-pty` 驱动 `claude` CLI 的交互模式，Anima 将用户输入转发至 stdin，将 CLI stdout 流式转发至 UI 聊天界面。
-    - **任务模式**（M4 Developer Agent、Reviewer Agent）：发送完整 prompt，Agent 自主执行任务（读文件、写代码、运行命令、git commit），完成后输出结构化报告（`ALL_FEATURES_COMPLETE` / `ACCEPTED` / `REJECTED: {原因}`）。
-13. **API 额度限制自动恢复**：检测到 Claude Code CLI 的额度限制错误时，解析错误信息中的恢复时间，将项目状态设为 `rate_limited` 并调度定时器在额度恢复后自动继续迭代；无法解析时默认等待 60 分钟重试。
-14. **系统托盘常驻**：关闭主窗口不退出，Anima 常驻系统托盘，唤醒调度和迭代循环在后台持续运行。Quit 是唯一真正退出的方式。
+**Soul Architecture**
+- Per-project Soul heartbeat loop (sense → think → act → sleep)
+- Wake scheduler (interval / times / manual)
+- Automatic rate limit detection and recovery
+
+**Backlog & Milestone**
+- Backlog CRUD (Kanban model)
+- Soul-driven automatic milestone planning
+- Milestone state machine (draft → planned → in_progress → in_review → completed)
+- Acceptance checks linked to milestone items
+
+**Agent System**
+- Agent Identity (planner / developer / reviewer) with built-in system prompts
+- AgentRunner: spawn Claude Code CLI, parse JSONL event stream
+- @mention-driven agent dispatch (@developer / @reviewer in comments triggers agents)
+- Session tracking (per-agent token usage & cost)
+- MCP Server for agents to self-serve project data
+
+**Git Integration**
+- Automatic milestone branch creation and checkout
+- Squash merge to main with branch cleanup
+- Rollback / Cancel support
+
+**Human-in-the-Loop**
+- Accept / Request Changes / Rollback / Cancel / Close
+- Milestone Detail page (timeline, comments, checks, agent session drawer)
+
+### v0.11 — Agent Dispatch Refactor & Polish (in progress)
+
+Major architecture refinements and bug fixes on top of v0.10:
+
+- Agent dispatch model replacing the old iteration loop, with @mention support
+- Milestone state machine redesign with clearer naming
+- Agent Identity System — agents as first-class citizens
+- Dedicated agent_sessions table for unified per-agent usage tracking
+- Actions table for timeline and activity feed
+- Reviewer (formerly acceptor) rename, scoped review limited to current iteration
+- MCP business logic pushed down to Service layer
+- App logo, CI/Release workflows, README rewrite
+
+---
+
+## Planned
+
+### Phase 1 — Issue Tracker Integration
+
+Connect Anima to external issue trackers so it can sense real-world user feedback.
+
+- **GitHub Issues sync** — Filter and sync labeled issues into backlog; write back status when milestones complete
+- **GitLab Issues sync** — Same capability for GitLab-hosted projects
+- **Source attribution** — Backlog items from external sources show origin link and metadata
+- **Bi-directional status** — Milestone completion auto-closes or comments on the originating issue
+
+### Phase 2 — Multi-Agent Support
+
+Anima currently only supports Claude Code CLI. Expand to more coding agents.
+
+| Agent | Notes |
+|-------|-------|
+| Gemini CLI | Google's coding agent |
+| OpenAI Codex | OpenAI's coding agent |
+| Aider | Popular open-source AI coding tool |
+| Cline | VS Code-based AI coding agent |
+
+Key work:
+- **Agent adapter interface** — Abstract CLI invocation and output parsing into a uniform plugin model
+- **Per-project agent selection** — Let users choose which agent to use for each project
+- **Output normalization** — Unified session event model regardless of underlying agent
+
+### Phase 3 — Custom Agents
+
+Allow users to define their own agents beyond the built-in planner/developer/reviewer.
+
+- **Custom agent definitions** — Create agents with custom system prompts and roles via UI
+- **Agent assignment** — Assign custom agents to specific tasks or milestones
+- **@mention extension** — The mention-dispatch system recognizes user-defined agent names
+- **Prompt templates** — Shareable agent templates for common workflows (e.g. security reviewer, docs writer, test specialist)
+
+### Future Ideas
+
+- **Webhook-driven wake** — Trigger Soul wake on push, PR, or issue events instead of polling
+- **Cross-project awareness** — Detect dependencies between managed projects
+- **Notification channels** — Slack / Discord / Email notifications for milestone completion, review requests, errors
+- **Dashboard analytics** — Aggregate views of agent cost, iteration velocity, and project health over time
+- **Windows support** — Electron supports it natively, but needs testing and packaging
