@@ -13,6 +13,7 @@
   <a href="https://github.com/saltbo/anima/actions/workflows/ci.yml"><img src="https://github.com/saltbo/anima/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/saltbo/anima/releases/latest"><img src="https://img.shields.io/github/v/release/saltbo/anima?label=release" alt="Release"></a>
   <a href="https://github.com/saltbo/anima/blob/master/LICENSE"><img src="https://img.shields.io/github/license/saltbo/anima" alt="License"></a>
+  <a href="https://discord.gg/72bzB5KaDC"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
 <p align="center">
@@ -20,6 +21,7 @@
   <a href="#how-it-works">How It Works</a> &bull;
   <a href="#installation">Installation</a> &bull;
   <a href="#supported-agents">Supported Agents</a> &bull;
+  <a href="#community">Community</a> &bull;
   <a href="#contributing">Contributing</a> &bull;
   <a href="#license">License</a>
 </p>
@@ -88,6 +90,12 @@ Anima is designed to work with multiple AI coding agents. Current support status
 | [Cline](https://github.com/cline/cline) | Planned |
 
 Want support for another agent? [Open an issue](https://github.com/saltbo/anima/issues).
+
+## Community
+
+- [Discord](https://discord.gg/72bzB5KaDC) — Chat, ask questions, share what you're building with Anima.
+- [GitHub Discussions](https://github.com/saltbo/anima/discussions) — Longer-form discussions, ideas, and RFCs.
+- [GitHub Issues](https://github.com/saltbo/anima/issues) — Bug reports and feature requests.
 
 ## Contributing
 
