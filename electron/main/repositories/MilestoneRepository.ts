@@ -299,7 +299,10 @@ export class MilestoneRepository {
   }
 
   updateIterationStatus(id: number, status: string): void {
-    this.db.prepare('UPDATE iterations SET status = ? WHERE id = ?').run(status, id)
+    const completedAt = status === 'passed' || status === 'failed' ? new Date().toISOString() : null
+    this.db
+      .prepare('UPDATE iterations SET status = ?, completed_at = COALESCE(completed_at, ?) WHERE id = ?')
+      .run(status, completedAt, id)
   }
 
   incrementDispatchCount(id: number): void {
