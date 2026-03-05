@@ -160,7 +160,7 @@ function makeMilestone(overrides: Partial<Milestone> = {}): Milestone {
     createdAt: '2026-03-01T12:00:00.000Z',
     iterationCount: 1,
     iterations: [
-      { milestoneId: 'ms-1', round: 1, outcome: 'passed', startedAt: '2026-03-01T12:00:00Z', completedAt: '2026-03-01T12:10:00Z', totalTokens: 500, totalCost: 0.05 },
+      { milestoneId: 'ms-1', round: 1, outcome: 'passed', startedAt: '2026-03-01T12:00:00Z', completedAt: '2026-03-01T12:10:00Z', totalTokens: 500, totalCost: 0.05, sessions: [] },
     ],
     totalTokens: 500,
     totalCost: 0.05,

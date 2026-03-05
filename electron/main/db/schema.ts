@@ -43,14 +43,11 @@ CREATE TABLE IF NOT EXISTS iterations (
   id                    INTEGER PRIMARY KEY AUTOINCREMENT,
   milestone_id          TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
   round                 INTEGER NOT NULL,
-  developer_session_id  TEXT,
-  acceptor_session_id   TEXT,
   outcome               TEXT,
   started_at            TEXT,
   completed_at          TEXT,
-  total_tokens          INTEGER NOT NULL DEFAULT 0,
-  total_cost            REAL NOT NULL DEFAULT 0,
-  model                 TEXT
+  status                TEXT NOT NULL DEFAULT 'pending',
+  dispatch_count        INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS milestone_comments (
@@ -93,12 +90,31 @@ CREATE TABLE IF NOT EXISTS milestone_items (
   PRIMARY KEY (milestone_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_milestone_items_item ON milestone_items(item_id);
+
+CREATE TABLE IF NOT EXISTS agent_sessions (
+  id           TEXT PRIMARY KEY,
+  project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  milestone_id TEXT REFERENCES milestones(id) ON DELETE SET NULL,
+  iteration_id INTEGER REFERENCES iterations(id) ON DELETE SET NULL,
+  agent_id     TEXT NOT NULL,
+  started_at   TEXT NOT NULL,
+  completed_at TEXT,
+  total_tokens INTEGER NOT NULL DEFAULT 0,
+  total_cost   REAL NOT NULL DEFAULT 0,
+  model        TEXT,
+  status       TEXT NOT NULL DEFAULT 'running'
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_project ON agent_sessions(project_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_milestone ON agent_sessions(milestone_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_iteration ON agent_sessions(iteration_id);
 `
 
 function migrateIterationUsageColumns(db: Database.Database): void {
   const cols = db.pragma('table_info(iterations)') as { name: string }[]
   const colNames = new Set(cols.map((c) => c.name))
-  if (colNames.has('total_tokens')) return
+  // Skip if columns already exist or if they've been removed by migrateDropIterationSessionColumns
+  if (colNames.has('total_tokens') || !colNames.has('developer_session_id')) return
 
   log.info('migrating iterations table: adding usage columns')
   db.exec(`
@@ -290,7 +306,8 @@ function migrateMentionDispatchedColumn(db: Database.Database): void {
 function migrateIterationStatusColumns(db: Database.Database): void {
   const cols = db.pragma('table_info(iterations)') as { name: string }[]
   const colNames = new Set(cols.map((c) => c.name))
-  if (colNames.has('status')) return
+  // Skip if columns already exist or if the table has the new schema
+  if (colNames.has('status') || !colNames.has('developer_session_id')) return
 
   log.info('migrating iterations table: adding status and dispatch_count columns')
   db.exec(`
@@ -332,6 +349,98 @@ function migrateChecksMilestoneIdColumn(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_checks_milestone ON milestone_checks(milestone_id)')
 }
 
+function migrateAgentSessionsTable(db: Database.Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agent_sessions'").all()
+  if (tables.length > 0) return
+
+  log.info('migrating: creating agent_sessions table and backfilling from iterations')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_sessions (
+      id           TEXT PRIMARY KEY,
+      project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      milestone_id TEXT REFERENCES milestones(id) ON DELETE SET NULL,
+      iteration_id INTEGER REFERENCES iterations(id) ON DELETE SET NULL,
+      agent_id     TEXT NOT NULL,
+      started_at   TEXT NOT NULL,
+      completed_at TEXT,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      total_cost   REAL NOT NULL DEFAULT 0,
+      model        TEXT,
+      status       TEXT NOT NULL DEFAULT 'running'
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_project ON agent_sessions(project_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_milestone ON agent_sessions(milestone_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_iteration ON agent_sessions(iteration_id);
+  `)
+
+  // Backfill from existing iteration session columns
+  const rows = db.prepare(`
+    SELECT i.id as iteration_id, i.milestone_id, i.developer_session_id, i.acceptor_session_id,
+           i.started_at, i.completed_at, i.total_tokens, i.total_cost, i.model,
+           m.project_id
+    FROM iterations i
+    JOIN milestones m ON m.id = i.milestone_id
+    WHERE i.developer_session_id IS NOT NULL OR i.acceptor_session_id IS NOT NULL
+  `).all() as Array<{
+    iteration_id: number; milestone_id: string; developer_session_id: string | null;
+    acceptor_session_id: string | null; started_at: string | null; completed_at: string | null;
+    total_tokens: number; total_cost: number; model: string | null; project_id: string;
+  }>
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO agent_sessions (id, project_id, milestone_id, iteration_id, agent_id, started_at, completed_at, total_tokens, total_cost, model, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
+  `)
+
+  for (const row of rows) {
+    const hasBoth = row.developer_session_id && row.acceptor_session_id
+    // Split usage 60/40 between developer and acceptor when both exist
+    const devRatio = hasBoth ? 0.6 : 1
+    const accRatio = hasBoth ? 0.4 : 1
+
+    if (row.developer_session_id) {
+      insert.run(
+        row.developer_session_id, row.project_id, row.milestone_id, row.iteration_id,
+        'developer', row.started_at ?? new Date().toISOString(), row.completed_at,
+        Math.round(row.total_tokens * devRatio), row.total_cost * devRatio, row.model
+      )
+    }
+    if (row.acceptor_session_id) {
+      insert.run(
+        row.acceptor_session_id, row.project_id, row.milestone_id, row.iteration_id,
+        'reviewer', row.started_at ?? new Date().toISOString(), row.completed_at,
+        Math.round(row.total_tokens * accRatio), row.total_cost * accRatio, row.model
+      )
+    }
+  }
+}
+
+function migrateDropIterationSessionColumns(db: Database.Database): void {
+  const cols = db.pragma('table_info(iterations)') as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+  if (!colNames.has('developer_session_id')) return
+
+  log.info('migrating iterations: dropping session/usage columns (moved to agent_sessions)')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS iterations_new (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      milestone_id    TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+      round           INTEGER NOT NULL,
+      outcome         TEXT,
+      started_at      TEXT,
+      completed_at    TEXT,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      dispatch_count  INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO iterations_new (id, milestone_id, round, outcome, started_at, completed_at, status, dispatch_count)
+    SELECT id, milestone_id, round, outcome, started_at, completed_at,
+           COALESCE(status, 'pending'), COALESCE(dispatch_count, 0) FROM iterations;
+    DROP TABLE iterations;
+    ALTER TABLE iterations_new RENAME TO iterations;
+    CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
+  `)
+}
+
 function migrateMilestoneStatusV3(db: Database.Database): void {
   const oldRows = db.prepare("SELECT COUNT(*) as cnt FROM milestones WHERE status IN ('reviewing', 'reviewed', 'in-progress', 'awaiting_review')").get() as { cnt: number }
   if (oldRows.cnt === 0) return
@@ -363,4 +472,6 @@ export function initSchema(db: Database.Database): void {
   migrateMentionDispatchedColumn(db)
   migrateIterationStatusColumns(db)
   migrateChecksMilestoneIdColumn(db)
+  migrateAgentSessionsTable(db)
+  migrateDropIterationSessionColumns(db)
 }

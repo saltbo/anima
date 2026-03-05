@@ -3,6 +3,7 @@ import { createLogger } from '../logger'
 import type { Project, WakeSchedule, MilestoneGitInfo, TransitionPayload } from '../../../src/types/index'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
+import type { SessionRepository } from '../repositories/SessionRepository'
 import type { CommentRepository } from '../repositories/CommentRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
 import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepository'
@@ -22,6 +23,7 @@ export class SoulService {
   constructor(
     private projectRepo: ProjectRepository,
     private milestoneRepo: MilestoneRepository,
+    private sessionRepo: SessionRepository,
     private commentRepo: CommentRepository,
     private backlogRepo: BacklogRepository,
     private milestoneItemRepo: MilestoneItemRepository,
@@ -61,6 +63,7 @@ export class SoulService {
       projectPath: project.path,
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
+      sessionRepo: this.sessionRepo,
       commentRepo: this.commentRepo,
       gitService: this.gitService,
       agentRunner: this.agentRunner,

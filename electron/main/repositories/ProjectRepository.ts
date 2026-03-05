@@ -23,8 +23,8 @@ interface ProjectRow {
 const PROJECT_SELECT = `
   SELECT p.id, p.path, p.name, p.added_at, p.status, p.current_iteration,
     p.next_wake_time, p.wake_schedule, p.auto_merge, p.auto_approve, p.rate_limit_reset_at,
-    COALESCE((SELECT SUM(i.total_tokens) FROM iterations i JOIN milestones m ON i.milestone_id = m.id WHERE m.project_id = p.id), 0) as total_tokens,
-    COALESCE((SELECT SUM(i.total_cost) FROM iterations i JOIN milestones m ON i.milestone_id = m.id WHERE m.project_id = p.id), 0) as total_cost
+    COALESCE((SELECT SUM(s.total_tokens) FROM agent_sessions s WHERE s.project_id = p.id), 0) as total_tokens,
+    COALESCE((SELECT SUM(s.total_cost) FROM agent_sessions s WHERE s.project_id = p.id), 0) as total_cost
   FROM projects p`
 
 function rowToProject(row: ProjectRow): Project {

@@ -157,14 +157,14 @@ export function Timeline({ comments, iterations, onViewSession }: TimelineProps)
                 <div className="flex-1">
                   <IterationAgentCard
                     role="developer"
-                    iteration={iter}
+                    session={iter.sessions?.find((s) => s.agentId === 'developer')}
                     onViewSession={onViewSession ? () => onViewSession('developer', iter) : undefined}
                   />
                 </div>
                 <div className="flex-1">
                   <IterationAgentCard
                     role="acceptor"
-                    iteration={iter}
+                    session={iter.sessions?.find((s) => s.agentId === 'reviewer')}
                     onViewSession={onViewSession ? () => onViewSession('acceptor', iter) : undefined}
                   />
                 </div>

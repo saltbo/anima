@@ -3,6 +3,7 @@ import { createLogger } from '../../logger'
 import type { AgentRunner, RunResult } from '../../agents/AgentRunner'
 import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
+import type { SessionRepository } from '../../repositories/SessionRepository'
 import type { CommentRepository } from '../../repositories/CommentRepository'
 import type { GitService } from '../../services/GitService'
 import type { SoulTask, Decision } from '../types'
@@ -10,6 +11,7 @@ import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
 import { getMcpConfigPath } from '../../mcp/mcpConfig'
 import { MilestoneExecutionContext } from './MilestoneExecutionContext'
+import { nowISO } from '../../lib/time'
 import {
   buildSystemPrompt,
   buildPlannerFirstMessage,
@@ -25,6 +27,7 @@ export interface AgentDispatchTaskOptions {
   projectPath: string
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
+  sessionRepo: SessionRepository
   commentRepo: CommentRepository
   gitService: GitService
   agentRunner: AgentRunner
@@ -48,6 +51,7 @@ export class AgentDispatchTask implements SoulTask {
   private projectPath: string
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
+  private sessionRepo: SessionRepository
   private commentRepo: CommentRepository
   private agentRunner: AgentRunner
   private notifier: Notifier
@@ -58,6 +62,7 @@ export class AgentDispatchTask implements SoulTask {
     this.projectPath = opts.projectPath
     this.projectRepo = opts.projectRepo
     this.milestoneRepo = opts.milestoneRepo
+    this.sessionRepo = opts.sessionRepo
     this.commentRepo = opts.commentRepo
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier
@@ -66,6 +71,7 @@ export class AgentDispatchTask implements SoulTask {
       projectPath: opts.projectPath,
       projectRepo: opts.projectRepo,
       milestoneRepo: opts.milestoneRepo,
+      sessionRepo: opts.sessionRepo,
       gitService: opts.gitService,
       notifier: opts.notifier,
     })
@@ -86,6 +92,18 @@ export class AgentDispatchTask implements SoulTask {
 
     try {
       const sessionId = randomUUID()
+
+      // Record session
+      this.sessionRepo.insert({
+        id: sessionId,
+        projectId: this.projectId,
+        agentId: 'planner',
+        startedAt: nowISO(),
+        totalTokens: 0,
+        totalCost: 0,
+        status: 'running',
+      })
+
       const result = await this.agentRunner.run({
         projectPath: this.projectPath,
         sessionId,
@@ -96,6 +114,12 @@ export class AgentDispatchTask implements SoulTask {
       })
 
       if (signal.aborted) return
+
+      // Update session usage
+      const tokens =
+        result.usage.inputTokens + result.usage.outputTokens +
+        result.usage.cacheReadTokens + result.usage.cacheCreationTokens
+      this.sessionRepo.updateUsage(sessionId, tokens, result.cost, result.model)
 
       log.info('planning agent finished', {
         project: this.projectId,
@@ -152,7 +176,7 @@ export class AgentDispatchTask implements SoulTask {
       if (state.sessionId) {
         // Resume existing session
         log.info('resuming agent session', { agentId, sessionId: state.sessionId, milestoneId: state.milestone.id })
-        this.notifier.broadcastAgentEvent(state.sessionField === 'developer' ? 'developer' : 'acceptor', state.sessionId)
+        this.notifier.broadcastAgentEvent(agentId === 'developer' ? 'developer' : 'acceptor', state.sessionId)
         result = await this.agentRunner.resume({
           projectPath: this.projectPath,
           sessionId: state.sessionId,
@@ -164,8 +188,8 @@ export class AgentDispatchTask implements SoulTask {
         // New session
         const sessionId = randomUUID()
         log.info('starting new agent session', { agentId, sessionId, milestoneId: state.milestone.id })
-        this.executionCtx.registerSession(state.iteration.id, state.sessionField, sessionId)
-        this.notifier.broadcastAgentEvent(state.sessionField === 'developer' ? 'developer' : 'acceptor', sessionId)
+        this.executionCtx.registerSession(state.iteration.id, state.milestone.id, agentId, sessionId)
+        this.notifier.broadcastAgentEvent(agentId === 'developer' ? 'developer' : 'acceptor', sessionId)
         result = await this.agentRunner.run({
           projectPath: this.projectPath,
           sessionId,
@@ -197,6 +221,18 @@ export class AgentDispatchTask implements SoulTask {
       const sessionId = randomUUID()
       log.info('dispatching agent', { agentId, sessionId, milestoneId: d.milestoneId })
 
+      // Record session
+      this.sessionRepo.insert({
+        id: sessionId,
+        projectId: this.projectId,
+        milestoneId: d.milestoneId,
+        agentId,
+        startedAt: nowISO(),
+        totalTokens: 0,
+        totalCost: 0,
+        status: 'running',
+      })
+
       const result = await this.agentRunner.run({
         projectPath: this.projectPath,
         sessionId,
@@ -205,6 +241,12 @@ export class AgentDispatchTask implements SoulTask {
         mcpConfigPath: getMcpConfigPath(),
         signal,
       })
+
+      // Update session usage
+      const tokens =
+        result.usage.inputTokens + result.usage.outputTokens +
+        result.usage.cacheReadTokens + result.usage.cacheCreationTokens
+      this.sessionRepo.updateUsage(sessionId, tokens, result.cost, result.model)
 
       log.info('agent finished', {
         agentId,

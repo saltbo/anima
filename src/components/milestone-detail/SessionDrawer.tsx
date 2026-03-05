@@ -44,18 +44,19 @@ export function SessionDrawer({
 
   if (!iteration) return null
 
+  const devSession = iteration.sessions?.find((s) => s.agentId === 'developer')
+  const accSession = iteration.sessions?.find((s) => s.agentId === 'reviewer')
+
   const sessionId =
     activeRole === 'developer'
-      ? iteration.developerSessionId
-      : iteration.acceptorSessionId
+      ? devSession?.id
+      : accSession?.id
+
+  const activeSession = activeRole === 'developer' ? devSession : accSession
 
   const num = displayNum ?? iteration.round
-  const tokens = iteration.totalTokens
-    ? Math.round(iteration.totalTokens * (activeRole === 'developer' ? 0.6 : 0.4))
-    : undefined
-  const cost = iteration.totalCost
-    ? iteration.totalCost * (activeRole === 'developer' ? 0.6 : 0.4)
-    : undefined
+  const tokens = activeSession?.totalTokens
+  const cost = activeSession?.totalCost
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
@@ -76,8 +77,8 @@ export function SessionDrawer({
               </DialogPrimitive.Title>
               <div className="mt-0.5 flex items-center gap-3 text-[11px] text-muted-foreground">
                 <span>{formatElapsed(iteration.startedAt, iteration.completedAt)}</span>
-                {tokens !== undefined && <span>{formatTokens(tokens)} tokens</span>}
-                {cost !== undefined && <span>${cost.toFixed(2)}</span>}
+                {tokens !== undefined && tokens > 0 && <span>{formatTokens(tokens)} tokens</span>}
+                {cost !== undefined && cost > 0 && <span>${cost.toFixed(2)}</span>}
               </div>
             </div>
             <DialogPrimitive.Close className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
@@ -93,14 +94,14 @@ export function SessionDrawer({
               onClick={() => setActiveRole('developer')}
               icon={<Code size={13} />}
               label="Developer"
-              disabled={!iteration.developerSessionId}
+              disabled={!devSession}
             />
             <TabButton
               active={activeRole === 'acceptor'}
               onClick={() => setActiveRole('acceptor')}
               icon={<ShieldCheck size={13} />}
               label="Acceptor"
-              disabled={!iteration.acceptorSessionId}
+              disabled={!accSession}
             />
           </div>
 

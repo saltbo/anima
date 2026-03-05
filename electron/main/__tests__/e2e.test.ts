@@ -49,6 +49,7 @@ import type {
   Iteration,
   BacklogItem,
   MilestoneComment,
+  AgentSession,
 } from '../../../src/types/index'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
@@ -114,6 +115,11 @@ class InMemoryProjectRepository {
 class InMemoryMilestoneRepository {
   private milestones = new Map<string, { projectId: string; milestone: Milestone }>()
   private iterations: Iteration[] = []
+  private sessionRepo: InMemorySessionRepository | null = null
+
+  setSessionRepo(repo: InMemorySessionRepository): void {
+    this.sessionRepo = repo
+  }
 
   getByProjectId(projectId: string): Milestone[] {
     const results: Milestone[] = []
@@ -169,29 +175,6 @@ class InMemoryMilestoneRepository {
     }
   }
 
-  updateIterationSession(id: number, field: 'developer' | 'acceptor', sessionId: string): void {
-    if (this.iterations[id]) {
-      const iter = this.iterations[id]
-      if (field === 'developer') {
-        this.iterations[id] = { ...iter, developerSessionId: sessionId }
-      } else {
-        this.iterations[id] = { ...iter, acceptorSessionId: sessionId }
-      }
-    }
-  }
-
-  updateIterationUsage(id: number, tokens: number, cost: number, model: string): void {
-    if (this.iterations[id]) {
-      const iter = this.iterations[id]
-      this.iterations[id] = {
-        ...iter,
-        totalTokens: (iter.totalTokens ?? 0) + tokens,
-        totalCost: (iter.totalCost ?? 0) + cost,
-        model,
-      }
-    }
-  }
-
   /** Update checks on a milestone by mutating in place */
   updateChecks(milestoneId: string, checks: MilestoneCheck[]): void {
     const entry = this.milestones.get(milestoneId)
@@ -212,11 +195,23 @@ class InMemoryMilestoneRepository {
     const iters = this.iterations
       .filter((i) => i.milestoneId === milestone.id)
       .sort((a, b) => a.round - b.round)
+    // Attach sessions from sessionRepo if available
+    const hydratedIters = iters.map((iter) => {
+      const idx = this.iterations.indexOf(iter)
+      const sessions = this.sessionRepo?.getByIterationId(idx) ?? []
+      return {
+        ...iter,
+        sessions,
+        totalTokens: sessions.reduce((sum, s) => sum + s.totalTokens, 0) || undefined,
+        totalCost: sessions.reduce((sum, s) => sum + s.totalCost, 0) || undefined,
+      }
+    })
+    const allSessions = this.sessionRepo?.getByMilestoneId(milestone.id) ?? []
     return {
       ...milestone,
-      iterations: iters,
-      totalTokens: iters.reduce((sum, i) => sum + (i.totalTokens ?? 0), 0),
-      totalCost: iters.reduce((sum, i) => sum + (i.totalCost ?? 0), 0),
+      iterations: hydratedIters,
+      totalTokens: allSessions.reduce((sum, s) => sum + s.totalTokens, 0),
+      totalCost: allSessions.reduce((sum, s) => sum + s.totalCost, 0),
     }
   }
 }
@@ -374,6 +369,74 @@ class InMemoryCheckRepository {
   }
 }
 
+class InMemorySessionRepository {
+  private sessions = new Map<string, AgentSession>()
+
+  insert(session: AgentSession): void {
+    this.sessions.set(session.id, { ...session })
+  }
+
+  updateUsage(id: string, tokens: number, cost: number, model: string): void {
+    const session = this.sessions.get(id)
+    if (!session) return
+    this.sessions.set(id, {
+      ...session,
+      totalTokens: session.totalTokens + tokens,
+      totalCost: session.totalCost + cost,
+      model,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+    })
+  }
+
+  updateStatus(id: string, status: AgentSession['status']): void {
+    const session = this.sessions.get(id)
+    if (!session) return
+    this.sessions.set(id, { ...session, status, completedAt: new Date().toISOString() })
+  }
+
+  getByIterationId(iterationId: number): AgentSession[] {
+    return [...this.sessions.values()]
+      .filter((s) => s.iterationId === iterationId)
+      .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+  }
+
+  getByMilestoneId(milestoneId: string): AgentSession[] {
+    return [...this.sessions.values()]
+      .filter((s) => s.milestoneId === milestoneId)
+      .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+  }
+
+  getByProjectId(projectId: string): AgentSession[] {
+    return [...this.sessions.values()]
+      .filter((s) => s.projectId === projectId)
+      .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+  }
+
+  findForResume(iterationId: number, agentId: string): AgentSession | null {
+    const matches = [...this.sessions.values()]
+      .filter((s) => s.iterationId === iterationId && s.agentId === agentId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    return matches[0] ?? null
+  }
+
+  sumTokensByMilestone(milestoneId: string): number {
+    return this.getByMilestoneId(milestoneId).reduce((sum, s) => sum + s.totalTokens, 0)
+  }
+
+  sumCostByMilestone(milestoneId: string): number {
+    return this.getByMilestoneId(milestoneId).reduce((sum, s) => sum + s.totalCost, 0)
+  }
+
+  sumTokensByProject(projectId: string): number {
+    return this.getByProjectId(projectId).reduce((sum, s) => sum + s.totalTokens, 0)
+  }
+
+  sumCostByProject(projectId: string): number {
+    return this.getByProjectId(projectId).reduce((sum, s) => sum + s.totalCost, 0)
+  }
+}
+
 // ── Mock AgentRunner ──────────────────────────────────────────────────────────
 
 function makeRunResult(sessionId: string): RunResult {
@@ -447,6 +510,7 @@ class MockGitService {
 interface Harness {
   projectRepo: InMemoryProjectRepository
   milestoneRepo: InMemoryMilestoneRepository
+  sessionRepo: InMemorySessionRepository
   backlogRepo: InMemoryBacklogRepository
   commentRepo: InMemoryCommentRepository
   milestoneItemRepo: InMemoryMilestoneItemRepository
@@ -461,6 +525,7 @@ interface Harness {
 function createHarness(): Harness {
   const projectRepo = new InMemoryProjectRepository()
   const milestoneRepo = new InMemoryMilestoneRepository()
+  const sessionRepo = new InMemorySessionRepository()
   const backlogRepo = new InMemoryBacklogRepository()
   const commentRepo = new InMemoryCommentRepository()
   const milestoneItemRepo = new InMemoryMilestoneItemRepository()
@@ -468,12 +533,16 @@ function createHarness(): Harness {
   const gitService = new MockGitService()
   const agentRunner = new MockAgentRunner()
 
+  // Wire milestoneRepo to sessionRepo for hydration
+  milestoneRepo.setSessionRepo(sessionRepo)
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anima-e2e-'))
   setMcpConfigDir(tmpDir)
 
   const soulService = new SoulService(
     projectRepo as unknown as ProjectRepository,
     milestoneRepo as unknown as MilestoneRepository,
+    sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
     commentRepo as unknown as CommentRepository,
     backlogRepo as unknown as BacklogRepository,
     milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
@@ -493,7 +562,7 @@ function createHarness(): Harness {
     () => soulService,
   )
 
-  return { projectRepo, milestoneRepo, backlogRepo, commentRepo, milestoneItemRepo, checkRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
+  return { projectRepo, milestoneRepo, sessionRepo, backlogRepo, commentRepo, milestoneItemRepo, checkRepo, gitService, agentRunner, soulService, milestoneService, tmpDir }
 }
 
 function makeMs(overrides: Partial<Milestone> = {}): Milestone {
@@ -620,8 +689,17 @@ describe('E2E: Full Milestone Lifecycle', () => {
       h.milestoneRepo.addIteration({
         milestoneId: 'ms-iter', round: 1, outcome: 'rejected',
         startedAt: '2026-03-01T12:00:00Z', completedAt: '2026-03-01T12:05:00Z',
-        totalTokens: 500, totalCost: 0.05, model: 'claude-sonnet-4-20250514',
-        developerSessionId: 'dev-1', acceptorSessionId: 'acc-1',
+        sessions: [], status: 'in_progress',
+      })
+
+      // Add sessions to track usage (iteration index 0 in the in-memory array)
+      h.sessionRepo.insert({
+        id: 'dev-1', projectId: project.id, milestoneId: 'ms-iter', iterationId: 0,
+        agentId: 'developer', startedAt: '2026-03-01T12:00:00Z', totalTokens: 300, totalCost: 0.03, model: 'claude-sonnet-4-20250514', status: 'completed',
+      })
+      h.sessionRepo.insert({
+        id: 'acc-1', projectId: project.id, milestoneId: 'ms-iter', iterationId: 0,
+        agentId: 'reviewer', startedAt: '2026-03-01T12:02:00Z', totalTokens: 200, totalCost: 0.02, model: 'claude-sonnet-4-20250514', status: 'completed',
       })
 
       const refreshed = h.milestoneRepo.getById('ms-iter')!
@@ -718,6 +796,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         projectId, projectPath,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
@@ -840,7 +919,14 @@ describe('E2E: Full Milestone Lifecycle', () => {
       // Pre-create an iteration with a developer session
       h.milestoneRepo.addIteration({
         milestoneId: 'ms-resume', round: 1, startedAt: '2026-03-01T12:00:00Z',
-        status: 'in_progress', developerSessionId: 'dev-session-1',
+        status: 'in_progress', sessions: [],
+      })
+
+      // Register the developer session on the iteration
+      const iterObj = h.milestoneRepo.getCurrentIteration('ms-resume')!
+      h.sessionRepo.insert({
+        id: 'dev-session-1', projectId: project.id, milestoneId: 'ms-resume', iterationId: iterObj.id,
+        agentId: 'developer', startedAt: '2026-03-01T12:00:00Z', totalTokens: 0, totalCost: 0, status: 'running',
       })
 
       // Add a mention comment to trigger dispatch
@@ -873,6 +959,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         projectId, projectPath,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
@@ -1215,6 +1302,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         projectId: project.id, projectPath: project.path,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
@@ -1252,6 +1340,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         projectId: project.id, projectPath: project.path,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        sessionRepo: h.sessionRepo as unknown as import('../repositories/SessionRepository').SessionRepository,
         commentRepo: h.commentRepo as unknown as CommentRepository,
         gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,

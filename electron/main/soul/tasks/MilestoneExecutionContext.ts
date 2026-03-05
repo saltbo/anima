@@ -1,6 +1,7 @@
 import { createLogger } from '../../logger'
 import { nowISO } from '../../lib/time'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
+import type { SessionRepository } from '../../repositories/SessionRepository'
 import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { GitService } from '../../services/GitService'
 import type { Milestone, Iteration } from '../../../../src/types/index'
@@ -16,6 +17,7 @@ export interface ExecutionContextOptions {
   projectPath: string
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
+  sessionRepo: SessionRepository
   gitService: GitService
   notifier: Notifier
 }
@@ -23,10 +25,9 @@ export interface ExecutionContextOptions {
 /** Prepared execution state, returned by before() for use during and after agent run */
 export interface ExecutionState {
   milestone: Milestone
-  iteration: Iteration
+  iteration: Iteration & { id: number }
   branch: string
   sessionId: string | undefined   // existing session to resume, or undefined for new
-  sessionField: 'developer' | 'acceptor'
 }
 
 // ── MilestoneExecutionContext ────────────────────────────────────────────────
@@ -40,6 +41,7 @@ export class MilestoneExecutionContext {
   private projectPath: string
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
+  private sessionRepo: SessionRepository
   private gitService: GitService
   private notifier: Notifier
 
@@ -48,6 +50,7 @@ export class MilestoneExecutionContext {
     this.projectPath = opts.projectPath
     this.projectRepo = opts.projectRepo
     this.milestoneRepo = opts.milestoneRepo
+    this.sessionRepo = opts.sessionRepo
     this.gitService = opts.gitService
     this.notifier = opts.notifier
   }
@@ -74,6 +77,7 @@ export class MilestoneExecutionContext {
       this.milestoneRepo.addIteration({
         milestoneId: milestone.id,
         round,
+        sessions: [],
         startedAt: nowISO(),
         status: 'in_progress',
       })
@@ -92,25 +96,33 @@ export class MilestoneExecutionContext {
     this.milestoneRepo.incrementDispatchCount(iteration.id)
 
     // Resolve session for run vs resume
-    const sessionField = agentId === 'developer' ? 'developer' as const : 'acceptor' as const
-    const existingSessionId =
-      sessionField === 'developer' ? iteration.developerSessionId : iteration.acceptorSessionId
+    const existingSession = this.sessionRepo.findForResume(iteration.id, agentId)
 
-    return { milestone, iteration, branch, sessionId: existingSessionId, sessionField }
+    return { milestone, iteration, branch, sessionId: existingSession?.id }
   }
 
-  /** Register a new session ID on the iteration (called when starting a fresh session) */
-  registerSession(iterationId: string, sessionField: 'developer' | 'acceptor', sessionId: string): void {
-    this.milestoneRepo.updateIterationSession(iterationId, sessionField, sessionId)
+  /** Register a new session ID on the agent_sessions table */
+  registerSession(iterationId: number, milestoneId: string, agentId: string, sessionId: string): void {
+    this.sessionRepo.insert({
+      id: sessionId,
+      projectId: this.projectId,
+      milestoneId,
+      iterationId,
+      agentId,
+      startedAt: nowISO(),
+      totalTokens: 0,
+      totalCost: 0,
+      status: 'running',
+    })
   }
 
   /** Process the result after an agent run completes */
   after(state: ExecutionState, agentId: string, result: RunResult): void {
-    // Update iteration usage
+    // Update session usage
     const tokens =
       result.usage.inputTokens + result.usage.outputTokens +
       result.usage.cacheReadTokens + result.usage.cacheCreationTokens
-    this.milestoneRepo.updateIterationUsage(state.iteration.id, tokens, result.cost, result.model)
+    this.sessionRepo.updateUsage(result.sessionId, tokens, result.cost, result.model)
 
     // Check if reviewer approved this iteration
     const milestone = this.milestoneRepo.getById(state.milestone.id)

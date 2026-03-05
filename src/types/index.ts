@@ -2,17 +2,31 @@ export type ProjectStatus = 'sleeping' | 'idle' | 'busy' | 'paused' | 'rate_limi
 
 export type IterationOutcome = 'passed' | 'rejected' | 'cancelled' | 'rate_limited' | 'error'
 
+export type AgentSessionStatus = 'running' | 'completed' | 'error'
+
+export interface AgentSession {
+  id: string
+  projectId: string
+  milestoneId?: string
+  iterationId?: number
+  agentId: string
+  startedAt: string
+  completedAt?: string
+  totalTokens: number
+  totalCost: number
+  model?: string
+  status: AgentSessionStatus
+}
+
 export interface Iteration {
   milestoneId: string
   round: number
-  developerSessionId?: string
-  acceptorSessionId?: string
+  sessions: AgentSession[]
   outcome?: IterationOutcome
   startedAt?: string
   completedAt?: string
   totalTokens?: number
   totalCost?: number
-  model?: string
   status?: string
   dispatchCount?: number
 }

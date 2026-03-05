@@ -2,6 +2,8 @@ import type Database from 'better-sqlite3'
 import type {
   Milestone,
   Iteration,
+  AgentSession,
+  AgentSessionStatus,
   MilestoneStatus,
   BacklogItem,
   BacklogItemType,
@@ -28,16 +30,25 @@ interface IterationRow {
   id: number
   milestone_id: string
   round: number
-  developer_session_id: string | null
-  acceptor_session_id: string | null
   outcome: string | null
   started_at: string | null
+  completed_at: string | null
+  status: string
+  dispatch_count: number
+}
+
+interface SessionRow {
+  id: string
+  project_id: string
+  milestone_id: string | null
+  iteration_id: number | null
+  agent_id: string
+  started_at: string
   completed_at: string | null
   total_tokens: number
   total_cost: number
   model: string | null
   status: string
-  dispatch_count: number
 }
 
 interface BacklogRow {
@@ -63,11 +74,29 @@ interface CheckRow {
   updated_at: string
 }
 
+function sessionRowToSession(row: SessionRow): AgentSession {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    milestoneId: row.milestone_id ?? undefined,
+    iterationId: row.iteration_id ?? undefined,
+    agentId: row.agent_id,
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined,
+    totalTokens: row.total_tokens,
+    totalCost: row.total_cost,
+    model: row.model ?? undefined,
+    status: row.status as AgentSessionStatus,
+  }
+}
+
 function rowToMilestone(
   row: MilestoneRow,
   iterations: Iteration[],
   items: BacklogItem[],
-  checks: MilestoneCheck[]
+  checks: MilestoneCheck[],
+  totalTokens: number,
+  totalCost: number,
 ): Milestone {
   return {
     id: row.id,
@@ -80,25 +109,23 @@ function rowToMilestone(
     completedAt: row.completed_at ?? undefined,
     iterationCount: row.iteration_count,
     iterations,
-    totalTokens: iterations.reduce((sum, i) => sum + (i.totalTokens ?? 0), 0),
-    totalCost: iterations.reduce((sum, i) => sum + (i.totalCost ?? 0), 0),
+    totalTokens,
+    totalCost,
     baseCommit: row.base_commit ?? undefined,
     assignees: JSON.parse(row.assignees || '[]'),
   }
 }
 
-function iterRowToIteration(row: IterationRow): Iteration {
+function iterRowToIteration(row: IterationRow, sessions: AgentSession[]): Iteration {
   return {
     milestoneId: row.milestone_id,
     round: row.round,
-    developerSessionId: row.developer_session_id ?? undefined,
-    acceptorSessionId: row.acceptor_session_id ?? undefined,
+    sessions,
     outcome: (row.outcome as Iteration['outcome']) ?? undefined,
     startedAt: row.started_at ?? undefined,
     completedAt: row.completed_at ?? undefined,
-    totalTokens: row.total_tokens || undefined,
-    totalCost: row.total_cost || undefined,
-    model: row.model ?? undefined,
+    totalTokens: sessions.reduce((sum, s) => sum + s.totalTokens, 0) || undefined,
+    totalCost: sessions.reduce((sum, s) => sum + s.totalCost, 0) || undefined,
     status: row.status || 'pending',
     dispatchCount: row.dispatch_count || 0,
   }
@@ -133,11 +160,18 @@ function checkRowToCheck(row: CheckRow): MilestoneCheck {
 export class MilestoneRepository {
   constructor(private db: Database.Database) {}
 
+  private getSessionsForIteration(iterationId: number): AgentSession[] {
+    const rows = this.db
+      .prepare('SELECT * FROM agent_sessions WHERE iteration_id = ? ORDER BY started_at')
+      .all(iterationId) as SessionRow[]
+    return rows.map(sessionRowToSession)
+  }
+
   private getIterations(milestoneId: string): Iteration[] {
     const rows = this.db
       .prepare('SELECT * FROM iterations WHERE milestone_id = ? ORDER BY round')
       .all(milestoneId) as IterationRow[]
-    return rows.map(iterRowToIteration)
+    return rows.map((row) => iterRowToIteration(row, this.getSessionsForIteration(row.id)))
   }
 
   private getItems(milestoneId: string): BacklogItem[] {
@@ -159,28 +193,41 @@ export class MilestoneRepository {
     return rows.map(checkRowToCheck)
   }
 
+  private getMilestoneTotals(milestoneId: string): { totalTokens: number; totalCost: number } {
+    const row = this.db
+      .prepare('SELECT COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(total_cost), 0) as cost FROM agent_sessions WHERE milestone_id = ?')
+      .get(milestoneId) as { tokens: number; cost: number }
+    return { totalTokens: row.tokens, totalCost: row.cost }
+  }
+
   getByProjectId(projectId: string): Milestone[] {
     const rows = this.db
       .prepare('SELECT * FROM milestones WHERE project_id = ? ORDER BY created_at')
       .all(projectId) as MilestoneRow[]
-    return rows.map((row) =>
-      rowToMilestone(
+    return rows.map((row) => {
+      const totals = this.getMilestoneTotals(row.id)
+      return rowToMilestone(
         row,
         this.getIterations(row.id),
         this.getItems(row.id),
-        this.getChecks(row.id)
+        this.getChecks(row.id),
+        totals.totalTokens,
+        totals.totalCost,
       )
-    )
+    })
   }
 
   getById(id: string): Milestone | null {
     const row = this.db.prepare('SELECT * FROM milestones WHERE id = ?').get(id) as MilestoneRow | undefined
     if (!row) return null
+    const totals = this.getMilestoneTotals(id)
     return rowToMilestone(
       row,
       this.getIterations(id),
       this.getItems(id),
-      this.getChecks(id)
+      this.getChecks(id),
+      totals.totalTokens,
+      totals.totalCost,
     )
   }
 
@@ -222,21 +269,17 @@ export class MilestoneRepository {
     this.db
       .prepare(
         `INSERT INTO iterations
-         (milestone_id, round, developer_session_id, acceptor_session_id, outcome, started_at, completed_at, total_tokens, total_cost, model, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (milestone_id, round, outcome, started_at, completed_at, status, dispatch_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         iteration.milestoneId,
         iteration.round,
-        iteration.developerSessionId ?? null,
-        iteration.acceptorSessionId ?? null,
         iteration.outcome ?? null,
         iteration.startedAt ?? null,
         iteration.completedAt ?? null,
-        iteration.totalTokens ?? 0,
-        iteration.totalCost ?? 0,
-        iteration.model ?? null,
-        iteration.status ?? 'pending'
+        iteration.status ?? 'pending',
+        iteration.dispatchCount ?? 0,
       )
   }
 
@@ -252,7 +295,7 @@ export class MilestoneRepository {
       "SELECT * FROM iterations WHERE milestone_id = ? AND status = 'in_progress' ORDER BY round DESC LIMIT 1"
     ).get(milestoneId) as IterationRow | undefined
     if (!row) return null
-    return { ...iterRowToIteration(row), id: row.id }
+    return { ...iterRowToIteration(row, this.getSessionsForIteration(row.id)), id: row.id }
   }
 
   updateIterationStatus(id: number, status: string): void {
@@ -261,16 +304,5 @@ export class MilestoneRepository {
 
   incrementDispatchCount(id: number): void {
     this.db.prepare('UPDATE iterations SET dispatch_count = dispatch_count + 1 WHERE id = ?').run(id)
-  }
-
-  updateIterationSession(id: number, field: 'developer' | 'acceptor', sessionId: string): void {
-    const column = field === 'developer' ? 'developer_session_id' : 'acceptor_session_id'
-    this.db.prepare(`UPDATE iterations SET ${column} = ? WHERE id = ?`).run(sessionId, id)
-  }
-
-  updateIterationUsage(id: number, tokens: number, cost: number, model: string): void {
-    this.db.prepare(
-      'UPDATE iterations SET total_tokens = total_tokens + ?, total_cost = total_cost + ?, model = ? WHERE id = ?'
-    ).run(tokens, cost, model, id)
   }
 }
