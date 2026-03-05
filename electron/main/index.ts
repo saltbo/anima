@@ -2,6 +2,10 @@ import './logger' // must be first — initializes electron-log & IPC transport
 import { app, BrowserWindow, shell, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+
+if (is.dev) {
+  app.setName('Anima-Dev')
+}
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import { getDb, closeDb } from './db/index'
