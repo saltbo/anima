@@ -85,7 +85,6 @@ CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(project_id, statu
 CREATE INDEX IF NOT EXISTS idx_iterations_milestone ON iterations(milestone_id);
 CREATE INDEX IF NOT EXISTS idx_comments_milestone ON milestone_comments(milestone_id);
 CREATE INDEX IF NOT EXISTS idx_checks_item ON milestone_checks(item_id);
-CREATE INDEX IF NOT EXISTS idx_checks_milestone ON milestone_checks(milestone_id);
 
 CREATE TABLE IF NOT EXISTS milestone_items (
   milestone_id  TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
@@ -303,32 +302,34 @@ function migrateIterationStatusColumns(db: Database.Database): void {
 function migrateChecksMilestoneIdColumn(db: Database.Database): void {
   const cols = db.pragma('table_info(milestone_checks)') as { name: string }[]
   const colNames = new Set(cols.map((c) => c.name))
-  if (colNames.has('milestone_id')) return
 
-  log.info('migrating milestone_checks: adding milestone_id column and backfilling')
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS milestone_checks_new (
-      id           TEXT PRIMARY KEY,
-      milestone_id TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
-      item_id      TEXT NOT NULL REFERENCES backlog_items(id) ON DELETE CASCADE,
-      title        TEXT NOT NULL,
-      description  TEXT,
-      status       TEXT NOT NULL DEFAULT 'pending',
-      iteration    INTEGER NOT NULL DEFAULT 0,
-      created_at   TEXT NOT NULL,
-      updated_at   TEXT NOT NULL
-    );
+  if (!colNames.has('milestone_id')) {
+    log.info('migrating milestone_checks: adding milestone_id column and backfilling')
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS milestone_checks_new (
+        id           TEXT PRIMARY KEY,
+        milestone_id TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+        item_id      TEXT NOT NULL REFERENCES backlog_items(id) ON DELETE CASCADE,
+        title        TEXT NOT NULL,
+        description  TEXT,
+        status       TEXT NOT NULL DEFAULT 'pending',
+        iteration    INTEGER NOT NULL DEFAULT 0,
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+      );
 
-    INSERT INTO milestone_checks_new (id, milestone_id, item_id, title, description, status, iteration, created_at, updated_at)
-    SELECT mc.id, mi.milestone_id, mc.item_id, mc.title, mc.description, mc.status, mc.iteration, mc.created_at, mc.updated_at
-    FROM milestone_checks mc
-    JOIN milestone_items mi ON mi.item_id = mc.item_id;
+      INSERT INTO milestone_checks_new (id, milestone_id, item_id, title, description, status, iteration, created_at, updated_at)
+      SELECT mc.id, mi.milestone_id, mc.item_id, mc.title, mc.description, mc.status, mc.iteration, mc.created_at, mc.updated_at
+      FROM milestone_checks mc
+      JOIN milestone_items mi ON mi.item_id = mc.item_id;
 
-    DROP TABLE milestone_checks;
-    ALTER TABLE milestone_checks_new RENAME TO milestone_checks;
-    CREATE INDEX IF NOT EXISTS idx_checks_item ON milestone_checks(item_id);
-    CREATE INDEX IF NOT EXISTS idx_checks_milestone ON milestone_checks(milestone_id);
-  `)
+      DROP TABLE milestone_checks;
+      ALTER TABLE milestone_checks_new RENAME TO milestone_checks;
+      CREATE INDEX IF NOT EXISTS idx_checks_item ON milestone_checks(item_id);
+    `)
+  }
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_checks_milestone ON milestone_checks(milestone_id)')
 }
 
 function migrateMilestoneStatusV3(db: Database.Database): void {
