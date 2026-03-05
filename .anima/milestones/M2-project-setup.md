@@ -151,7 +151,7 @@
 生成后，这两个文件作为上下文注入所有后续 Agent 交互：
 - **Milestone 创建**：Agent 判断新 Milestone 是否符合 Vision 方向
 - **Inbox 分析**：Agent 判断反馈是否值得做
-- **迭代循环**：Developer 和 Acceptor 遵循 Soul 中的原则
+- **迭代循环**：Developer 和 Reviewer 遵循 Soul 中的原则
 
 ### 编辑入口
 

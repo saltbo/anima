@@ -179,7 +179,7 @@ export class AgentDispatchTask implements SoulTask {
       if (state.sessionId) {
         // Resume existing session
         log.info('resuming agent session', { agentId, sessionId: state.sessionId, milestoneId: state.milestone.id })
-        this.notifier.broadcastAgentEvent(agentId === 'developer' ? 'developer' : 'acceptor', state.sessionId)
+        this.notifier.broadcastAgentEvent(agentId === 'developer' ? 'developer' : 'reviewer', state.sessionId)
         result = await this.agentRunner.resume({
           projectPath: this.projectPath,
           sessionId: state.sessionId,
@@ -192,7 +192,7 @@ export class AgentDispatchTask implements SoulTask {
         const sessionId = randomUUID()
         log.info('starting new agent session', { agentId, sessionId, milestoneId: state.milestone.id })
         this.executionCtx.registerSession(state.iteration.id, state.milestone.id, agentId, sessionId, state.iteration.round)
-        this.notifier.broadcastAgentEvent(agentId === 'developer' ? 'developer' : 'acceptor', sessionId)
+        this.notifier.broadcastAgentEvent(agentId === 'developer' ? 'developer' : 'reviewer', sessionId)
         result = await this.agentRunner.run({
           projectPath: this.projectPath,
           sessionId,

@@ -39,7 +39,7 @@ export function useMilestoneDetail() {
     currentIteration: project?.currentIteration ?? null,
     rateLimitResetAt: project?.rateLimitResetAt ?? null,
   }))
-  const [activeAgent, setActiveAgent] = useState<'developer' | 'acceptor' | null>(null)
+  const [activeAgent, setActiveAgent] = useState<'developer' | 'reviewer' | null>(null)
   const [iterations, setIterations] = useState<Iteration[]>(loaderData.milestone?.iterations ?? [])
 
   // ── Comment state ──────────────────────────────────────────────────────

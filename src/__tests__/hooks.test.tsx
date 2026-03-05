@@ -797,11 +797,11 @@ describe('useMilestoneDetail', () => {
 
       act(() => {
         mockAPI._listeners.projectAgentEvent.forEach((cb) =>
-          cb({ projectId: 'proj-1', role: 'acceptor', sessionId: 'sess-2' }),
+          cb({ projectId: 'proj-1', role: 'reviewer', sessionId: 'sess-2' }),
         )
       })
 
-      expect(result.current.activeAgent).toBe('acceptor')
+      expect(result.current.activeAgent).toBe('reviewer')
     })
 
     it('onProjectAgentEvent ignores events for other projects', async () => {

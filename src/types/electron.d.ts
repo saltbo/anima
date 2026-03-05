@@ -1,7 +1,7 @@
 import type { Project, BacklogItem, Milestone, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload, Action } from './index'
 import type { AgentEvent } from './agent'
 
-export type AgentRole = 'developer' | 'acceptor'
+export type AgentRole = 'developer' | 'reviewer'
 
 export interface McpServerEntry {
   command: string

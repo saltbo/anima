@@ -245,7 +245,7 @@ draft ──── 用户"标记为就绪" ────→ ready
 | `draft` | 刚创建，尚未就绪；Scheduler 忽略此状态 |
 | `ready` | 用户确认就绪，Scheduler 可拾取；支持拖拽排序 |
 | `in_progress` | 正在迭代（含 Scheduler 暂停等待人工介入的中间状态） |
-| `awaiting_review` | Developer/Acceptor 循环完成，等待人工验收 |
+| `awaiting_review` | Developer/Reviewer 循环完成，等待人工验收 |
 | `completed` | 已完成并 merge 到 main |
 | `cancelled` | 用户主动中止；`in_progress` 时触发 branch rollback，`awaiting_review` 时仅归档不 rollback |
 | `failed` | 严重失败，已 rollback（由 M6 处理） |

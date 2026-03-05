@@ -14,7 +14,7 @@
 - 将里程碑状态更新为 `awaiting_review`，暂停自动流转
 
 **场景 B：retry 上限触发的人工介入**
-- retry_count >= 3，Developer-Acceptor 循环陷入僵局
+- retry_count >= 3，Developer-Reviewer 循环陷入僵局
 - Scheduler 暂停，等待人工提供新方向
 
 ### 人工验收 UI（场景 A）
@@ -28,7 +28,7 @@
 ### 人工介入 UI（场景 B）
 
 在状态栏显示"需要人工介入"提示：
-- 展示最近的 Acceptor 拒绝理由（最近 3 次）
+- 展示最近的 Reviewer 拒绝理由（最近 3 次）
 - 输入框：让用户提供新的方向或补充说明
 - 提交后将人工反馈传给 Developer，retry_count 重置，循环继续
 

@@ -408,7 +408,7 @@ function migrateAgentSessionsTable(db: Database.Database): void {
 
   for (const row of rows) {
     const hasBoth = row.developer_session_id && row.acceptor_session_id
-    // Split usage 60/40 between developer and acceptor when both exist
+    // Split usage 60/40 between developer and reviewer when both exist
     const devRatio = hasBoth ? 0.6 : 1
     const accRatio = hasBoth ? 0.4 : 1
 

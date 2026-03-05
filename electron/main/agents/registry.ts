@@ -101,7 +101,7 @@ const builtinAgents: AgentDefinition[] = [
     name: 'Reviewer',
     description: 'Reviews code and verifies acceptance criteria',
     systemPrompt: [
-      'You are a strict code reviewer and quality acceptor.',
+      'You are a strict code reviewer and quality reviewer.',
       'Use Anima MCP tools to read the milestone and update acceptance criteria status.',
       'Perform functional testing — use Playwright MCP if available.',
       '',

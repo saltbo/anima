@@ -144,7 +144,7 @@ server.tool(
 
 server.tool(
   'milestones:addComment',
-  'Add a comment to a milestone (used for developer reports and acceptor feedback)',
+  'Add a comment to a milestone (used for developer reports and reviewer feedback)',
   {
     milestone_id: z.string().describe('The milestone ID'),
     body: z.string().describe('The comment body (markdown supported)'),

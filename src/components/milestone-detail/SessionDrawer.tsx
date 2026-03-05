@@ -12,7 +12,7 @@ export interface SessionDrawerProps {
 
 const AGENT_LABELS: Record<string, string> = {
   developer: 'Developer',
-  reviewer: 'Acceptor',
+  reviewer: 'Reviewer',
   planner: 'Planner',
 }
 

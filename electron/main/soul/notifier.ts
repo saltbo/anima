@@ -24,7 +24,7 @@ export class Notifier {
     this.send('project:statusChanged', status)
   }
 
-  broadcastAgentEvent(role: 'developer' | 'acceptor', sessionId: string): void {
+  broadcastAgentEvent(role: 'developer' | 'reviewer', sessionId: string): void {
     const payload: ProjectAgentEvent = { projectId: this.projectId, role, sessionId }
     this.send('project:agentEvent', payload)
   }

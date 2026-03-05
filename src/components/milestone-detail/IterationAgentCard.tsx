@@ -3,7 +3,7 @@ import { formatTokens } from '@/lib/time'
 import type { AgentSession } from '@/types/index'
 
 interface IterationAgentCardProps {
-  role: 'developer' | 'acceptor'
+  role: 'developer' | 'reviewer'
   session?: AgentSession
   summary?: string
   onViewSession?: () => void
@@ -12,7 +12,7 @@ interface IterationAgentCardProps {
 export function IterationAgentCard({ role, session, summary, onViewSession }: IterationAgentCardProps) {
   const isDeveloper = role === 'developer'
   const Icon = isDeveloper ? Code : ShieldCheck
-  const label = isDeveloper ? 'Developer' : 'Acceptor'
+  const label = isDeveloper ? 'Developer' : 'Reviewer'
   const iconColor = isDeveloper ? 'text-indigo-500' : 'text-green-600'
 
   return (
