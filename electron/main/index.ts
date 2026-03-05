@@ -26,6 +26,10 @@ import { registerIpcAdapter } from './api/ipcAdapter'
 import { startSocketServer } from './api/socketAdapter'
 import { initMcpConfig, ensureMcpConfigFile } from './mcp/mcpConfig'
 
+const appIcon = is.dev
+  ? join(__dirname, '../../resources/icon.png')
+  : join(process.resourcesPath, 'icon.png')
+
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 let soulService: SoulService | null = null
@@ -41,7 +45,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#0f0f0f',
-    icon: join(__dirname, '../../resources/icon.png'),
+    icon: appIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -82,7 +86,7 @@ app.whenReady().then(() => {
 
   // Set dock icon for dev mode (macOS)
   if (process.platform === 'darwin' && app.dock) {
-    app.dock.setIcon(join(__dirname, '../../resources/icon.png'))
+    app.dock.setIcon(appIcon)
   }
 
   app.on('browser-window-created', (_, window) => {
