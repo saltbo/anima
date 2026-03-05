@@ -1,6 +1,7 @@
 {
   "name": "anima",
   "version": "0.1.0",
+  "productName": "Anima",
   "description": "Give your project a soul",
   "author": "saltbo",
   "license": "Apache-2.0",
