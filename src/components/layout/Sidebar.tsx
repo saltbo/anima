@@ -65,6 +65,7 @@ export function Sidebar() {
   }
 
   const handleClickHome = () => {
+    setDropdownOpen(false)
     setSelectedProjectId(null)
     navigate('/')
   }
@@ -115,6 +116,19 @@ export function Sidebar() {
           {/* Dropdown */}
           {dropdownOpen && (
             <div className="absolute left-0 right-0 top-9 z-50 rounded-md border border-border bg-popover shadow-md py-1">
+              <button
+                onClick={handleClickHome}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 h-8 text-left text-sm transition-colors cursor-pointer',
+                  !selectedProjectId
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                )}
+              >
+                <Home size={14} />
+                <span>Home</span>
+              </button>
+              {projects.length > 0 && <div className="my-1 border-t border-border" />}
               {projects.map((project) => (
                 <button
                   key={project.id}
@@ -135,7 +149,7 @@ export function Sidebar() {
                   <span className="flex-1 truncate">{project.name}</span>
                 </button>
               ))}
-              {projects.length > 0 && <div className="my-1 border-t border-border" />}
+              <div className="my-1 border-t border-border" />
               <button
                 onClick={handleAddProject}
                 className="w-full flex items-center gap-2 px-3 h-8 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
