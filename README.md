@@ -1,4 +1,7 @@
 <p align="center">
+  <img src="resources/logo.svg" width="128" height="128" alt="Anima Logo">
+</p>
+<p align="center">
   <h1 align="center">Anima</h1>
   <p align="center"><b>Give your project a soul.</b></p>
   <p align="center">

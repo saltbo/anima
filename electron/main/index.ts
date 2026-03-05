@@ -41,6 +41,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#0f0f0f',
+    icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -78,6 +79,11 @@ if (is.dev) {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.bogit.anima')
+
+  // Set dock icon for dev mode (macOS)
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(join(__dirname, '../../resources/icon.png'))
+  }
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

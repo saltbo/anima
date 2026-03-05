@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="anima-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+    <radialGradient id="anima-glow" cx="50%" cy="38%" r="50%">
+      <stop offset="0%" stop-color="#EDE9FE" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- White rounded-rect background with Apple-standard padding -->
+  <!-- Apple spec: ~100px margin on 1024 canvas, content area ~824x824 -->
+  <rect x="100" y="100" width="824" height="824" rx="186" ry="186" fill="#FFFFFF"/>
+  <!-- Head circle -->
+  <circle cx="512" cy="392" r="160" fill="none" stroke="url(#anima-grad)" stroke-width="46"/>
+  <!-- Inner glow -->
+  <circle cx="512" cy="392" r="128" fill="url(#anima-glow)"/>
+  <!-- Consciousness dot -->
+  <circle cx="512" cy="360" r="32" fill="url(#anima-grad)"/>
+  <circle cx="506" cy="354" r="10" fill="#DDD6FE" opacity="0.7"/>
+  <!-- Body curve -->
+  <path d="M388,580 Q388,780 512,780 Q636,780 636,580"
+    fill="none" stroke="url(#anima-grad)" stroke-width="46" stroke-linecap="round"/>
+</svg>
