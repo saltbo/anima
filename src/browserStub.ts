@@ -22,6 +22,9 @@ export function installBrowserStub() {
 
     readSessionEvents: async () => [],
     stopAgent: async () => {},
+    watchSession: async () => [],
+    unwatchSession: async () => {},
+    onSessionEvent: () => () => {},
 
     onProjectsUpdated: () => () => {},
     onNavigate: () => () => {},

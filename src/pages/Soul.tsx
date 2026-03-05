@@ -179,7 +179,7 @@ export function Soul() {
           <span className="text-sm font-medium text-foreground">Giving this project a soul…</span>
         </div>
         <div className="flex-1 min-h-0">
-          <AgentChat sessionId={agentSessionId ?? undefined} live className="h-full" onDone={handleDone} />
+          <AgentChat sessionId={agentSessionId ?? undefined} className="h-full" onDone={handleDone} />
         </div>
       </div>
     )

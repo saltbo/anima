@@ -172,10 +172,8 @@ export interface AgentChatHandle {
 }
 
 export interface AgentChatProps {
-  /** Session ID — reads events from session JSONL file. Polls while live. */
+  /** Session ID — loads history then subscribes to file-watch push via IPC. */
   sessionId?: string
-  /** Whether this session is still running (enables polling). */
-  live?: boolean
   /** Render the input bar. Caller controls send logic. */
   input?: React.ReactNode
   /** Extra content rendered below the conversation (e.g. action buttons) */
@@ -186,13 +184,12 @@ export interface AgentChatProps {
 }
 
 export const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
-function AgentChat({ sessionId, live, input, footer, className, onDone }, ref) {
+function AgentChat({ sessionId, input, footer, className, onDone }, ref) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const idRef = useRef(0)
   const nextId = useCallback(() => idRef.current++, [])
   const onDoneRef = useRef(onDone)
   useEffect(() => { onDoneRef.current = onDone }, [onDone])
-  const eventCountRef = useRef(0)
 
   const push = useCallback((ev: TimelineEvent) => {
     setEvents((prev) => {
@@ -234,7 +231,7 @@ function AgentChat({ sessionId, live, input, footer, className, onDone }, ref) {
     },
   }), [push, nextId])
 
-  // Poll session file for events (works for both live and history)
+  // Load history via watchSession, then receive incremental updates via IPC push
   useEffect(() => {
     if (!sessionId) return
     let cancelled = false
@@ -242,34 +239,25 @@ function AgentChat({ sessionId, live, input, footer, className, onDone }, ref) {
     // Reset state for new session
     setEvents([])
     idRef.current = 0
-    eventCountRef.current = 0
 
-    const poll = (): void => {
+    // Start watching — returns existing events as history
+    window.electronAPI.watchSession(sessionId).then((history) => {
       if (cancelled) return
-      window.electronAPI.readSessionEvents(sessionId).then((allEvents) => {
-        if (cancelled) return
-        const newEvents = (allEvents as AgentEvent[]).slice(eventCountRef.current)
-        if (newEvents.length > 0) {
-          eventCountRef.current += newEvents.length
-          applyEvents(newEvents)
-        }
-      })
-    }
+      if (history.length > 0) applyEvents(history as AgentEvent[])
+    })
 
-    // Initial load
-    poll()
-
-    // If live, poll periodically for new events
-    let interval: ReturnType<typeof setInterval> | undefined
-    if (live) {
-      interval = setInterval(poll, 1000)
-    }
+    // Subscribe to incremental push events from fs.watch
+    const unsub = window.electronAPI.onSessionEvent((data) => {
+      if (cancelled || data.sessionId !== sessionId) return
+      applyEvents([data.event])
+    })
 
     return () => {
       cancelled = true
-      if (interval) clearInterval(interval)
+      unsub()
+      window.electronAPI.unwatchSession(sessionId)
     }
-  }, [sessionId, live, applyEvents])
+  }, [sessionId, applyEvents])
 
   return (
     <div className={cn('flex flex-col h-full', className)}>

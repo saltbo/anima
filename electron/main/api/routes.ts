@@ -19,6 +19,7 @@ import {
   removeUserMcpServer,
 } from '../mcp/mcpConfig'
 import { findSessionFile, readEventsFromFile } from '../agents/claude-code/parser'
+import type { SessionWatcher } from '../agents/SessionWatcher'
 import { updateTray } from '../app/tray'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ export interface ServiceContext {
   setupService: SetupService
   commentRepo: CommentRepository
   checkRepo: CheckRepository
+  sessionWatcher: SessionWatcher
 }
 
 // ── Route Map ────────────────────────────────────────────────────────────────
@@ -43,7 +45,7 @@ export function createRoutes(
   ctx: ServiceContext,
   getWindow: () => BrowserWindow | null
 ): Record<string, ApiHandler> {
-  const { projectService, backlogService, milestoneService, milestoneRepo, soulService, setupService, commentRepo, checkRepo } = ctx
+  const { projectService, backlogService, milestoneService, milestoneRepo, soulService, setupService, commentRepo, checkRepo, sessionWatcher } = ctx
 
   return {
     // ── Projects ──────────────────────────────────────────────────────────
@@ -103,6 +105,10 @@ export function createRoutes(
     'agent:stop': () => {
       // With stateless resume model, there's no long-running process to stop.
     },
+
+    // ── Session watching (fs.watch → IPC push) ──────────────────────────
+    'session:watch': (sessionId: string) => sessionWatcher.watch(sessionId),
+    'session:unwatch': (sessionId: string) => sessionWatcher.unwatch(sessionId),
 
     // ── Backlog ───────────────────────────────────────────────────────────
     'backlog:list': (projectId: string) => backlogService.getItems(projectId),

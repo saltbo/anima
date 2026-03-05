@@ -72,6 +72,9 @@ function createMockElectronAPI(projects: Project[] = []): MockElectronAPI {
     // Agent
     readSessionEvents: vi.fn().mockResolvedValue([]),
     stopAgent: vi.fn().mockResolvedValue(undefined),
+    watchSession: vi.fn().mockResolvedValue([]),
+    unwatchSession: vi.fn().mockResolvedValue(undefined),
+    onSessionEvent: vi.fn(() => () => {}),
 
     // Backlog
     getBacklogItems: vi.fn().mockResolvedValue([]),

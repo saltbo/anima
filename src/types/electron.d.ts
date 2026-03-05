@@ -49,6 +49,9 @@ declare global {
       // ── Agent ────────────────────────────────────────────────────────────
       readSessionEvents: (sessionId: string) => Promise<AgentEvent[]>
       stopAgent: (sessionId: string) => Promise<void>
+      watchSession: (sessionId: string) => Promise<AgentEvent[]>
+      unwatchSession: (sessionId: string) => Promise<void>
+      onSessionEvent: (callback: (data: { sessionId: string; event: AgentEvent }) => void) => () => void
 
       // ── Backlog ───────────────────────────────────────────────────────────
       getBacklogItems: (projectId: string) => Promise<BacklogItem[]>

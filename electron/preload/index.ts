@@ -47,6 +47,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Agent ──────────────────────────────────────────────────────────────────
   readSessionEvents: (sessionId: string) => ipcRenderer.invoke('agent:readSessionEvents', sessionId),
   stopAgent: (sessionId: string) => ipcRenderer.invoke('agent:stop', sessionId),
+  watchSession: (sessionId: string) => ipcRenderer.invoke('session:watch', sessionId),
+  unwatchSession: (sessionId: string) => ipcRenderer.invoke('session:unwatch', sessionId),
+
+  onSessionEvent: (callback: (data: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('session:event', handler)
+    return () => ipcRenderer.removeListener('session:event', handler)
+  },
 
   // ── Backlog ─────────────────────────────────────────────────────────────────
   getBacklogItems: (projectId: string) => ipcRenderer.invoke('backlog:list', projectId),

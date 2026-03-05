@@ -17,6 +17,7 @@ import { SoulService } from './services/SoulService'
 import { SetupService } from './services/SetupService'
 import { GitService } from './services/GitService'
 import { AgentRunner } from './agents/AgentRunner'
+import { SessionWatcher } from './agents/SessionWatcher'
 import { createTray } from './app/tray'
 import { createRoutes } from './api/routes'
 import { registerIpcAdapter } from './api/ipcAdapter'
@@ -26,6 +27,7 @@ import { initMcpConfig, ensureMcpConfigFile } from './mcp/mcpConfig'
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 let soulService: SoulService | null = null
+let sessionWatcher: SessionWatcher | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -112,6 +114,7 @@ app.whenReady().then(() => {
     () => soulService!
   )
   const setupService = new SetupService(agentRunner)
+  sessionWatcher = new SessionWatcher(getWindow)
   soulService = new SoulService(
     projectRepo, milestoneRepo, commentRepo, backlogRepo, milestoneItemRepo, gitService, agentRunner, getWindow
   )
@@ -128,6 +131,7 @@ app.whenReady().then(() => {
     setupService,
     commentRepo,
     checkRepo,
+    sessionWatcher,
   }, getWindow)
   registerIpcAdapter(routes)
   startSocketServer(routes, bridgeSocketPath)
@@ -146,6 +150,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  sessionWatcher?.dispose()
   soulService?.stopAll()
   closeDb()
 })
