@@ -18,8 +18,9 @@ export function think(context: SoulContext): Decision {
     return { task: 'idle' }
   }
 
-  // Find active milestone (in-progress takes priority)
+  // Find active milestone (in-progress takes priority, then in_review)
   const active = milestones.find((m) => m.status === 'in_progress')
+    ?? milestones.find((m) => m.status === 'in_review')
 
   if (active) {
     // Check for @human mentions — pause (idle) to let user handle

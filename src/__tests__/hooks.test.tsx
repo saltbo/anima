@@ -589,59 +589,6 @@ describe('useMilestoneDetail', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-1/milestones')
     })
 
-    it('handleRequestChanges adds comment, sets ready, clears input, closes dialog', async () => {
-      const useMilestoneDetail = await importUseMilestoneDetail()
-      const { result } = renderHook(() => useMilestoneDetail(), { wrapper: createWrapper() })
-
-      await waitFor(() => {
-        expect(result.current.milestone).not.toBeNull()
-        expect(result.current.project).toBeDefined()
-      })
-
-      // Set up dialog and text
-      act(() => {
-        result.current.setRequestChangesOpen(true)
-        result.current.setRequestChangesText('Fix the login page')
-      })
-
-      await act(async () => {
-        await result.current.handleRequestChanges()
-      })
-
-      // Should call API with request_changes + comment
-      expect(mockAPI.transitionMilestone).toHaveBeenCalledWith('proj-1', 'ms-1', {
-        action: 'request_changes',
-        comment: expect.objectContaining({ body: 'Fix the login page' }),
-      })
-      // Optimistic: status → ready
-      expect(result.current.milestone!.status).toBe('ready')
-      // Comment added locally
-      expect(result.current.comments).toHaveLength(1)
-      expect(result.current.comments[0].body).toBe('Fix the login page')
-      expect(result.current.comments[0].author).toBe('human')
-      // Input cleared, dialog closed
-      expect(result.current.requestChangesText).toBe('')
-      expect(result.current.requestChangesOpen).toBe(false)
-    })
-
-    it('handleRequestChanges does nothing with empty text', async () => {
-      const useMilestoneDetail = await importUseMilestoneDetail()
-      const { result } = renderHook(() => useMilestoneDetail(), { wrapper: createWrapper() })
-
-      await waitFor(() => {
-        expect(result.current.milestone).not.toBeNull()
-        expect(result.current.project).toBeDefined()
-      })
-
-      // Text is empty (default)
-      await act(async () => {
-        await result.current.handleRequestChanges()
-      })
-
-      expect(mockAPI.transitionMilestone).not.toHaveBeenCalled()
-      expect(result.current.milestone!.status).toBe('in_review')
-    })
-
     it('handleAddComment adds comment and clears input', async () => {
       const useMilestoneDetail = await importUseMilestoneDetail()
       const { result } = renderHook(() => useMilestoneDetail(), { wrapper: createWrapper() })

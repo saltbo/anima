@@ -260,7 +260,7 @@ server.tool(
   {
     project_id: z.string().describe('The project ID'),
     milestone_id: z.string().describe('The milestone ID'),
-    action: z.enum(['approve', 'cancel', 'close', 'accept', 'request_changes', 'rollback', 'reopen']).describe('The transition action to perform'),
+    action: z.enum(['approve', 'cancel', 'close', 'accept', 'rollback', 'reopen']).describe('The transition action to perform'),
   },
   async ({ project_id, milestone_id, action }) => {
     try {

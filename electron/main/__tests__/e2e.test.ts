@@ -21,7 +21,7 @@
  *  9.  AgentDispatchTask — plan-milestone
  *  10. AgentDispatchTask — plan-milestone auto-approve
  *  11. Milestone state transitions validation
- *  12. MilestoneLifecycle — accept/rollback/requestChanges/cancel
+ *  12. MilestoneLifecycle — accept/rollback/cancel
  *  13. SoulService orchestration — wake/transition/stop
  *  14. MilestoneService — transition validation + status preservation
  *  15. Comment system
@@ -1044,7 +1044,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
       expect(validateTransition('planned', 'approve')).toBeTruthy()
       expect(validateTransition('in_review', 'accept')).toBeTruthy()
       expect(validateTransition('in_review', 'rollback')).toBeTruthy()
-      expect(validateTransition('in_review', 'request_changes')).toBeTruthy()
       expect(validateTransition('ready', 'cancel')).toBeTruthy()
       expect(validateTransition('closed', 'reopen')).toBeTruthy()
     })
@@ -1057,7 +1056,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
     it('lists available actions per status', () => {
       expect(availableActions('in_review')).toEqual(
-        expect.arrayContaining(['accept', 'request_changes', 'rollback', 'close'])
+        expect.arrayContaining(['accept', 'rollback', 'close'])
       )
       expect(availableActions('completed')).toEqual(['close'])
     })
@@ -1107,21 +1106,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
       expect(ms.status).toBe('ready')
       expect(ms.iterationCount).toBe(0)
       expect(h.gitService.resetBranches).toEqual([{ branch: 'milestone/ms-rb', commit: 'abc1234' }])
-    })
-
-    it('request_changes adds comment and sets ready', () => {
-      const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({ id: 'ms-rc', status: 'in_review' }))
-
-      createLifecycle(project.id).requestChanges(project.id, 'ms-rc', {
-        id: 'c1', body: 'Fix edge case',
-      })
-
-      expect(h.milestoneRepo.getById('ms-rc')!.status).toBe('ready')
-      const comments = h.commentRepo.getByMilestoneId('ms-rc')
-      expect(comments).toHaveLength(1)
-      expect(comments[0].body).toBe('Fix edge case')
-      expect(comments[0].author).toBe('human')
     })
 
     it('cancel releases backlog items', () => {
@@ -1195,24 +1179,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
       await h.soulService.transition(project.id, 'ms-sc', { action: 'cancel' })
 
       expect(h.milestoneRepo.getById('ms-sc')!.status).toBe('cancelled')
-    })
-
-    it('transition request_changes re-wakes soul', async () => {
-      const project = h.projectRepo.add(h.tmpDir)
-      h.milestoneRepo.save(project.id, makeMs({
-        id: 'ms-rq', status: 'in_review', baseCommit: 'ghi789',
-      }))
-
-      h.soulService.add(project)
-
-      await h.soulService.transition(project.id, 'ms-rq', {
-        action: 'request_changes',
-        comment: { id: 'rc-1', body: 'Fix tests' },
-      })
-
-      // request_changes sets milestone to 'ready'; tick is deferred so status is deterministic
-      expect(h.milestoneRepo.getById('ms-rq')!.status).toBe('ready')
-      expect(h.commentRepo.getByMilestoneId('ms-rq')).toHaveLength(1)
     })
 
     it('remove + re-remove does not throw', () => {

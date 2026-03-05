@@ -79,7 +79,7 @@ export class SoulService {
 
     // Auto-wake if project has ready milestones or was active
     const milestones = this.milestoneRepo.getByProjectId(project.id)
-    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress' || m.status === 'planning')
+    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress' || m.status === 'in_review' || m.status === 'planning')
     if (hasWork || project.status === 'busy' || project.status === 'idle') {
       soul.wake()
     }
@@ -130,12 +130,6 @@ export class SoulService {
         await lifecycle.rollback(projectId, milestoneId)
         // Rollback sets milestone to 'ready' — wake to pick it up
         this.wakeIfHasWork(projectId)
-        break
-      case 'request_changes':
-        if (!payload.comment) throw new Error('request_changes requires a comment')
-        lifecycle.requestChanges(projectId, milestoneId, payload.comment)
-        // request_changes sets milestone to 'ready' — always wake
-        this.souls.get(projectId)?.wake()
         break
       default:
         throw new Error(`Unsupported scheduler action: ${payload.action}`)
@@ -188,7 +182,7 @@ export class SoulService {
   /** Only wake the soul if there are ready or in-progress milestones to work on */
   private wakeIfHasWork(projectId: string): void {
     const milestones = this.milestoneRepo.getByProjectId(projectId)
-    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress' || m.status === 'planning')
+    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress' || m.status === 'in_review' || m.status === 'planning')
     if (hasWork) {
       this.souls.get(projectId)?.wake()
     }

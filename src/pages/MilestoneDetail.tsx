@@ -12,7 +12,6 @@ import {
   DeleteDialog,
   CancelDialog,
   RollbackDialog,
-  RequestChangesDialog,
   useMilestoneDetail,
 } from '@/components/milestone-detail'
 
@@ -47,13 +46,11 @@ export function MilestoneDetail() {
     deleteOpen, setDeleteOpen,
     cancelOpen, setCancelOpen,
     rollbackOpen, setRollbackOpen,
-    requestChangesOpen, setRequestChangesOpen,
-    requestChangesText, setRequestChangesText,
 
     // Actions
     handleDelete, handleCancel,
     handleAcceptMerge, handleRollback,
-    handleRequestChanges, handleAddComment,
+    handleAddComment,
     handleCloseWithComment, handleMarkReady,
   } = useMilestoneDetail()
 
@@ -102,7 +99,6 @@ export function MilestoneDetail() {
             onCommentChange={setCommentText}
             onCommentSubmit={handleAddComment}
             onAcceptMerge={handleAcceptMerge}
-            onRequestChanges={() => setRequestChangesOpen(true)}
             onRollback={() => setRollbackOpen(true)}
             onCloseWithComment={handleCloseWithComment}
             onApprove={handleMarkReady}
@@ -135,13 +131,6 @@ export function MilestoneDetail() {
         open={rollbackOpen}
         onOpenChange={setRollbackOpen}
         onRollback={handleRollback}
-      />
-      <RequestChangesDialog
-        open={requestChangesOpen}
-        onOpenChange={setRequestChangesOpen}
-        value={requestChangesText}
-        onChange={setRequestChangesText}
-        onSubmit={handleRequestChanges}
       />
       <SessionDrawer
         open={drawerSessionId !== null}

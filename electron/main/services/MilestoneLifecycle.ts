@@ -82,29 +82,6 @@ export class MilestoneLifecycle {
     log.info('milestone rolled back', { milestone: milestoneId })
   }
 
-  requestChanges(projectId: string, milestoneId: string, comment: { id: string; body: string }): void {
-    const milestone = this.milestoneRepo.getById(milestoneId)
-    if (!milestone) return
-    if (milestone.status !== 'in_review') {
-      log.warn('cannot request changes in status', { status: milestone.status })
-      return
-    }
-
-    const now = nowISO()
-    this.commentRepo.add({
-      id: comment.id,
-      milestoneId,
-      body: comment.body,
-      author: 'human',
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    this.milestoneRepo.save(projectId, { ...milestone, status: 'ready' })
-    this.logAction(projectId, milestoneId, 'in_review', 'ready', 'request_changes', 'human')
-    this.notifier.broadcastMilestoneUpdate({ ...milestone, status: 'ready' })
-  }
-
   cancel(projectId: string, milestoneId: string): void {
     const milestone = this.milestoneRepo.getById(milestoneId)
     if (!milestone) return

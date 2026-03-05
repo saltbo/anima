@@ -151,7 +151,7 @@ export class Soul {
     const pendingMentions: PendingMention[] = []
     const planningDispatchCounts: Record<string, number> = {}
     for (const m of milestones) {
-      if (m.status !== 'in_progress' && m.status !== 'planning') continue
+      if (m.status !== 'in_progress' && m.status !== 'in_review' && m.status !== 'planning') continue
       const comments = this.opts.commentRepo.getUndispatchedMentions(m.id)
       for (const comment of comments) {
         const mentions = parseMentions(comment.body)

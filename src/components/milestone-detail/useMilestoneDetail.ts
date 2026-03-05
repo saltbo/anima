@@ -29,8 +29,6 @@ export function useMilestoneDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [rollbackOpen, setRollbackOpen] = useState(false)
-  const [requestChangesOpen, setRequestChangesOpen] = useState(false)
-  const [requestChangesText, setRequestChangesText] = useState('')
 
   // ── Iteration state ────────────────────────────────────────────────────
   const [status, setStatus] = useState<ProjectIterationStatus>(() => ({
@@ -152,26 +150,6 @@ export function useMilestoneDetail() {
     setRollbackOpen(false)
   }, [project, milestone])
 
-  const handleRequestChanges = useCallback(async () => {
-    if (!project || !milestone || !requestChangesText.trim()) return
-    const commentId = crypto.randomUUID()
-    await window.electronAPI.transitionMilestone(project.id, milestone.id, {
-      action: 'request_changes',
-      comment: { id: commentId, body: requestChangesText.trim() },
-    })
-    setComments((prev) => [...prev, {
-      id: commentId,
-      milestoneId: milestone.id,
-      body: requestChangesText.trim(),
-      author: 'human',
-      createdAt: nowISO(),
-      updatedAt: nowISO(),
-    }])
-    setMilestone({ ...milestone, status: 'ready' })
-    setRequestChangesText('')
-    setRequestChangesOpen(false)
-  }, [project, milestone, requestChangesText])
-
   const handleAddComment = useCallback(async () => {
     if (!project || !milestone || !commentText.trim()) return
     const commentId = crypto.randomUUID()
@@ -239,13 +217,11 @@ export function useMilestoneDetail() {
     deleteOpen, setDeleteOpen,
     cancelOpen, setCancelOpen,
     rollbackOpen, setRollbackOpen,
-    requestChangesOpen, setRequestChangesOpen,
-    requestChangesText, setRequestChangesText,
 
     // Actions
     handleMarkReady, handleDelete,
     handleCancel, handleReopen, handleAcceptMerge,
-    handleRollback, handleRequestChanges, handleAddComment,
+    handleRollback, handleAddComment,
     handleCloseWithComment,
   }
 }

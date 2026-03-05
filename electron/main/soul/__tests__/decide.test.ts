@@ -179,6 +179,34 @@ describe('think()', () => {
     expect(think(ctx)).toEqual({ task: 'idle' })
   })
 
+  it('dispatches mentioned agent for in_review milestone', () => {
+    const inReview = makeMilestone({ id: 'm1', status: 'in_review' })
+    const ctx = makeContext({
+      milestones: [inReview],
+      pendingMentions: [{ agentId: 'developer', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({
+      task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1', commentId: 'c1',
+    })
+  })
+
+  it('returns idle when @human mention on in_review milestone', () => {
+    const inReview = makeMilestone({ id: 'm1', status: 'in_review' })
+    const ctx = makeContext({
+      milestones: [inReview],
+      pendingMentions: [{ agentId: 'human', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
+  it('returns idle when in_review milestone has no mentions', () => {
+    const inReview = makeMilestone({ id: 'm1', status: 'in_review' })
+    const ctx = makeContext({
+      milestones: [inReview],
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
   it('returns idle with empty milestones array', () => {
     expect(think(makeContext())).toEqual({ task: 'idle' })
   })

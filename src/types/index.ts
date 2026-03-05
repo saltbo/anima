@@ -155,11 +155,9 @@ export type MilestoneAction =
   | 'cancel'
   | 'close'
   | 'accept'
-  | 'request_changes'
   | 'rollback'
   | 'reopen'
 
 export interface TransitionPayload {
   action: MilestoneAction
-  comment?: { id: string; body: string }
 }

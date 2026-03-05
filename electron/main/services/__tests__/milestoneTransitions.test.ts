@@ -15,7 +15,6 @@ describe('milestoneTransitions', () => {
       ['in_progress', 'cancel', 'cancelled'],
       ['in_progress', 'approve', 'in_review'],
       ['in_review', 'accept', 'completed'],
-      ['in_review', 'request_changes', 'ready'],
       ['in_review', 'rollback', 'ready'],
       ['cancelled', 'rollback', 'ready'],
       ['draft', 'close', 'closed'],
@@ -59,6 +58,7 @@ describe('milestoneTransitions', () => {
       ['in_progress', 'close'],
       ['in_review', 'cancel'],
       ['in_review', 'reopen'],
+      ['in_review', 'request_changes'],
       ['completed', 'cancel'],
       ['completed', 'accept'],
       ['completed', 'rollback'],
@@ -103,8 +103,8 @@ describe('milestoneTransitions', () => {
       expect(availableActions('in_progress')).toEqual(['approve', 'cancel'])
     })
 
-    it('returns [accept, request_changes, rollback, close] for in_review', () => {
-      expect(availableActions('in_review')).toEqual(['accept', 'request_changes', 'rollback', 'close'])
+    it('returns [accept, rollback, close] for in_review', () => {
+      expect(availableActions('in_review')).toEqual(['accept', 'rollback', 'close'])
     })
 
     it('returns [rollback, close] for cancelled', () => {
@@ -127,10 +127,10 @@ describe('milestoneTransitions', () => {
       expect(actions).toEqual(['approve', 'close', 'reopen'])
     })
 
-    it('scheduler transitions: cancel, close (from ready/in_review), accept, request_changes, rollback', () => {
+    it('scheduler transitions: cancel, close (from ready/in_review), accept, rollback', () => {
       const scheduler = TRANSITION_TABLE.filter((r) => r.needsScheduler)
       const actions = [...new Set(scheduler.map((r) => r.action))].sort()
-      expect(actions).toEqual(['accept', 'cancel', 'close', 'request_changes', 'rollback'])
+      expect(actions).toEqual(['accept', 'cancel', 'close', 'rollback'])
     })
   })
 })
