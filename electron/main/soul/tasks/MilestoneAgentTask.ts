@@ -167,6 +167,13 @@ export class MilestoneAgentTask implements SoulTask {
           completedAt: nowISO(),
         })
         await this.complete(milestone)
+      } else if (agentId === 'reviewer' && this.isIterationApproved(milestone)) {
+        // Reviewer approved this iteration's checks but milestone has more work.
+        // Mark iteration as passed so decide() can start the next developer iteration.
+        this.milestoneRepo.updateIterationStatus(iteration.id, 'passed')
+        log.info('iteration approved by reviewer, remaining checks for next iteration', {
+          milestoneId: milestone.id,
+        })
       }
 
       // Broadcast updated milestone
@@ -256,6 +263,15 @@ export class MilestoneAgentTask implements SoulTask {
   private isComplete(milestone: Milestone): boolean {
     const checks = milestone.checks
     return checks.length > 0 && checks.every((c) => c.status === 'passed')
+  }
+
+  /** Reviewer approved this iteration: some checks passed, none rejected */
+  private isIterationApproved(milestone: Milestone): boolean {
+    const checks = milestone.checks
+    if (checks.length === 0) return false
+    const hasRejected = checks.some((c) => c.status === 'rejected')
+    const hasPassed = checks.some((c) => c.status === 'passed')
+    return hasPassed && !hasRejected
   }
 
   private refresh(milestone: Milestone): Milestone {

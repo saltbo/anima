@@ -19,7 +19,9 @@ const log = createLogger('milestone-planning')
 const MILESTONE_REVIEW_ROLE =
   'You are a milestone review agent. ' +
   'You may read any file in the project. ' +
-  'Do not write any files or execute shell commands.'
+  'Do not write any files or execute shell commands. ' +
+  'After completing your review, you MUST post your findings as a comment via the milestones:addComment MCP tool ' +
+  'with author="reviewer". Include your analysis, verdict, and specific recommendations.'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,7 +141,7 @@ export class MilestonePlanningTask implements SoulTask {
   private async runReview(milestoneId: string, signal: AbortSignal, mcpConfigPath: string): Promise<void> {
     const mdFile = `${this.projectPath}/.anima/milestones/${milestoneId}.md`
 
-    const reviewMessage = `Review the milestone at \`${mdFile}\`.
+    const reviewMessage = `Review the milestone at \`${mdFile}\`. Milestone ID: \`${milestoneId}\`.
 
 Evaluate against five criteria:
 1. **Clarity** — Are the requirements clearly stated, from a product/user perspective?
@@ -148,7 +150,9 @@ Evaluate against five criteria:
 4. **Verifiability** — Is each acceptance criterion binary and objectively testable?
 5. **Coverage** — Do the acceptance criteria fully cover what the requirements describe?
 
-Walk through your analysis step by step, then give a clear verdict with specific recommendations.`
+Walk through your analysis step by step, then give a clear verdict with specific recommendations.
+
+IMPORTANT: After completing your review, you MUST post your full analysis as a comment using the milestones:addComment tool with milestone_id="${milestoneId}" and author="reviewer".`
 
     try {
       const sessionId = randomUUID()

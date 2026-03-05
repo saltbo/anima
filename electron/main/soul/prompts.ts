@@ -66,7 +66,10 @@ export function buildDispatchMessage(
     }
   } else if (agentId === 'reviewer') {
     parts.push(`Milestone: ${milestoneId}.`)
-    parts.push('Read via milestones:getById, check developer comments, review code, test functionality, checks:update for each criterion, milestones:addComment.')
+    parts.push('Read via milestones:getById and milestones:listComments.')
+    parts.push('Read the developer\'s latest comment to understand what was implemented in THIS iteration.')
+    parts.push('ONLY review and update checks (via checks:update) for the items the developer worked on in this iteration.')
+    parts.push('Do NOT fail the review because other checks are still pending — those are for future iterations.')
 
     if (mentionComment) {
       parts.push(`\nYou were mentioned by @${mentionComment.author}:`)
@@ -74,7 +77,7 @@ export function buildDispatchMessage(
       parts.push('\nReview the latest changes and post your feedback.')
     }
 
-    parts.push('If all checks pass, state approval clearly. If any fail, end your comment with `@developer fix ...`.')
+    parts.push('If all checks for this iteration pass, state approval clearly. If any fail, end your comment with `@developer fix ...`.')
   }
 
   return parts.join(' ')
