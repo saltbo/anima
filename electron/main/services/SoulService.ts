@@ -9,8 +9,7 @@ import type { MilestoneItemRepository } from '../repositories/MilestoneItemRepos
 import type { GitService } from './GitService'
 import { MilestoneLifecycle } from './MilestoneLifecycle'
 import { Soul } from '../soul/Soul'
-import { MilestoneAgentTask } from '../soul/tasks/MilestoneAgentTask'
-import { MilestonePlanningTask } from '../soul/tasks/MilestonePlanningTask'
+import { AgentDispatchTask } from '../soul/tasks/AgentDispatchTask'
 import { Notifier } from '../soul/notifier'
 import type { AgentRunner } from '../agents/AgentRunner'
 
@@ -56,8 +55,8 @@ export class SoulService {
 
     const notifier = new Notifier(project.id, this.getWindow)
 
-    // Register the milestone agent dispatch task
-    const agentTask = new MilestoneAgentTask({
+    // Register the unified agent dispatch task
+    const dispatchTask = new AgentDispatchTask({
       projectId: project.id,
       projectPath: project.path,
       projectRepo: this.projectRepo,
@@ -67,24 +66,14 @@ export class SoulService {
       agentRunner: this.agentRunner,
       notifier,
     })
-    soul.register('dispatch-agent', agentTask)
-
-    // Register the milestone planning task
-    const planningTask = new MilestonePlanningTask({
-      projectId: project.id,
-      projectPath: project.path,
-      projectRepo: this.projectRepo,
-      milestoneRepo: this.milestoneRepo,
-      agentRunner: this.agentRunner,
-      notifier,
-    })
-    soul.register('plan-milestone', planningTask)
+    soul.register('dispatch-agent', dispatchTask)
+    soul.register('plan-milestone', dispatchTask)
 
     this.souls.set(project.id, soul)
 
     // Auto-wake if project has ready milestones or was active
     const milestones = this.milestoneRepo.getByProjectId(project.id)
-    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress')
+    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress' || m.status === 'planning')
     if (hasWork || project.status === 'busy' || project.status === 'idle') {
       soul.wake()
     }
@@ -192,7 +181,7 @@ export class SoulService {
   /** Only wake the soul if there are ready or in-progress milestones to work on */
   private wakeIfHasWork(projectId: string): void {
     const milestones = this.milestoneRepo.getByProjectId(projectId)
-    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress')
+    const hasWork = milestones.some((m) => m.status === 'ready' || m.status === 'in_progress' || m.status === 'planning')
     if (hasWork) {
       this.souls.get(projectId)?.wake()
     }

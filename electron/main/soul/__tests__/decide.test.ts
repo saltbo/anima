@@ -59,6 +59,7 @@ function makeContext(overrides: Partial<SoulContext> = {}): SoulContext {
     milestones: [],
     backlogItems: [],
     pendingMentions: [],
+    planningDispatchCounts: {},
     ...overrides,
   }
 }
@@ -255,5 +256,74 @@ describe('think()', () => {
       milestones: [inProgress],
     })
     expect(think(ctx)).toEqual({ task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1' })
+  })
+
+  // ── planning-phase dispatch tests ──────────────────────────────────────
+
+  it('dispatches reviewer for planning milestone with @reviewer mention', () => {
+    const planning = makeMilestone({ id: 'm1', status: 'planning' })
+    const ctx = makeContext({
+      milestones: [planning],
+      pendingMentions: [{ agentId: 'reviewer', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({
+      task: 'dispatch-agent', agentId: 'reviewer', milestoneId: 'm1', commentId: 'c1',
+    })
+  })
+
+  it('dispatches planner for planning milestone with @planner mention', () => {
+    const planning = makeMilestone({ id: 'm1', status: 'planning' })
+    const ctx = makeContext({
+      milestones: [planning],
+      pendingMentions: [{ agentId: 'planner', milestoneId: 'm1', commentId: 'c2' }],
+    })
+    expect(think(ctx)).toEqual({
+      task: 'dispatch-agent', agentId: 'planner', milestoneId: 'm1', commentId: 'c2',
+    })
+  })
+
+  it('returns idle when @human mention on planning milestone', () => {
+    const planning = makeMilestone({ id: 'm1', status: 'planning' })
+    const ctx = makeContext({
+      milestones: [planning],
+      pendingMentions: [{ agentId: 'human', milestoneId: 'm1', commentId: 'c1' }],
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
+  it('returns idle when planning milestone has no mentions', () => {
+    const planning = makeMilestone({ id: 'm1', status: 'planning' })
+    const ctx = makeContext({
+      milestones: [planning],
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
+  it('returns idle when planning dispatch count exceeds limit', () => {
+    const planning = makeMilestone({ id: 'm1', status: 'planning' })
+    const ctx = makeContext({
+      milestones: [planning],
+      pendingMentions: [{ agentId: 'reviewer', milestoneId: 'm1', commentId: 'c1' }],
+      planningDispatchCounts: { m1: 5 },
+    })
+    expect(think(ctx)).toEqual({ task: 'idle' })
+  })
+
+  it('prefers in_progress over planning milestone', () => {
+    const inProgress = makeMilestone({
+      id: 'm1',
+      status: 'in_progress',
+    })
+    const planning = makeMilestone({ id: 'm2', status: 'planning' })
+    const ctx = makeContext({
+      milestones: [planning, inProgress],
+      pendingMentions: [
+        { agentId: 'developer', milestoneId: 'm1', commentId: 'c1' },
+        { agentId: 'reviewer', milestoneId: 'm2', commentId: 'c2' },
+      ],
+    })
+    expect(think(ctx)).toEqual({
+      task: 'dispatch-agent', agentId: 'developer', milestoneId: 'm1', commentId: 'c1',
+    })
   })
 })

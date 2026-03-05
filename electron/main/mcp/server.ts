@@ -252,6 +252,27 @@ server.tool(
   }
 )
 
+// ── Transition tools ────────────────────────────────────────────────────
+
+server.tool(
+  'milestones:transition',
+  'Transition a milestone to a new status via a state-machine action (e.g. approve, cancel, close)',
+  {
+    project_id: z.string().describe('The project ID'),
+    milestone_id: z.string().describe('The milestone ID'),
+    action: z.enum(['approve', 'cancel', 'close', 'accept', 'request_changes', 'rollback', 'reopen']).describe('The transition action to perform'),
+  },
+  async ({ project_id, milestone_id, action }) => {
+    try {
+      await client.call('milestones:transition', [project_id, milestone_id, { action }])
+      return textResult(`Milestone ${milestone_id} transitioned via action: ${action}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return textResult(`Transition failed: ${msg}`, true)
+    }
+  }
+)
+
 // ── Agent tools ─────────────────────────────────────────────────────────────
 
 server.tool(

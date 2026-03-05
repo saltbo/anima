@@ -90,6 +90,34 @@ export class MilestoneService {
         this.releaseBacklogItems(milestoneId)
       }
 
+      // Post-transition hooks for agent-driven transitions
+      if (rule.to === 'planned') {
+        const project = this.projectRepo.getById(projectId)
+        if (project?.autoApprove) {
+          // Chain: planned → ready, then wake the soul
+          const readyRule = validateTransition('planned', 'approve')
+          if (readyRule) {
+            this.milestoneRepo.save(projectId, { ...milestone, status: readyRule.to })
+            this.getWindow()?.webContents.send('milestones:updated', {
+              projectId,
+              milestone: { ...milestone, status: readyRule.to },
+            })
+          }
+          this.getSoulService().wake(projectId)
+        }
+      }
+
+      if (rule.to === 'in_review') {
+        this.projectRepo.patch(projectId, { status: 'idle', currentIteration: null })
+
+        const project = this.projectRepo.getById(projectId)
+        if (project?.autoMerge) {
+          // Chain: in_review → accept → completed + merge
+          await this.getSoulService().transition(projectId, milestoneId, { action: 'accept' })
+          return // lifecycle handles its own broadcast
+        }
+      }
+
       this.getWindow()?.webContents.send('milestones:updated', {
         projectId,
         milestone: { ...milestone, status: rule.to },

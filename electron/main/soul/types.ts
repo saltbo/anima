@@ -19,6 +19,8 @@ export interface SoulContext {
   milestones: Milestone[]
   backlogItems: BacklogItem[]
   pendingMentions: PendingMention[]
+  /** Number of dispatched mentions per planning milestone (milestoneId → count) */
+  planningDispatchCounts: Record<string, number>
 }
 
 // ── Decisions (returned by think()) ──────────────────────────────────────────

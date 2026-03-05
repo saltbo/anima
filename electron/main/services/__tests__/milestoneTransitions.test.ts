@@ -8,9 +8,12 @@ describe('milestoneTransitions', () => {
     // ── Legal transitions ──────────────────────────────────────────────────
 
     it.each([
+      ['draft', 'approve', 'planning'],
+      ['planning', 'approve', 'planned'],
       ['planned', 'approve', 'ready'],
       ['ready', 'cancel', 'cancelled'],
       ['in_progress', 'cancel', 'cancelled'],
+      ['in_progress', 'approve', 'in_review'],
       ['in_review', 'accept', 'completed'],
       ['in_review', 'request_changes', 'ready'],
       ['in_review', 'rollback', 'ready'],
@@ -41,10 +44,8 @@ describe('milestoneTransitions', () => {
       ['draft', 'accept'],
       ['draft', 'rollback'],
       ['draft', 'reopen'],
-      ['draft', 'approve'],
       ['draft', 'request_changes'],
       ['planning', 'cancel'],
-      ['planning', 'approve'],
       ['planning', 'accept'],
       ['planned', 'cancel'],
       ['ready', 'accept'],
@@ -82,12 +83,12 @@ describe('milestoneTransitions', () => {
   })
 
   describe('availableActions', () => {
-    it('returns [close] for draft', () => {
-      expect(availableActions('draft')).toEqual(['close'])
+    it('returns [approve, close] for draft', () => {
+      expect(availableActions('draft')).toEqual(['approve', 'close'])
     })
 
-    it('returns [close] for planning', () => {
-      expect(availableActions('planning')).toEqual(['close'])
+    it('returns [approve, close] for planning', () => {
+      expect(availableActions('planning')).toEqual(['approve', 'close'])
     })
 
     it('returns [approve, close] for planned', () => {
@@ -98,8 +99,8 @@ describe('milestoneTransitions', () => {
       expect(availableActions('ready')).toEqual(['cancel', 'close'])
     })
 
-    it('returns [cancel] for in_progress', () => {
-      expect(availableActions('in_progress')).toEqual(['cancel'])
+    it('returns [approve, cancel] for in_progress', () => {
+      expect(availableActions('in_progress')).toEqual(['approve', 'cancel'])
     })
 
     it('returns [accept, request_changes, rollback, close] for in_review', () => {

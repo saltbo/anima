@@ -3,13 +3,14 @@ import { msUntil } from '../lib/time'
 import type { SoulContext, Decision } from './types'
 
 const MAX_DISPATCH_PER_ITERATION = 10
+const MAX_DISPATCH_PER_PLANNING = 5
 
 /**
  * Pure decision function — no side effects.
  * Given the current soul context, decide what to do next.
  */
 export function think(context: SoulContext): Decision {
-  const { project, milestones, pendingMentions } = context
+  const { project, milestones, pendingMentions, planningDispatchCounts } = context
   if (!project) return { task: 'idle' }
 
   // Rate limited — idle until reset
@@ -63,10 +64,42 @@ export function think(context: SoulContext): Decision {
       return { task: 'dispatch-agent', agentId: 'developer', milestoneId: active.id }
     }
 
-    // All checks passed — will be handled by MilestoneAgentTask's complete()
+    // All checks passed — reviewer will drive transition via MCP
     if (allChecksPassed) return { task: 'idle' }
 
     // No mentions, no passed iteration, no work to do
+    return { task: 'idle' }
+  }
+
+  // Find planning milestone → dispatch based on mentions
+  const planning = milestones.find((m) => m.status === 'planning')
+
+  if (planning) {
+    // Check for @human mentions — pause (idle) to let user handle
+    const humanMention = pendingMentions.find(
+      (m) => m.agentId === 'human' && m.milestoneId === planning.id
+    )
+    if (humanMention) return { task: 'idle' }
+
+    // Check for @agent mentions (e.g. @reviewer, @planner)
+    const agentMention = pendingMentions.find(
+      (m) => m.agentId !== 'human' && m.milestoneId === planning.id
+    )
+    if (agentMention) {
+      // Check dispatch count limit for planning phase
+      const dispatchCount = planningDispatchCounts[planning.id] ?? 0
+      if (dispatchCount >= MAX_DISPATCH_PER_PLANNING) {
+        return { task: 'idle' }
+      }
+      return {
+        task: 'dispatch-agent',
+        agentId: agentMention.agentId,
+        milestoneId: agentMention.milestoneId,
+        commentId: agentMention.commentId,
+      }
+    }
+
+    // No mentions on planning milestone — idle (blocks plan-milestone and ready pickup)
     return { task: 'idle' }
   }
 

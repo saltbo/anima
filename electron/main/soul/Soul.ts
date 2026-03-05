@@ -146,16 +146,23 @@ export class Soul {
   private sense(): SoulContext {
     const milestones = this.opts.milestoneRepo.getByProjectId(this.opts.projectId)
 
-    // Collect undispatched mentions from in-progress milestones
+    // Collect undispatched mentions from in-progress and planning milestones
     const pendingMentions: PendingMention[] = []
+    const planningDispatchCounts: Record<string, number> = {}
     for (const m of milestones) {
-      if (m.status !== 'in_progress') continue
+      if (m.status !== 'in_progress' && m.status !== 'planning') continue
       const comments = this.opts.commentRepo.getUndispatchedMentions(m.id)
       for (const comment of comments) {
         const mentions = parseMentions(comment.body)
         for (const agentId of mentions) {
           pendingMentions.push({ agentId, milestoneId: m.id, commentId: comment.id })
         }
+      }
+
+      // Count dispatched mentions for planning milestones
+      if (m.status === 'planning') {
+        const allComments = this.opts.commentRepo.getByMilestoneId(m.id)
+        planningDispatchCounts[m.id] = allComments.filter((c) => c.mentionDispatched).length
       }
     }
 
@@ -164,6 +171,7 @@ export class Soul {
       milestones,
       backlogItems: this.opts.backlogRepo.getByProjectId(this.opts.projectId),
       pendingMentions,
+      planningDispatchCounts,
     }
   }
 

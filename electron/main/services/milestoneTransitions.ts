@@ -22,8 +22,11 @@ export interface TransitionRule {
 
 export const TRANSITION_TABLE: readonly TransitionRule[] = [
   // Planning phase
+  { action: 'approve',          from: 'draft',           to: 'planning',  needsScheduler: false },
+  { action: 'approve',          from: 'planning',        to: 'planned',   needsScheduler: false },
   { action: 'approve',          from: 'planned',         to: 'ready',     needsScheduler: false },
   // Execution phase
+  { action: 'approve',          from: 'in_progress',     to: 'in_review', needsScheduler: false },
   { action: 'cancel',           from: 'ready',           to: 'cancelled', needsScheduler: true  },
   { action: 'cancel',           from: 'in_progress',     to: 'cancelled', needsScheduler: true  },
   { action: 'accept',           from: 'in_review',       to: 'completed', needsScheduler: true  },

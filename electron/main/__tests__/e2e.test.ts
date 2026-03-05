@@ -14,12 +14,12 @@
  *  2.  Backlog CRUD
  *  3.  Milestone CRUD + iterations + checks
  *  4.  Soul decide() integration with real data
- *  5.  MilestoneAgentTask — dispatch developer (ready milestone)
- *  6.  MilestoneAgentTask — @mention dispatch (reviewer → developer → reviewer)
- *  7.  MilestoneAgentTask — rate limit handling
- *  8.  MilestoneAgentTask — auto-merge
- *  9.  MilestonePlanningTask — draft→planning→planned
- *  10. MilestonePlanningTask — auto-approve
+ *  5.  AgentDispatchTask — dispatch developer (ready milestone)
+ *  6.  AgentDispatchTask — @mention dispatch (reviewer → developer → reviewer)
+ *  7.  AgentDispatchTask — rate limit handling
+ *  8.  AgentDispatchTask — auto-merge
+ *  9.  AgentDispatchTask — plan-milestone
+ *  10. AgentDispatchTask — plan-milestone auto-approve
  *  11. Milestone state transitions validation
  *  12. MilestoneLifecycle — accept/rollback/requestChanges/cancel
  *  13. SoulService orchestration — wake/transition/stop
@@ -38,8 +38,7 @@ import { MilestoneLifecycle } from '../services/MilestoneLifecycle'
 import { MilestoneService } from '../services/MilestoneService'
 import { SoulService } from '../services/SoulService'
 import { validateTransition, availableActions } from '../services/milestoneTransitions'
-import { MilestoneAgentTask } from '../soul/tasks/MilestoneAgentTask'
-import { MilestonePlanningTask } from '../soul/tasks/MilestonePlanningTask'
+import { AgentDispatchTask } from '../soul/tasks/AgentDispatchTask'
 import { Notifier } from '../soul/notifier'
 import { think } from '../soul/decide'
 import type { AgentRunner, RunOptions, ResumeOptions, RunResult } from '../agents/AgentRunner'
@@ -655,13 +654,13 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
   describe('Soul decide()', () => {
     it('returns idle when no project', () => {
-      expect(think({ project: null, milestones: [], backlogItems: [], pendingMentions: [] })).toEqual({ task: 'idle' })
+      expect(think({ project: null, milestones: [], backlogItems: [], pendingMentions: [], planningDispatchCounts: {} })).toEqual({ task: 'idle' })
     })
 
     it('dispatches developer for ready milestone', () => {
       const project = h.projectRepo.add('/tmp/decide')
       const ready = makeMs({ id: 'ms-r', status: 'ready' })
-      expect(think({ project, milestones: [ready], backlogItems: [], pendingMentions: [] })).toEqual({
+      expect(think({ project, milestones: [ready], backlogItems: [], pendingMentions: [], planningDispatchCounts: {} })).toEqual({
         task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-r',
       })
     })
@@ -675,6 +674,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestones: [ready, ip],
         backlogItems: [],
         pendingMentions: [{ agentId: 'reviewer', milestoneId: 'ms-ip', commentId: 'c1' }],
+        planningDispatchCounts: {},
       })).toEqual({
         task: 'dispatch-agent', agentId: 'reviewer', milestoneId: 'ms-ip', commentId: 'c1',
       })
@@ -688,6 +688,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestones: [ip],
         backlogItems: [],
         pendingMentions: [{ agentId: 'human', milestoneId: 'ms-ip', commentId: 'c1' }],
+        planningDispatchCounts: {},
       })).toEqual({ task: 'idle' })
     })
 
@@ -696,7 +697,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const todos = Array.from({ length: 12 }, (_, i) =>
         h.backlogRepo.add(project.id, { type: 'feature', title: `Item ${i}`, priority: 'medium' })
       )
-      expect(think({ project, milestones: [], backlogItems: todos, pendingMentions: [] })).toEqual({ task: 'plan-milestone' })
+      expect(think({ project, milestones: [], backlogItems: todos, pendingMentions: [], planningDispatchCounts: {} })).toEqual({ task: 'plan-milestone' })
     })
 
     it('idles when draft exists (prevents duplicate planning)', () => {
@@ -705,15 +706,15 @@ describe('E2E: Full Milestone Lifecycle', () => {
       const todos = Array.from({ length: 12 }, (_, i) =>
         h.backlogRepo.add(project.id, { type: 'feature', title: `Item ${i}`, priority: 'medium' })
       )
-      expect(think({ project, milestones: [draft], backlogItems: todos, pendingMentions: [] })).toEqual({ task: 'idle' })
+      expect(think({ project, milestones: [draft], backlogItems: todos, pendingMentions: [], planningDispatchCounts: {} })).toEqual({ task: 'idle' })
     })
   })
 
-  // ── 5. MilestoneAgentTask — dispatch agent ──────────────────────────────
+  // ── 5. AgentDispatchTask — dispatch agent ──────────────────────────────
 
-  describe('MilestoneAgentTask', () => {
+  describe('AgentDispatchTask', () => {
     function createAgentTask(projectId: string, projectPath: string) {
-      return new MilestoneAgentTask({
+      return new AgentDispatchTask({
         projectId, projectPath,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
@@ -745,7 +746,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
       expect(h.agentRunner.calls[0].method).toBe('run')
     })
 
-    it('dispatch developer with all checks passed → completes milestone', async () => {
+    it('dispatch developer with all checks passed → iteration marked passed (reviewer drives completion)', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       const ms = makeMs({
         id: 'ms-complete', status: 'ready',
@@ -761,12 +762,13 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
       const task = createAgentTask(project.id, project.path)
       await task.execute(
-        { task: 'dispatch-agent', agentId: 'developer', milestoneId: 'ms-complete' },
+        { task: 'dispatch-agent', agentId: 'reviewer', milestoneId: 'ms-complete' },
         new AbortController().signal
       )
 
       const updated = h.milestoneRepo.getById('ms-complete')!
-      expect(updated.status).toBe('in_review')
+      // Milestone stays in_progress — reviewer drives transition via MCP
+      expect(updated.status).toBe('in_progress')
     })
 
     it('handles rate limit error', async () => {
@@ -795,10 +797,11 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestones: h.milestoneRepo.getByProjectId(project.id),
         backlogItems: [],
         pendingMentions: [],
+        planningDispatchCounts: {},
       })).toEqual({ task: 'idle' })
     })
 
-    it('auto-merges when project.autoMerge is true', async () => {
+    it('milestone stays in_progress when autoMerge is true (reviewer drives completion via MCP)', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.projectRepo.patch(project.id, { autoMerge: true })
 
@@ -821,10 +824,8 @@ describe('E2E: Full Milestone Lifecycle', () => {
       )
 
       const updated = h.milestoneRepo.getById('ms-am')!
-      expect(updated.status).toBe('completed')
-      expect(updated.completedAt).toBeTruthy()
-      expect(h.gitService.mergedBranches).toContain('milestone/ms-am')
-      expect(h.gitService.deletedBranches).toContain('milestone/ms-am')
+      // Milestone stays in_progress — reviewer drives transition via MCP
+      expect(updated.status).toBe('in_progress')
     })
 
     it('resumes session for same agent in same iteration', async () => {
@@ -864,63 +865,58 @@ describe('E2E: Full Milestone Lifecycle', () => {
     })
   })
 
-  // ── 6. MilestonePlanningTask ────────────────────────────────────────────
+  // ── 6. AgentDispatchTask — plan-milestone ────────────────────────────────
 
-  describe('MilestonePlanningTask', () => {
+  describe('AgentDispatchTask — plan-milestone', () => {
     function createPlanTask(projectId: string, projectPath: string) {
-      return new MilestonePlanningTask({
+      return new AgentDispatchTask({
         projectId, projectPath,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        commentRepo: h.commentRepo as unknown as CommentRepository,
+        gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
       })
     }
 
-    it('planning agent → draft → planning → planned (manual approval)', async () => {
+    it('planning agent runs planner only (reviewer dispatched separately via @mention)', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       for (let i = 0; i < 5; i++) {
         h.backlogRepo.add(project.id, { type: 'feature', title: `Feature ${i}`, priority: 'medium' })
       }
 
-      let plannerCalled = false
       h.agentRunner.onRun = () => {
-        if (!plannerCalled) {
-          plannerCalled = true
-          h.milestoneRepo.save(project.id, makeMs({
-            id: 'ms-planned', title: 'Planned', description: 'Auto-planned', status: 'draft',
-            checks: [makeCheck({ title: 'Feature 0 works' })],
-          }))
-        }
+        // Planner creates milestone in draft — in real flow it would also
+        // call milestones:transition (draft→planning) and post @reviewer comment
+        h.milestoneRepo.save(project.id, makeMs({
+          id: 'ms-planned', title: 'Planned', description: 'Auto-planned', status: 'draft',
+          checks: [makeCheck({ title: 'Feature 0 works' })],
+        }))
       }
 
       const task = createPlanTask(project.id, project.path)
       await task.execute({ task: 'plan-milestone' }, new AbortController().signal)
 
-      const ms = h.milestoneRepo.getById('ms-planned')!
-      expect(ms.status).toBe('planned')
-
-      expect(h.agentRunner.calls).toHaveLength(2) // planner + reviewer
+      // Only 1 agent call (planner only — no inline review step)
+      expect(h.agentRunner.calls).toHaveLength(1)
     })
 
-    it('auto-approves when project.autoApprove is true', async () => {
+    it('milestone stays draft when planner does not call transition (no auto-approve)', async () => {
       const project = h.projectRepo.add(h.tmpDir)
       h.projectRepo.patch(project.id, { autoApprove: true })
 
-      let plannerCalled = false
       h.agentRunner.onRun = () => {
-        if (!plannerCalled) {
-          plannerCalled = true
-          h.milestoneRepo.save(project.id, makeMs({
-            id: 'ms-auto', title: 'Auto', description: 'Test', status: 'draft',
-          }))
-        }
+        h.milestoneRepo.save(project.id, makeMs({
+          id: 'ms-auto', title: 'Auto', description: 'Test', status: 'draft',
+        }))
       }
 
       const task = createPlanTask(project.id, project.path)
       await task.execute({ task: 'plan-milestone' }, new AbortController().signal)
 
-      expect(h.milestoneRepo.getById('ms-auto')!.status).toBe('ready')
+      // Milestone stays draft — planner drives transitions via MCP
+      expect(h.milestoneRepo.getById('ms-auto')!.status).toBe('draft')
     })
   })
 
@@ -1052,9 +1048,9 @@ describe('E2E: Full Milestone Lifecycle', () => {
       await vi.advanceTimersByTimeAsync(100)
 
       const updated = h.milestoneRepo.getById('ms-soul')!
-      // After dispatch-agent(developer) runs, checks pass → complete → in_review
-      expect(updated.status).toBe('in_review')
-      expect(h.projectRepo.getById(project.id)!.status).toBe('idle')
+      // After dispatch-agent(developer) runs, milestone stays in_progress
+      // (reviewer drives completion via MCP now)
+      expect(updated.status).toBe('in_progress')
     })
 
     it('transition accept merges and wakes for next work', async () => {
@@ -1200,33 +1196,36 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestones: [],
         backlogItems: h.backlogRepo.getByProjectId(project.id),
         pendingMentions: [],
+        planningDispatchCounts: {},
       })).toEqual({ task: 'plan-milestone' })
 
-      // Step 4: Run planning
-      let plannerDone = false
+      // Step 4: Run planning (planner only — agent drives transitions via MCP)
       h.agentRunner.onRun = () => {
-        if (!plannerDone) {
-          plannerDone = true
-          h.milestoneRepo.save(project.id, makeMs({
-            id: 'ms-e2e', title: 'E2E Milestone', description: 'Full flow', status: 'draft',
-            checks: [
-              makeCheck({ title: 'All features work', status: 'pending' }),
-              makeCheck({ title: 'Tests pass', status: 'pending' }),
-            ],
-          }))
-        }
+        // Planner creates milestone and transitions draft→planning via MCP
+        h.milestoneRepo.save(project.id, makeMs({
+          id: 'ms-e2e', title: 'E2E Milestone', description: 'Full flow', status: 'draft',
+          checks: [
+            makeCheck({ title: 'All features work', status: 'pending' }),
+            makeCheck({ title: 'Tests pass', status: 'pending' }),
+          ],
+        }))
       }
 
-      const planTask = new MilestonePlanningTask({
+      const planTask = new AgentDispatchTask({
         projectId: project.id, projectPath: project.path,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
+        commentRepo: h.commentRepo as unknown as CommentRepository,
+        gitService: h.gitService as unknown as GitService,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),
       })
       await planTask.execute({ task: 'plan-milestone' }, new AbortController().signal)
 
-      // With autoApprove → ready
+      // Simulate what the agents do via MCP: draft→planning→planned→ready (with autoApprove)
+      await h.milestoneService.transition(project.id, 'ms-e2e', { action: 'approve' }) // draft→planning
+      await h.milestoneService.transition(project.id, 'ms-e2e', { action: 'approve' }) // planning→planned→ready (autoApprove chains)
+
       expect(h.milestoneRepo.getById('ms-e2e')!.status).toBe('ready')
 
       // Step 5: Verify decide() wants to dispatch developer
@@ -1235,6 +1234,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         milestones: h.milestoneRepo.getByProjectId(project.id),
         backlogItems: h.backlogRepo.getByProjectId(project.id),
         pendingMentions: [],
+        planningDispatchCounts: {},
       }
       const decision = think(ctx2)
       expect(decision.task).toBe('dispatch-agent')
@@ -1248,7 +1248,7 @@ describe('E2E: Full Milestone Lifecycle', () => {
         ])
       }
 
-      const agentTask = new MilestoneAgentTask({
+      const agentTask = new AgentDispatchTask({
         projectId: project.id, projectPath: project.path,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
@@ -1262,6 +1262,9 @@ describe('E2E: Full Milestone Lifecycle', () => {
         new AbortController().signal,
       )
 
+      // Milestone stays in_progress — simulate reviewer's MCP transition
+      expect(h.milestoneRepo.getById('ms-e2e')!.status).toBe('in_progress')
+      await h.milestoneService.transition(project.id, 'ms-e2e', { action: 'approve' }) // in_progress→in_review
       expect(h.milestoneRepo.getById('ms-e2e')!.status).toBe('in_review')
 
       // Step 7: Human accepts
