@@ -32,7 +32,7 @@
 
 As an autonomous development tool, Anima is progressively moving toward **driving its own development**. The goal is for Anima to plan, implement, and verify its own milestones — eating its own dog food.
 
-**This project does not accept Pull Requests — by design, not by phase.** Anima is built by its maintainers and, increasingly, by itself. If you have ideas, feedback, or bug reports, please [open an issue](https://github.com/saltbo/anima/issues). Your input shapes the direction; Anima writes the code.
+**This project does not accept Pull Requests.** Anima is built by its maintainers and, increasingly, by itself. If you have ideas, feedback, or bug reports, please [open an issue](https://github.com/saltbo/anima/issues). Your input shapes the direction; Anima writes the code.
 
 ## What is Anima?
 
