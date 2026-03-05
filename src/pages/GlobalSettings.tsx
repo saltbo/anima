@@ -202,8 +202,7 @@ export function GlobalSettings() {
 
       <Section title="About">
         <div className="space-y-2">
-          <Field label="Version" value="0.1.0" />
-          <Field label="Build" value="M1 — UI Foundation" />
+          <Field label="Version" value={__APP_VERSION__} />
         </div>
       </Section>
     </div>

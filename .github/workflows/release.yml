@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+          - os: macos-latest
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set package.json version
+        run: npm version "${{ steps.version.outputs.VERSION }}" --no-git-tag-version
+
+      - run: npm ci
+
+      - name: Build & package
+        env:
+          APP_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: npm run build && npx electron-builder --${{ matrix.arch }}
+
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            dist/*.dmg
+            dist/*.dmg.blockmap

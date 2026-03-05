@@ -23,6 +23,8 @@ export interface ProjectIterationStatus {
   rateLimitResetAt: string | null
 }
 
+declare const __APP_VERSION__: string
+
 declare global {
   interface Window {
     electronAPI: {
