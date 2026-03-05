@@ -9,6 +9,7 @@ import { BacklogDetail, backlogDetailLoader } from '@/pages/BacklogDetail'
 import { ProjectSettings } from '@/pages/ProjectSettings'
 import { Soul } from '@/pages/Soul'
 import { GlobalSettings } from '@/pages/GlobalSettings'
+import { Agents } from '@/pages/Agents'
 import type { RouteHandle } from '@/types/router'
 
 const router = createHashRouter([
@@ -17,6 +18,7 @@ const router = createHashRouter([
     element: <MainLayout />,
     children: [
       { index: true, element: <GlobalDashboard /> },
+      { path: 'agents', element: <Agents /> },
       { path: 'settings', element: <GlobalSettings /> },
       {
         path: 'projects/:id',

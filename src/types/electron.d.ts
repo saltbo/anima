@@ -84,6 +84,9 @@ declare global {
       onIterationPaused: (callback: (data: { projectId: string; milestoneId: string; reason: string }) => void) => () => void
       onRateLimited: (callback: (data: { projectId: string; resetAt: string }) => void) => () => void
 
+      // ── Agents ────────────────────────────────────────────────────────────
+      getAgents: () => Promise<Array<{ id: string; name: string; description: string }>>
+
       // ── MCP Servers ─────────────────────────────────────────────────────
       getMcpServers: () => Promise<Record<string, McpServerEntry>>
       addMcpServer: (name: string, entry: McpServerEntry) => Promise<void>

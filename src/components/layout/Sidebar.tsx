@@ -9,6 +9,7 @@ import {
   Plus,
   Settings,
   Sparkles,
+  Bot,
 } from 'lucide-react'
 import { cn, statusBgColor } from '@/lib/utils'
 import { useProjects } from '@/store/projects'
@@ -69,6 +70,7 @@ export function Sidebar() {
   }
 
   const isGlobalSettingsActive = location.pathname === '/settings'
+  const isAgentsActive = location.pathname === '/agents'
 
   return (
     <div className="flex flex-col h-full bg-app-sidebar border-r border-border select-none">
@@ -171,18 +173,35 @@ export function Sidebar() {
             </NavLink>
           ))
         ) : (
-          <button
-            onClick={handleClickHome}
-            className={cn(
-              'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-sm font-medium transition-colors cursor-pointer',
-              !isGlobalSettingsActive
-                ? 'bg-secondary text-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-            )}
-          >
-            <Home size={16} />
-            Home
-          </button>
+          <>
+            <button
+              onClick={handleClickHome}
+              className={cn(
+                'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-sm font-medium transition-colors cursor-pointer',
+                !isGlobalSettingsActive && !isAgentsActive
+                  ? 'bg-secondary text-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+            >
+              <Home size={16} />
+              Home
+            </button>
+            <button
+              onClick={() => {
+                setSelectedProjectId(null)
+                navigate('/agents')
+              }}
+              className={cn(
+                'w-full flex items-center gap-2.5 px-3 h-8 rounded-md text-sm font-medium transition-colors cursor-pointer',
+                isAgentsActive
+                  ? 'bg-secondary text-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+            >
+              <Bot size={16} />
+              Agents
+            </button>
+          </>
         )}
       </div>
 

@@ -19,6 +19,7 @@ import {
   updateUserMcpServer,
   removeUserMcpServer,
 } from '../mcp/mcpConfig'
+import { getAllAgents } from '../agents/registry'
 import { findSessionFile, readEventsFromFile } from '../agents/claude-code/parser'
 import type { SessionWatcher } from '../agents/SessionWatcher'
 import { updateTray } from '../app/tray'
@@ -165,6 +166,9 @@ export function createRoutes(
 
     'milestone:gitStatus': async (projectId: string, milestoneId: string) =>
       soulService.getMilestoneGitStatus(projectId, milestoneId),
+
+    // ── Agents ──────────────────────────────────────────────────────────
+    'agents:list': () => getAllAgents().map(({ id, name, description }) => ({ id, name, description })),
 
     // ── MCP Servers ───────────────────────────────────────────────────────
     'mcp:list': () => getUserMcpServers(),
