@@ -118,7 +118,9 @@ export function MainLayout() {
         />
         <Breadcrumb />
         <div className="flex-1 overflow-auto pl-6">
-          <Outlet />
+          <div className="pr-6 min-h-full">
+            <Outlet />
+          </div>
         </div>
       </div>
     </div>
