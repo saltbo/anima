@@ -48,6 +48,10 @@ You define the vision. Anima does the rest.
 - **Human-in-the-Loop Review** — Works autonomously but pauses for your review at key checkpoints. Accept, request changes, or roll back.
 - **Agent Session Tracking** — Full visibility into every AI agent invocation, including token usage and cost.
 
+<p align="center">
+  <img src="resources/snapshots/milestone-page.jpg" alt="Milestone Detail" width="800">
+</p>
+
 ## How It Works
 
 Each project in Anima has a **Soul** — a heartbeat-driven loop that follows a sense-think-act cycle:
