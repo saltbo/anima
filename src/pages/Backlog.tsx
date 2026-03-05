@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, XCircle, RotateCcw } from 'lucide-react'
+import { Plus, Search, Trash2, XCircle, RotateCcw, Lightbulb, Bug, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { useProjects } from '@/store/projects'
 import { timeAgo } from '@/lib/time'
-import type { BacklogItem, BacklogItemType, BacklogItemPriority } from '@/types/index'
+import type { BacklogItem, BacklogItemType, BacklogItemPriority, BacklogItemStatus } from '@/types/index'
 
 const TYPE_STYLES: Record<BacklogItemType, string> = {
   idea: 'bg-blue-500/10 text-blue-600 border border-blue-500/30',
@@ -23,26 +23,35 @@ const TYPE_STYLES: Record<BacklogItemType, string> = {
   feature: 'bg-green-500/10 text-green-600 border border-green-500/30',
 }
 
-const PRIORITY_ORDER: Record<BacklogItemPriority, number> = { high: 0, medium: 1, low: 2 }
-const PRIORITY_LABEL: Record<BacklogItemPriority, string> = { high: '↑ High', medium: '— Med', low: '↓ Low' }
-const PRIORITY_COLOR: Record<BacklogItemPriority, string> = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-muted-foreground' }
-
-const STATUS_LABEL: Record<string, string> = { todo: 'Todo', in_progress: 'In Progress', done: 'Done', closed: 'Closed' }
-const STATUS_STYLE: Record<string, string> = {
-  todo: 'bg-muted text-muted-foreground',
-  in_progress: 'bg-primary/10 text-primary',
-  done: 'bg-green-500/10 text-green-600',
-  closed: 'bg-muted text-muted-foreground opacity-60',
+const TYPE_ICON: Record<BacklogItemType, typeof Lightbulb> = {
+  idea: Lightbulb,
+  bug: Bug,
+  feature: Sparkles,
 }
 
-type SortKey = 'priority' | 'date'
+const TYPE_ACCENT: Record<BacklogItemType, string> = {
+  idea: 'border-l-blue-500',
+  bug: 'border-l-red-500',
+  feature: 'border-l-green-500',
+}
+
+const PRIORITY_ORDER: Record<BacklogItemPriority, number> = { high: 0, medium: 1, low: 2 }
+const PRIORITY_DOT: Record<BacklogItemPriority, string> = { high: 'bg-red-500', medium: 'bg-yellow-500', low: 'bg-muted-foreground/40' }
+
+const COLUMNS: { status: BacklogItemStatus; label: string; dotColor: string }[] = [
+  { status: 'todo', label: 'Todo', dotColor: 'bg-muted-foreground' },
+  { status: 'in_progress', label: 'In Progress', dotColor: 'bg-primary' },
+  { status: 'done', label: 'Done', dotColor: 'bg-green-500' },
+  { status: 'closed', label: 'Closed', dotColor: 'bg-muted-foreground/50' },
+]
+
 type TypeFilter = BacklogItemType | 'all'
 
 const EMPTY_FORM = { type: 'idea' as BacklogItemType, title: '', description: '', priority: 'medium' as BacklogItemPriority }
 
-// ── Row component defined OUTSIDE parent to avoid focus loss on re-render ──
+// ── Card component for kanban items ──
 
-interface RowProps {
+interface CardProps {
   item: BacklogItem
   onOpen: (item: BacklogItem) => void
   onClose: (item: BacklogItem) => void
@@ -50,58 +59,60 @@ interface RowProps {
   onDeleteRequest: (item: BacklogItem) => void
 }
 
-function BacklogRow({ item, onOpen, onClose, onReopen, onDeleteRequest }: RowProps) {
+function BacklogCard({ item, onOpen, onClose, onReopen, onDeleteRequest }: CardProps) {
   const isClosed = item.status === 'closed'
   const isLocked = item.status === 'in_progress' || item.status === 'done'
+  const Icon = TYPE_ICON[item.type]
   return (
-    <div className={`flex items-center gap-3 py-2.5 border-b border-border hover:bg-accent/40 transition-colors ${isClosed ? 'opacity-50' : ''}`}>
-      <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${TYPE_STYLES[item.type]}`}>
-        {item.type}
-      </span>
+    <div
+      className={`group relative rounded-md border border-border/60 border-l-2 ${TYPE_ACCENT[item.type]} bg-card hover:bg-accent/30 hover:shadow-sm transition-all cursor-pointer ${isClosed ? 'opacity-40' : ''}`}
+      onClick={() => onOpen(item)}
+    >
+      <div className="px-3 py-2.5 space-y-1.5">
+        {/* Title */}
+        <p className="text-[13px] font-medium text-foreground leading-snug line-clamp-2 pr-5">{item.title}</p>
 
-      <button
-        className="flex-1 text-left text-sm text-foreground truncate hover:text-primary transition-colors"
-        onClick={() => onOpen(item)}
+        {/* Meta row */}
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className={`inline-flex items-center gap-1 ${TYPE_STYLES[item.type]} px-1.5 py-px rounded-sm text-[10px] font-medium`}>
+            <Icon size={9} />
+            {item.type}
+          </span>
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_DOT[item.priority]}`} title={item.priority} />
+          <span className="ml-auto text-[10px] shrink-0">{timeAgo(item.createdAt)}</span>
+        </div>
+      </div>
+
+      {/* Hover actions — top-right */}
+      <div
+        className="absolute top-1.5 right-1.5 flex items-center gap-px opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
       >
-        {item.title}
-      </button>
-
-      <span className={`shrink-0 text-[11px] font-medium ${PRIORITY_COLOR[item.priority]}`}>
-        {PRIORITY_LABEL[item.priority]}
-      </span>
-
-      <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_STYLE[item.status]}`}>
-        {STATUS_LABEL[item.status]}
-      </span>
-
-      <span className="shrink-0 text-xs text-muted-foreground w-12 text-right">{timeAgo(item.createdAt)}</span>
-
-      <div className="shrink-0 flex items-center gap-0.5">
         {item.status === 'todo' && (
           <button
             onClick={() => onClose(item)}
             title="Close"
-            className="p-1.5 rounded text-muted-foreground hover:text-yellow-600 hover:bg-yellow-500/10 transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-yellow-600 hover:bg-yellow-500/10 transition-colors"
           >
-            <XCircle size={13} />
+            <XCircle size={12} />
           </button>
         )}
         {isClosed && (
           <button
             onClick={() => onReopen(item)}
             title="Reopen"
-            className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={12} />
           </button>
         )}
         {!isLocked && (
           <button
             onClick={() => onDeleteRequest(item)}
             title="Delete"
-            className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
           >
-            <Trash2 size={13} />
+            <Trash2 size={12} />
           </button>
         )}
       </div>
@@ -124,7 +135,6 @@ export function Backlog() {
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
-  const [sortBy, setSortBy] = useState<SortKey>('priority')
 
   useEffect(() => {
     if (!project) return
@@ -136,12 +146,12 @@ export function Backlog() {
     .filter((i) => typeFilter === 'all' || i.type === typeFilter)
     .filter((i) => !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
-      if (sortBy === 'priority') {
-        const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
-        return pd !== 0 ? pd : b.createdAt.localeCompare(a.createdAt)
-      }
-      return b.createdAt.localeCompare(a.createdAt)
+      const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+      return pd !== 0 ? pd : b.createdAt.localeCompare(a.createdAt)
     })
+
+  // Group filtered items by status
+  const byStatus = (status: BacklogItemStatus) => filtered.filter((i) => i.status === status)
 
   const handleAdd = async () => {
     if (!project || !form.title.trim()) return
@@ -196,7 +206,7 @@ export function Backlog() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 pb-3 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 pb-3 shrink-0">
         <div className="relative flex-1 max-w-xs">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -222,52 +232,49 @@ export function Backlog() {
             </button>
           ))}
         </div>
-
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
-          <SelectTrigger className="h-7 text-xs w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="priority">Sort: Priority</SelectItem>
-            <SelectItem value="date">Sort: Date</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      {/* List */}
+      {/* Kanban Board */}
       <div className="flex-1 overflow-auto">
-        {/* Column header */}
-        {filtered.length > 0 && (
-          <div className="flex items-center gap-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            <span className="w-14">Type</span>
-            <span className="flex-1">Title</span>
-            <span className="w-12 text-right">Priority</span>
-            <span className="w-16 text-right">Status</span>
-            <span className="w-12 text-right">Date</span>
-            <span className="w-16" />
-          </div>
-        )}
-
-        {filtered.length === 0 ? (
+        {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
-            <p className="text-sm font-medium text-foreground">
-              {items.length === 0 ? 'Backlog is empty' : 'No items match your filter'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {items.length === 0 ? 'Add ideas, bugs, and feature requests here.' : 'Try adjusting your search or filter.'}
-            </p>
+            <p className="text-sm font-medium text-foreground">Backlog is empty</p>
+            <p className="text-xs text-muted-foreground">Add ideas, bugs, and feature requests here.</p>
           </div>
         ) : (
-          filtered.map((item) => (
-            <BacklogRow
-              key={item.id}
-              item={item}
-              onOpen={(i) => navigate(`/projects/${id}/backlog/${i.id}`)}
-              onClose={handleClose}
-              onReopen={handleReopen}
-              onDeleteRequest={setDeleteTarget}
-            />
-          ))
+          <div className="grid grid-cols-4 gap-3 h-full">
+            {COLUMNS.map(({ status, label, dotColor }) => {
+              const columnItems = byStatus(status)
+              return (
+                <div key={status} className="flex flex-col min-h-0">
+                  {/* Column header */}
+                  <div className="flex items-center gap-2 py-2 px-1 shrink-0">
+                    <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                    <span className="text-xs font-semibold text-foreground">{label}</span>
+                    <span className="text-[11px] text-muted-foreground">{columnItems.length}</span>
+                  </div>
+
+                  {/* Column body */}
+                  <div className="flex-1 overflow-y-auto space-y-2 rounded-lg bg-muted/30 p-2">
+                    {columnItems.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground text-center py-6">No items</p>
+                    ) : (
+                      columnItems.map((item) => (
+                        <BacklogCard
+                          key={item.id}
+                          item={item}
+                          onOpen={(i) => navigate(`/projects/${id}/backlog/${i.id}`)}
+                          onClose={handleClose}
+                          onReopen={handleReopen}
+                          onDeleteRequest={setDeleteTarget}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
 
