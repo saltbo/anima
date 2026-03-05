@@ -21,8 +21,6 @@ export function useMilestoneDetail() {
   const [backlogItems] = useState<BacklogItem[]>(loaderData.backlogItems)
   const [comments, setComments] = useState<MilestoneComment[]>(loaderData.comments)
   const [gitInfo, setGitInfo] = useState<MilestoneGitInfo | null>(null)
-  const [markdownContent, setMarkdownContent] = useState(loaderData.markdown)
-  const [savingMarkdown, setSavingMarkdown] = useState(false)
 
   // ── Dialog state ────────────────────────────────────────────────────────
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -111,13 +109,6 @@ export function useMilestoneDetail() {
     await window.electronAPI.transitionMilestone(project.id, milestone.id, { action })
     setMilestone({ ...milestone, status: 'ready' })
   }, [project, milestone])
-
-  const handleSaveMarkdown = useCallback(async () => {
-    if (!project || !milestone) return
-    setSavingMarkdown(true)
-    await window.electronAPI.writeMilestoneMarkdown(project.id, milestone.id, markdownContent)
-    setSavingMarkdown(false)
-  }, [project, milestone, markdownContent])
 
   const handleDelete = useCallback(async () => {
     if (!project || !milestone) return
@@ -226,7 +217,6 @@ export function useMilestoneDetail() {
 
     // Core data
     milestone, backlogItems, comments, gitInfo,
-    markdownContent, setMarkdownContent, savingMarkdown,
     iterations, status, activeAgent,
     commentText, setCommentText,
 
@@ -243,7 +233,7 @@ export function useMilestoneDetail() {
     requestChangesText, setRequestChangesText,
 
     // Actions
-    handleMarkReady, handleSaveMarkdown, handleDelete,
+    handleMarkReady, handleDelete,
     handleCancel, handleReopen, handleAcceptMerge,
     handleRollback, handleRequestChanges, handleAddComment,
     handleCloseWithComment,

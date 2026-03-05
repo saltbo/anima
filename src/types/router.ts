@@ -17,7 +17,6 @@ export interface MilestoneDetailLoaderData {
   meta: RouteMeta
   milestone: Milestone | null
   backlogItems: BacklogItem[]
-  markdown: string
   comments: MilestoneComment[]
 }
 

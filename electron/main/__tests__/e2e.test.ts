@@ -872,8 +872,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
         projectId, projectPath,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
-        backlogRepo: h.backlogRepo as unknown as BacklogRepository,
-        milestoneItemRepo: h.milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(projectId, () => null),
       })
@@ -901,11 +899,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
 
       const ms = h.milestoneRepo.getById('ms-planned')!
       expect(ms.status).toBe('planned')
-
-      // Milestone markdown written
-      const mdPath = path.join(project.path, '.anima', 'milestones', 'ms-planned.md')
-      expect(fs.existsSync(mdPath)).toBe(true)
-      expect(fs.readFileSync(mdPath, 'utf8')).toContain('Planned')
 
       expect(h.agentRunner.calls).toHaveLength(2) // planner + reviewer
     })
@@ -1228,8 +1221,6 @@ describe('E2E: Full Milestone Lifecycle', () => {
         projectId: project.id, projectPath: project.path,
         projectRepo: h.projectRepo as unknown as ProjectRepository,
         milestoneRepo: h.milestoneRepo as unknown as MilestoneRepository,
-        backlogRepo: h.backlogRepo as unknown as BacklogRepository,
-        milestoneItemRepo: h.milestoneItemRepo as unknown as import('../repositories/MilestoneItemRepository').MilestoneItemRepository,
         agentRunner: h.agentRunner as unknown as AgentRunner,
         notifier: new Notifier(project.id, () => null),
       })

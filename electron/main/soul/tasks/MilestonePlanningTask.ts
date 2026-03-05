@@ -1,13 +1,9 @@
-import * as fs from 'fs'
-import * as path from 'path'
 import { randomUUID } from 'crypto'
 import { createLogger } from '../../logger'
 
 import type { AgentRunner } from '../../agents/AgentRunner'
 import type { ProjectRepository } from '../../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../../repositories/MilestoneRepository'
-import type { BacklogRepository } from '../../repositories/BacklogRepository'
-import type { MilestoneItemRepository } from '../../repositories/MilestoneItemRepository'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
 import { isRateLimitError, parseResetTime } from '../rateLimit'
@@ -30,8 +26,6 @@ export interface MilestonePlanningTaskOptions {
   projectPath: string
   projectRepo: ProjectRepository
   milestoneRepo: MilestoneRepository
-  backlogRepo: BacklogRepository
-  milestoneItemRepo: MilestoneItemRepository
   agentRunner: AgentRunner
   notifier: Notifier
 }
@@ -43,8 +37,6 @@ export class MilestonePlanningTask implements SoulTask {
   private projectPath: string
   private projectRepo: ProjectRepository
   private milestoneRepo: MilestoneRepository
-  private backlogRepo: BacklogRepository
-  private milestoneItemRepo: MilestoneItemRepository
   private agentRunner: AgentRunner
   private notifier: Notifier
 
@@ -53,8 +45,6 @@ export class MilestonePlanningTask implements SoulTask {
     this.projectPath = opts.projectPath
     this.projectRepo = opts.projectRepo
     this.milestoneRepo = opts.milestoneRepo
-    this.backlogRepo = opts.backlogRepo
-    this.milestoneItemRepo = opts.milestoneItemRepo
     this.agentRunner = opts.agentRunner
     this.notifier = opts.notifier
   }
@@ -69,7 +59,7 @@ export class MilestonePlanningTask implements SoulTask {
       const planSessionId = randomUUID()
       let planningDone = false
 
-      await this.agentRunner.run({
+      const planResult = await this.agentRunner.run({
         projectPath: this.projectPath,
         sessionId: planSessionId,
         systemPrompt: buildPlannerSystemPrompt(),
@@ -80,6 +70,15 @@ export class MilestonePlanningTask implements SoulTask {
 
       if (signal.aborted) return
 
+      log.info('planning agent finished', {
+        project: this.projectId,
+        sessionId: planSessionId,
+        model: planResult.model,
+        cost: planResult.cost,
+        inputTokens: planResult.usage.inputTokens,
+        outputTokens: planResult.usage.outputTokens,
+      })
+
       // Check if the agent created a milestone via MCP
       const milestones = this.milestoneRepo.getByProjectId(this.projectId)
       const draftMilestone = milestones.find(
@@ -87,17 +86,18 @@ export class MilestonePlanningTask implements SoulTask {
       )
 
       if (!draftMilestone) {
-        log.warn('planning agent did not create a milestone', { project: this.projectId })
+        log.warn('planning agent did not create a milestone', {
+          project: this.projectId,
+          sessionId: planSessionId,
+          existingMilestones: milestones.map((m) => ({ id: m.id, status: m.status })),
+        })
         return
       }
 
       planningDone = true
       log.info('planning agent created milestone', { milestoneId: draftMilestone.id })
 
-      // ── Step 2: Write milestone markdown file ─────────────────────────
-      this.writeMilestoneMarkdown(draftMilestone.id, draftMilestone.title, draftMilestone.description)
-
-      // ── Step 3: Start review ──────────────────────────────────────────
+      // ── Step 2: Start review ──────────────────────────────────────────
       if (signal.aborted) return
 
       this.milestoneRepo.save(this.projectId, { ...draftMilestone, status: 'planning' })
@@ -107,7 +107,7 @@ export class MilestonePlanningTask implements SoulTask {
 
       if (signal.aborted) return
 
-      // ── Step 4: Apply auto-approve if enabled ─────────────────────────
+      // ── Step 3: Apply auto-approve if enabled ─────────────────────────
       const project = this.projectRepo.getById(this.projectId)
       const refreshed = this.milestoneRepo.getById(draftMilestone.id)
 
@@ -139,9 +139,7 @@ export class MilestonePlanningTask implements SoulTask {
   }
 
   private async runReview(milestoneId: string, signal: AbortSignal, mcpConfigPath: string): Promise<void> {
-    const mdFile = `${this.projectPath}/.anima/milestones/${milestoneId}.md`
-
-    const reviewMessage = `Review the milestone at \`${mdFile}\`. Milestone ID: \`${milestoneId}\`.
+    const reviewMessage = `Review milestone \`${milestoneId}\`. Use milestones:getById to read it.
 
 Evaluate against five criteria:
 1. **Clarity** — Are the requirements clearly stated, from a product/user perspective?
@@ -167,23 +165,5 @@ IMPORTANT: After completing your review, you MUST post your full analysis as a c
     } catch {
       // review session ended
     }
-  }
-
-  private writeMilestoneMarkdown(milestoneId: string, title: string, description: string): void {
-    const dir = path.join(this.projectPath, '.anima', 'milestones')
-    fs.mkdirSync(dir, { recursive: true })
-    const mdPath = path.join(dir, `${milestoneId}.md`)
-
-    // Get linked backlog items for the markdown content
-    const itemIds = this.milestoneItemRepo.getItemIds(milestoneId)
-    const backlogItems = itemIds
-      .map((id) => this.backlogRepo.getById(id))
-      .filter((i) => i !== null)
-    const backlogSection = backlogItems.length > 0
-      ? `\n## Linked Backlog Items\n${backlogItems.map((i) => `- ${i.id}: ${i.title}`).join('\n')}`
-      : ''
-
-    const content = `# ${title}\n\n## Requirements\n${description}${backlogSection}\n`
-    fs.writeFileSync(mdPath, content, 'utf8')
   }
 }

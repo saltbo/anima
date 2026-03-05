@@ -121,10 +121,6 @@ export function createRoutes(
       milestoneService.saveMilestone(projectId, milestone),
     'milestones:delete': (projectId: string, id: string) =>
       milestoneService.deleteMilestone(projectId, id),
-    'milestones:readDoc': (projectId: string, id: string) =>
-      milestoneService.readMilestoneMarkdown(projectId, id),
-    'milestones:writeDoc': (projectId: string, id: string, content: string) =>
-      milestoneService.writeMilestoneMarkdown(projectId, id, content),
     'milestones:transition': async (projectId: string, milestoneId: string, payload: TransitionPayload) =>
       milestoneService.transition(projectId, milestoneId, payload),
     'milestones:assignAgent': (milestoneId: string, agentId: string) =>

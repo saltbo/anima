@@ -75,8 +75,6 @@ export class SoulService {
       projectPath: project.path,
       projectRepo: this.projectRepo,
       milestoneRepo: this.milestoneRepo,
-      backlogRepo: this.backlogRepo,
-      milestoneItemRepo: this.milestoneItemRepo,
       agentRunner: this.agentRunner,
       notifier,
     })

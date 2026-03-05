@@ -83,8 +83,6 @@ function createMockElectronAPI(projects: Project[] = []): MockElectronAPI {
     getMilestones: vi.fn().mockResolvedValue([]),
     saveMilestone: vi.fn().mockResolvedValue(undefined),
     deleteMilestone: vi.fn().mockResolvedValue(undefined),
-    readMilestoneMarkdown: vi.fn().mockResolvedValue(null),
-    writeMilestoneMarkdown: vi.fn().mockResolvedValue(undefined),
     onMilestoneReviewDone: vi.fn((cb: Listener<string>) => {
       listeners.milestoneReviewDone.push(cb)
       return () => { listeners.milestoneReviewDone = listeners.milestoneReviewDone.filter((l) => l !== cb) }
@@ -372,7 +370,6 @@ describe('useMilestoneDetail', () => {
       meta: { title: milestone.title },
       milestone,
       backlogItems: [],
-      markdown: '# Test',
       comments: [],
     }
     mockNavigate.mockClear()
@@ -419,7 +416,6 @@ describe('useMilestoneDetail', () => {
         meta: { title: 'Empty' },
         milestone: makeMilestone({ items: [], checks: [] }),
         backlogItems: [],
-        markdown: '',
         comments: [],
       }
 
@@ -461,7 +457,6 @@ describe('useMilestoneDetail', () => {
         meta: { title: 'Test' },
         milestone: makeMilestone({ status: 'planned' }),
         backlogItems: [],
-        markdown: '',
         comments: [],
       }
 
@@ -526,7 +521,6 @@ describe('useMilestoneDetail', () => {
         meta: { title: 'Test' },
         milestone: makeMilestone({ status: 'cancelled' }),
         backlogItems: [],
-        markdown: '',
         comments: [],
       }
 
@@ -718,23 +712,6 @@ describe('useMilestoneDetail', () => {
       expect(mockAPI.transitionMilestone).toHaveBeenCalledWith('proj-1', 'ms-1', { action: 'close' })
       expect(result.current.milestone!.status).toBe('closed')
     })
-
-    it('handleSaveMarkdown calls writeMilestoneMarkdown', async () => {
-      const useMilestoneDetail = await importUseMilestoneDetail()
-      const { result } = renderHook(() => useMilestoneDetail(), { wrapper: createWrapper() })
-
-      await waitFor(() => {
-        expect(result.current.milestone).not.toBeNull()
-        expect(result.current.project).toBeDefined()
-      })
-
-      // markdownContent is '# Test' from loader
-      await act(async () => {
-        await result.current.handleSaveMarkdown()
-      })
-
-      expect(mockAPI.writeMilestoneMarkdown).toHaveBeenCalledWith('proj-1', 'ms-1', '# Test')
-    })
   })
 
   // ── IPC listeners ─────────────────────────────────────────────────────
@@ -846,7 +823,6 @@ describe('useMilestoneDetail', () => {
         meta: { title: 'Test' },
         milestone: makeMilestone({ status: 'in_progress' }),
         backlogItems: [],
-        markdown: '',
         comments: [],
       }
 
@@ -866,7 +842,6 @@ describe('useMilestoneDetail', () => {
         meta: { title: 'Test' },
         milestone: makeMilestone({ status: 'draft' }),
         backlogItems: [],
-        markdown: '',
         comments: [],
       }
 

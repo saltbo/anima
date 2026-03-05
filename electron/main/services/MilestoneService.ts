@@ -1,5 +1,3 @@
-import * as fs from 'fs'
-import * as path from 'path'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
 import type { Milestone, TransitionPayload } from '../../../src/types/index'
@@ -24,12 +22,6 @@ export interface CreateMilestoneInput {
       description?: string
     }>
   }>
-}
-
-function milestoneMdPath(projectPath: string, id: string): string {
-  const dir = path.join(projectPath, '.anima', 'milestones')
-  fs.mkdirSync(dir, { recursive: true })
-  return path.join(dir, `${id}.md`)
 }
 
 export class MilestoneService {
@@ -75,25 +67,6 @@ export class MilestoneService {
       throw new Error(`Cannot delete milestone in status: ${existing.status}`)
     }
     this.milestoneRepo.delete(id)
-    const projectPath = this.resolvePath(projectId)
-    if (projectPath) {
-      const mdPath = path.join(projectPath, '.anima', 'milestones', `${id}.md`)
-      if (fs.existsSync(mdPath)) fs.unlinkSync(mdPath)
-    }
-  }
-
-  readMilestoneMarkdown(projectId: string, id: string): string | null {
-    const projectPath = this.resolvePath(projectId)
-    if (!projectPath) return null
-    const mdPath = milestoneMdPath(projectPath, id)
-    if (fs.existsSync(mdPath)) return fs.readFileSync(mdPath, 'utf8')
-    return null
-  }
-
-  writeMilestoneMarkdown(projectId: string, id: string, content: string): void {
-    const projectPath = this.resolvePath(projectId)
-    if (!projectPath) return
-    fs.writeFileSync(milestoneMdPath(projectPath, id), content, 'utf8')
   }
 
   // ── State transitions ───────────────────────────────────────────────────────
@@ -194,7 +167,4 @@ export class MilestoneService {
     }
   }
 
-  private resolvePath(projectId: string): string | null {
-    return this.projectRepo.getById(projectId)?.path ?? null
-  }
 }

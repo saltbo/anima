@@ -60,8 +60,6 @@ declare global {
       getMilestones: (projectId: string) => Promise<Milestone[]>
       saveMilestone: (projectId: string, milestone: Milestone) => Promise<void>
       deleteMilestone: (projectId: string, id: string) => Promise<void>
-      readMilestoneMarkdown: (projectId: string, id: string) => Promise<string | null>
-      writeMilestoneMarkdown: (projectId: string, id: string, content: string) => Promise<void>
       onMilestoneReviewDone: (callback: (milestoneId: string) => void) => () => void
       onMilestoneUpdated: (callback: (data: { projectId: string; milestone: Milestone }) => void) => () => void
       onMilestoneCompleted: (callback: (data: { projectId: string; milestoneId: string }) => void) => () => void
