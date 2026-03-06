@@ -158,7 +158,9 @@ app.whenReady().then(() => {
   initSchema(db)
 
   // ── MCP Config ──────────────────────────────────────────────────────
-  const mcpServerPath = join(__dirname, 'mcp-server.js')
+  const mcpServerPath = app.isPackaged
+    ? join(process.resourcesPath, 'mcp-server.js')
+    : join(__dirname, 'mcp-server.js')
   const bridgeSocketPath = join(app.getPath('userData'), 'anima-bridge.sock')
   initMcpConfig(app.getPath('userData'), mcpServerPath, bridgeSocketPath)
   ensureMcpConfigFile()
