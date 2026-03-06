@@ -87,6 +87,7 @@ function setupAutoUpdater(getWindow: () => BrowserWindow | null): void {
   })
 
   ipcMain.handle('updater:install', () => {
+    isQuitting = true
     autoUpdater.quitAndInstall()
   })
 }
