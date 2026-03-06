@@ -223,24 +223,45 @@ server.tool(
 
 server.tool(
   'backlog:list',
-  'List all backlog items for a project. Use this to understand what needs to be done before planning a milestone.',
-  { project_id: z.string().describe('The project ID') },
-  async ({ project_id }) => {
+  'List backlog items for a project. Returns all items by default, or filter by status.',
+  {
+    project_id: z.string().describe('The project ID'),
+    status: z.enum(['todo', 'in_progress', 'done', 'closed']).optional().describe('Filter by status (omit to return all items)'),
+  },
+  async ({ project_id, status }) => {
     const items = await client.call('backlog:list', [project_id]) as Array<{ status: string }>
-    const todoItems = items.filter((i) => i.status === 'todo')
-    return textResult(JSON.stringify(todoItems, null, 2))
+    const filtered = status ? items.filter((i) => i.status === status) : items
+    return textResult(JSON.stringify(filtered, null, 2))
+  }
+)
+
+server.tool(
+  'backlog:add',
+  'Add a new backlog item to a project',
+  {
+    project_id: z.string().describe('The project ID'),
+    type: z.enum(['idea', 'bug', 'feature']).describe('Item type'),
+    title: z.string().describe('Item title'),
+    description: z.string().optional().describe('Item description'),
+    priority: z.enum(['low', 'medium', 'high']).describe('Item priority'),
+  },
+  async ({ project_id, type, title, description, priority }) => {
+    const item = await client.call('backlog:add', [project_id, { type, title, description, priority }])
+    return textResult(JSON.stringify(item, null, 2))
   }
 )
 
 server.tool(
   'backlog:update',
-  'Update a backlog item\'s status or other properties (e.g., mark as done)',
+  'Update a backlog item\'s status or other properties',
   {
     project_id: z.string().describe('The project ID'),
     item_id: z.string().describe('The backlog item ID'),
-    status: z.enum(['todo', 'in_progress', 'done', 'closed']).optional().describe('New status'),
+    type: z.enum(['idea', 'bug', 'feature']).optional().describe('Updated type'),
     title: z.string().optional().describe('Updated title'),
     description: z.string().optional().describe('Updated description'),
+    priority: z.enum(['low', 'medium', 'high']).optional().describe('Updated priority'),
+    status: z.enum(['todo', 'in_progress', 'done', 'closed']).optional().describe('New status'),
   },
   async ({ project_id, item_id, ...patch }) => {
     const filtered = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
@@ -248,7 +269,20 @@ server.tool(
     if (!updated) {
       return textResult(`Backlog item ${item_id} not found`, true)
     }
-    return textResult(`Backlog item ${item_id} updated`)
+    return textResult(JSON.stringify(updated, null, 2))
+  }
+)
+
+server.tool(
+  'backlog:delete',
+  'Delete a backlog item from a project',
+  {
+    project_id: z.string().describe('The project ID'),
+    item_id: z.string().describe('The backlog item ID to delete'),
+  },
+  async ({ project_id, item_id }) => {
+    await client.call('backlog:delete', [project_id, item_id])
+    return textResult(`Backlog item ${item_id} deleted`)
   }
 )
 
