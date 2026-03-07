@@ -280,8 +280,6 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
 const MCP_PORT = 24817 // "ANIMA" on phone keypad :)
 
 export function startMcpHttpServer(routes: Record<string, ApiHandler>): http.Server {
-  const mcpServer = createMcpServer(routes)
-
   // Map of session ID → transport (for stateful sessions)
   const transports = new Map<string, StreamableHTTPServerTransport>()
 
@@ -330,7 +328,9 @@ export function startMcpHttpServer(routes: Record<string, ApiHandler>): http.Ser
         const transport = transports.get(sessionId)!
         await transport.handleRequest(req, res)
       } else {
-        // New session — create transport and connect
+        // New session — each session needs its own McpServer instance
+        // because McpServer only supports a single transport connection
+        const mcpServer = createMcpServer(routes)
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
         })
