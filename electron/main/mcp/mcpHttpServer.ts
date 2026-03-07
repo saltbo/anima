@@ -84,7 +84,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
       })).describe('Backlog items to include, each with its acceptance checks'),
     },
     async ({ project_id, title, description, backlog_items }) => {
-      const result = await call('milestones.create', [project_id, {
+      const result = await call('milestones:create', [project_id, {
         title,
         description,
         backlogItems: backlog_items,
@@ -100,7 +100,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     'List all comments for a milestone, ordered by creation time',
     { milestone_id: z.string().describe('The milestone ID') },
     async ({ milestone_id }) => {
-      const comments = await call('milestones.listComments', [milestone_id])
+      const comments = await call('milestones:listComments', [milestone_id])
       return textResult(JSON.stringify(comments, null, 2))
     }
   )
@@ -116,7 +116,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     async ({ milestone_id, body, author }) => {
       const now = nowISO()
       const id = randomUUID()
-      await call('milestones.addComment', [{
+      await call('milestones:addComment', [{
         id,
         milestoneId: milestone_id,
         body,
@@ -135,7 +135,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     'List checks for a milestone',
     { milestone_id: z.string().describe('The milestone ID') },
     async ({ milestone_id }) => {
-      const checks = await call('checks.list', [milestone_id])
+      const checks = await call('checks:list', [milestone_id])
       return textResult(JSON.stringify(checks, null, 2))
     }
   )
@@ -155,7 +155,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     },
     async ({ milestone_id, item_id, checks }) => {
       const checksWithIds = checks.map((c) => ({ ...c, milestoneId: milestone_id, itemId: item_id }))
-      const created = await call('checks.add', [checksWithIds])
+      const created = await call('checks:add', [checksWithIds])
       return textResult(`Added ${(created as unknown[]).length} checks`)
     }
   )
@@ -172,7 +172,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     },
     async ({ check_id, ...patch }) => {
       const filtered = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
-      const updated = await call('checks.update', [check_id, filtered])
+      const updated = await call('checks:update', [check_id, filtered])
       if (!updated) return textResult(`Check ${check_id} not found`, true)
       return textResult(`Check ${check_id} updated`)
     }
@@ -188,7 +188,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
       status: z.enum(['todo', 'in_progress', 'done', 'closed']).optional().describe('Filter by status (omit to return all items)'),
     },
     async ({ project_id, status }) => {
-      const items = await call('backlog.list', [project_id]) as Array<{ status: string }>
+      const items = await call('backlog:list', [project_id]) as Array<{ status: string }>
       const filtered = status ? items.filter((i) => i.status === status) : items
       return textResult(JSON.stringify(filtered, null, 2))
     }
@@ -205,7 +205,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
       priority: z.enum(['low', 'medium', 'high']).describe('Item priority'),
     },
     async ({ project_id, type, title, description, priority }) => {
-      const item = await call('backlog.add', [project_id, { type, title, description, priority }])
+      const item = await call('backlog:add', [project_id, { type, title, description, priority }])
       return textResult(JSON.stringify(item, null, 2))
     }
   )
@@ -224,7 +224,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     },
     async ({ project_id, item_id, ...patch }) => {
       const filtered = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
-      const updated = await call('backlog.update', [project_id, item_id, filtered])
+      const updated = await call('backlog:update', [project_id, item_id, filtered])
       if (!updated) return textResult(`Backlog item ${item_id} not found`, true)
       return textResult(JSON.stringify(updated, null, 2))
     }
@@ -238,7 +238,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
       item_id: z.string().describe('The backlog item ID to delete'),
     },
     async ({ project_id, item_id }) => {
-      await call('backlog.delete', [project_id, item_id])
+      await call('backlog:delete', [project_id, item_id])
       return textResult(`Backlog item ${item_id} deleted`)
     }
   )
@@ -255,7 +255,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     },
     async ({ project_id, milestone_id, action }) => {
       try {
-        await call('milestones.transition', [project_id, milestone_id, { action }])
+        await call('milestones:transition', [project_id, milestone_id, { action }])
         return textResult(`Milestone ${milestone_id} transitioned via action: ${action}`)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -284,7 +284,7 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
       agent_id: z.string().describe('The agent ID to assign'),
     },
     async ({ milestone_id, agent_id }) => {
-      await call('milestones.assignAgent', [milestone_id, agent_id])
+      await call('milestones:assignAgent', [milestone_id, agent_id])
       return textResult(`Agent ${agent_id} assigned to milestone ${milestone_id}`)
     }
   )
