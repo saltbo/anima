@@ -18,6 +18,7 @@ import {
   addUserMcpServer,
   updateUserMcpServer,
   removeUserMcpServer,
+  getSystemClaudeMcpServers,
 } from '../mcp/mcpConfig'
 import { getAllAgents } from '../agents/registry'
 import { findSessionFile, readEventsFromFile } from '../agents/claude-code/parser'
@@ -175,6 +176,7 @@ export function createRoutes(
 
     // ── MCP Servers ───────────────────────────────────────────────────────
     'mcp:list': () => getUserMcpServers(),
+    'mcp:listSystem': () => getSystemClaudeMcpServers(),
     'mcp:add': (name: string, entry: McpServerEntry) => addUserMcpServer(name, entry),
     'mcp:update': (name: string, entry: McpServerEntry) => updateUserMcpServer(name, entry),
     'mcp:remove': (name: string) => removeUserMcpServer(name),

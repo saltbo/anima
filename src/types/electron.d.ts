@@ -12,9 +12,12 @@ export type UpdaterStatus =
 export type AgentRole = 'developer' | 'reviewer'
 
 export interface McpServerEntry {
-  command: string
-  args: string[]
+  command?: string
+  args?: string[]
   env?: Record<string, string>
+  type?: string
+  url?: string
+  headers?: Record<string, string>
 }
 
 /** Signals which agent is now active — UI reads content from session file. */
@@ -96,6 +99,7 @@ declare global {
 
       // ── MCP Servers ─────────────────────────────────────────────────────
       getMcpServers: () => Promise<Record<string, McpServerEntry>>
+      getSystemMcpServers: () => Promise<Record<string, McpServerEntry>>
       addMcpServer: (name: string, entry: McpServerEntry) => Promise<void>
       updateMcpServer: (name: string, entry: McpServerEntry) => Promise<void>
       removeMcpServer: (name: string) => Promise<void>

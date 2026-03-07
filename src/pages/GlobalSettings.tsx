@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Monitor, Moon, Sun, Plus, Trash2, Server, RefreshCw, Download, RotateCcw, Check, type LucideIcon } from 'lucide-react'
+import { Monitor, Moon, Sun, Plus, Trash2, Server, RefreshCw, Download, RotateCcw, Check, Globe, Terminal, type LucideIcon } from 'lucide-react'
 import { useTheme, type Theme } from '@/store/theme'
 import { cn } from '@/lib/utils'
 import type { McpServerEntry, UpdaterStatus } from '@/types/electron'
@@ -126,9 +126,30 @@ function UpdateSection() {
   )
 }
 
+function serverDescription(entry: McpServerEntry): string {
+  if (entry.url) return entry.url
+  if (entry.command) return `${entry.command} ${entry.args?.join(' ') ?? ''}`
+  return ''
+}
+
+function ServerTypeBadge({ entry }: { entry: McpServerEntry }) {
+  const isHttp = entry.type === 'http' || entry.url
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium',
+      isHttp ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'
+    )}>
+      {isHttp ? <Globe size={10} /> : <Terminal size={10} />}
+      {isHttp ? 'HTTP' : 'STDIO'}
+    </span>
+  )
+}
+
 function McpServersSection() {
   const [servers, setServers] = useState<Record<string, McpServerEntry>>({})
+  const [systemServers, setSystemServers] = useState<Record<string, McpServerEntry>>({})
   const [showForm, setShowForm] = useState(false)
+  const [showSystemPicker, setShowSystemPicker] = useState(false)
   const [formName, setFormName] = useState('')
   const [formCommand, setFormCommand] = useState('')
   const [formArgs, setFormArgs] = useState('')
@@ -138,6 +159,11 @@ function McpServersSection() {
   const loadServers = useCallback(async () => {
     const result = await window.electronAPI.getMcpServers()
     setServers(result)
+  }, [])
+
+  const loadSystemServers = useCallback(async () => {
+    const result = await window.electronAPI.getSystemMcpServers()
+    setSystemServers(result)
   }, [])
 
   useEffect(() => { loadServers() }, [loadServers])
@@ -172,9 +198,23 @@ function McpServersSection() {
     }
   }
 
+  const handleImportSystem = async (name: string, entry: McpServerEntry) => {
+    try {
+      await window.electronAPI.addMcpServer(name, entry)
+      loadServers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   const handleRemove = async (name: string) => {
     await window.electronAPI.removeMcpServer(name)
     loadServers()
+  }
+
+  const handleShowSystemPicker = () => {
+    loadSystemServers()
+    setShowSystemPicker(true)
   }
 
   return (
@@ -197,9 +237,10 @@ function McpServersSection() {
             <div className="flex items-center gap-2">
               <Server size={14} className="text-muted-foreground" />
               <span className="text-sm text-foreground font-medium">{name}</span>
+              <ServerTypeBadge entry={entry} />
             </div>
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {entry.command} {entry.args.join(' ')}
+              {serverDescription(entry)}
             </p>
           </div>
           <button
@@ -210,6 +251,52 @@ function McpServersSection() {
           </button>
         </div>
       ))}
+
+      {/* System Claude MCP servers picker */}
+      {showSystemPicker && (
+        <div className="border-t border-border pt-3 space-y-1">
+          <p className="text-xs text-muted-foreground mb-2">
+            Select from Claude system MCP servers (~/.claude.json):
+          </p>
+          {Object.keys(systemServers).length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No system MCP servers found.</p>
+          ) : (
+            Object.entries(systemServers).map(([name, entry]) => {
+              const alreadyAdded = name === 'anima' || name in servers
+              return (
+                <div key={name} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/50">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-foreground">{name}</span>
+                      <ServerTypeBadge entry={entry} />
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {serverDescription(entry)}
+                    </p>
+                  </div>
+                  {alreadyAdded ? (
+                    <span className="text-[10px] text-muted-foreground px-2 py-1">Added</span>
+                  ) : (
+                    <button
+                      onClick={() => handleImportSystem(name, entry)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <Plus size={12} />
+                      Add
+                    </button>
+                  )}
+                </div>
+              )
+            })
+          )}
+          <button
+            onClick={() => setShowSystemPicker(false)}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors mt-2"
+          >
+            Close
+          </button>
+        </div>
+      )}
 
       {/* Add form */}
       {showForm ? (
@@ -254,15 +341,26 @@ function McpServersSection() {
             </button>
           </div>
         </div>
-      ) : (
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
-        >
-          <Plus size={14} />
-          Add MCP Server
-        </button>
+      ) : !showSystemPicker && (
+        <div className="flex items-center gap-3 mt-1">
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Plus size={14} />
+            Add Manually
+          </button>
+          <button
+            onClick={handleShowSystemPicker}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Download size={14} />
+            Import from Claude
+          </button>
+        </div>
       )}
+
+      {error && !showForm && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }

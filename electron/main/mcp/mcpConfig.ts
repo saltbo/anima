@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
+import { homedir } from 'os'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -9,6 +10,7 @@ export interface McpServerEntry {
   env?: Record<string, string>
   type?: string
   url?: string
+  headers?: Record<string, string>
 }
 
 export interface McpConfig {
@@ -130,4 +132,23 @@ export function removeUserMcpServer(name: string): void {
   const config = loadMcpConfig()
   delete config.mcpServers[name]
   saveMcpConfig(config)
+}
+
+// ── System-level Claude MCP Servers ─────────────────────────────────────────
+
+/**
+ * Read MCP servers from the system-level Claude config at ~/.claude.json.
+ * Returns only the mcpServers object (STDIO + HTTP entries).
+ */
+export function getSystemClaudeMcpServers(): Record<string, McpServerEntry> {
+  const configPath = path.join(homedir(), '.claude.json')
+  if (!existsSync(configPath)) return {}
+  try {
+    const raw = readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(raw)
+    if (!config.mcpServers || typeof config.mcpServers !== 'object') return {}
+    return config.mcpServers as Record<string, McpServerEntry>
+  } catch {
+    return {}
+  }
 }

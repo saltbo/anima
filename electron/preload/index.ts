@@ -134,6 +134,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── MCP Servers ───────────────────────────────────────────────────────────
   getMcpServers: () => ipcRenderer.invoke('mcp:list'),
+  getSystemMcpServers: () => ipcRenderer.invoke('mcp:listSystem'),
   addMcpServer: (name: string, entry: unknown) => ipcRenderer.invoke('mcp:add', name, entry),
   updateMcpServer: (name: string, entry: unknown) => ipcRenderer.invoke('mcp:update', name, entry),
   removeMcpServer: (name: string) => ipcRenderer.invoke('mcp:remove', name),
