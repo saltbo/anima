@@ -103,6 +103,7 @@
     "@streamdown/code": "^1.0.3",
     "@streamdown/math": "^1.0.2",
     "@streamdown/mermaid": "^1.0.2",
+    "@tailwindcss/typography": "^0.5.19",
     "@uiw/react-md-editor": "^4.0.11",
     "@xyflow/react": "^12.10.1",
     "ai": "^6.0.105",

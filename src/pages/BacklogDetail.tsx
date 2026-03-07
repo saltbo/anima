@@ -13,6 +13,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useProjects } from '@/store/projects'
 import { timeAgo } from '@/lib/time'
 import type { BacklogItem, BacklogItemType, BacklogItemPriority } from '@/types/index'
@@ -216,7 +218,9 @@ export function BacklogDetail() {
             {item.description ? (
               <div className="space-y-1">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Description</p>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{item.description}</p>
+                <div className="prose prose-sm dark:prose-invert max-w-none text-foreground">
+                  <Markdown remarkPlugins={[remarkGfm]}>{item.description}</Markdown>
+                </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground italic">No description.</p>
