@@ -62,12 +62,11 @@ describe('mcpConfig', () => {
   })
 
   describe('buildMcpConfig', () => {
-    it('includes anima entry with correct structure', () => {
-      const config = buildMcpConfig('/path/to/mcp-server.js', '/path/to/anima.sock')
+    it('includes anima entry with HTTP URL', () => {
+      const config = buildMcpConfig(24817)
       expect(config.mcpServers.anima).toEqual({
-        command: 'node',
-        args: ['/path/to/mcp-server.js'],
-        env: { ANIMA_BRIDGE_SOCKET: '/path/to/anima.sock' },
+        type: 'http',
+        url: 'http://127.0.0.1:24817/mcp',
       })
     })
 
@@ -75,7 +74,7 @@ describe('mcpConfig', () => {
       const existing = { mcpServers: { custom: { command: 'npx', args: ['my-mcp'] } } }
       writeFileSync(join(tmpDir, 'mcp-config.json'), JSON.stringify(existing))
 
-      const config = buildMcpConfig('/path/to/mcp-server.js', '/path/to/anima.db')
+      const config = buildMcpConfig(24817)
       expect(config.mcpServers.anima).toBeDefined()
       expect(config.mcpServers.custom).toEqual({ command: 'npx', args: ['my-mcp'] })
     })
@@ -83,20 +82,20 @@ describe('mcpConfig', () => {
 
   describe('ensureMcpConfigFile', () => {
     it('writes config and returns path', () => {
-      initMcpConfig(tmpDir, '/path/to/mcp-server.js', '/path/to/anima.sock')
+      initMcpConfig(tmpDir, 24817)
       const configPath = ensureMcpConfigFile()
       expect(configPath).toBe(join(tmpDir, 'mcp-config.json'))
       expect(existsSync(configPath)).toBe(true)
 
       const config = JSON.parse(readFileSync(configPath, 'utf-8'))
       expect(config.mcpServers.anima).toBeDefined()
-      expect(config.mcpServers.anima.env.ANIMA_BRIDGE_SOCKET).toBe('/path/to/anima.sock')
+      expect(config.mcpServers.anima.url).toBe('http://127.0.0.1:24817/mcp')
     })
   })
 
   describe('user MCP server CRUD', () => {
     it('getUserMcpServers excludes anima', () => {
-      const config = { mcpServers: { anima: { command: 'node', args: [] }, custom: { command: 'npx', args: [] } } }
+      const config = { mcpServers: { anima: { type: 'http', url: 'http://localhost:24817/mcp' }, custom: { command: 'npx', args: [] } } }
       writeFileSync(join(tmpDir, 'mcp-config.json'), JSON.stringify(config))
 
       const servers = getUserMcpServers()

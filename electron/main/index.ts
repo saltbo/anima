@@ -29,8 +29,8 @@ import { SessionWatcher } from './agents/SessionWatcher'
 import { createTray } from './app/tray'
 import { createRoutes } from './api/routes'
 import { registerIpcAdapter } from './api/ipcAdapter'
-import { startSocketServer } from './api/socketAdapter'
 import { initMcpConfig, ensureMcpConfigFile } from './mcp/mcpConfig'
+import { startMcpHttpServer, MCP_PORT } from './mcp/mcpHttpServer'
 
 const appIcon = is.dev
   ? join(__dirname, '../../resources/icon.png')
@@ -159,11 +159,7 @@ app.whenReady().then(() => {
   initSchema(db)
 
   // ── MCP Config ──────────────────────────────────────────────────────
-  const mcpServerPath = app.isPackaged
-    ? join(process.resourcesPath, 'mcp-server.js')
-    : join(__dirname, 'mcp-server.js')
-  const bridgeSocketPath = join(app.getPath('userData'), 'anima-bridge.sock')
-  initMcpConfig(app.getPath('userData'), mcpServerPath, bridgeSocketPath)
+  initMcpConfig(app.getPath('userData'), MCP_PORT)
   ensureMcpConfigFile()
 
   // ── Repositories ──────────────────────────────────────────────────────
@@ -208,7 +204,7 @@ app.whenReady().then(() => {
     sessionWatcher,
   }, getWindow)
   registerIpcAdapter(routes)
-  startSocketServer(routes, bridgeSocketPath)
+  startMcpHttpServer(routes)
 
   // ── Auto Updater ─────────────────────────────────────────────────────
   setupAutoUpdater(getWindow)

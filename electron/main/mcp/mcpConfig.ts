@@ -4,9 +4,11 @@ import path from 'path'
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface McpServerEntry {
-  command: string
-  args: string[]
+  command?: string
+  args?: string[]
   env?: Record<string, string>
+  type?: string
+  url?: string
 }
 
 export interface McpConfig {
@@ -16,17 +18,15 @@ export interface McpConfig {
 // ── Path ─────────────────────────────────────────────────────────────────────
 
 let userDataPath: string | null = null
-let _mcpServerPath: string | null = null
-let _bridgeSocketPath: string | null = null
+let _mcpPort: number | null = null
 
 /**
  * Initialize the MCP config module.
- * Must be called once during app startup with all three paths.
+ * Must be called once during app startup.
  */
-export function initMcpConfig(dir: string, mcpServerPath: string, bridgeSocketPath: string): void {
+export function initMcpConfig(dir: string, mcpPort: number): void {
   userDataPath = dir
-  _mcpServerPath = mcpServerPath
-  _bridgeSocketPath = bridgeSocketPath
+  _mcpPort = mcpPort
 }
 
 /** @deprecated Use initMcpConfig instead. Only kept for tests. */
@@ -67,9 +67,7 @@ export function saveMcpConfig(config: McpConfig): void {
  * Build a full MCP config with the anima entry always present,
  * plus any user-installed servers from the persisted config.
  */
-export function buildMcpConfig(mcpServerPath: string, bridgeSocketPath: string): McpConfig {
-  const env: Record<string, string> = { ANIMA_BRIDGE_SOCKET: bridgeSocketPath }
-
+export function buildMcpConfig(mcpPort: number): McpConfig {
   const existing = loadMcpConfig()
 
   // Remove stale anima entry from user config (we always rebuild it)
@@ -79,9 +77,8 @@ export function buildMcpConfig(mcpServerPath: string, bridgeSocketPath: string):
   return {
     mcpServers: {
       anima: {
-        command: 'node',
-        args: [mcpServerPath],
-        env,
+        type: 'http',
+        url: `http://127.0.0.1:${mcpPort}/mcp`,
       },
       ...userServers,
     },
@@ -90,13 +87,13 @@ export function buildMcpConfig(mcpServerPath: string, bridgeSocketPath: string):
 
 /**
  * Write the centralized MCP config file and return its path.
- * Uses the mcpServerPath and bridgeSocketPath set via initMcpConfig().
+ * Uses the mcpPort set via initMcpConfig().
  */
 export function ensureMcpConfigFile(): string {
-  if (!_mcpServerPath || !_bridgeSocketPath) {
+  if (!_mcpPort) {
     throw new Error('MCP config not initialized. Call initMcpConfig() first.')
   }
-  const config = buildMcpConfig(_mcpServerPath, _bridgeSocketPath)
+  const config = buildMcpConfig(_mcpPort)
   const configPath = getMcpConfigPath()
   const dir = path.dirname(configPath)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })

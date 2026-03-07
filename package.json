@@ -45,10 +45,6 @@
       {
         "from": "resources/icon.png",
         "to": "icon.png"
-      },
-      {
-        "from": "out/main/mcp-server.js",
-        "to": "mcp-server.js"
       }
     ],
     "mac": {
