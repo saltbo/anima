@@ -1,4 +1,4 @@
-import type { Project, BacklogItem, Milestone, ProjectStatus, WakeSchedule, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload, Action } from './index'
+import type { Project, BacklogItem, Milestone, ProjectStatus, Iteration, MilestoneComment, MilestoneGitInfo, TransitionPayload, Action } from './index'
 import type { AgentEvent } from './agent'
 
 export type UpdaterStatus =
@@ -80,9 +80,7 @@ declare global {
       // ── Project / Scheduler ──────────────────────────────────────────────
       wakeProject: (projectId: string) => Promise<void>
       sleepProject: (projectId: string) => Promise<void>
-      updateWakeSchedule: (projectId: string, schedule: WakeSchedule) => Promise<void>
-      updateAutoMerge: (projectId: string, autoMerge: boolean) => Promise<void>
-      updateAutoApprove: (projectId: string, autoApprove: boolean) => Promise<void>
+      updateSettings: (projectId: string, settings: Partial<Pick<Project, 'wakeSchedule' | 'autoMerge' | 'autoApprove'>>) => Promise<void>
       transitionMilestone: (projectId: string, milestoneId: string, payload: TransitionPayload) => Promise<void>
       getMilestoneGitStatus: (projectId: string, milestoneId: string) => Promise<MilestoneGitInfo | null>
       getMilestoneComments: (milestoneId: string) => Promise<MilestoneComment[]>

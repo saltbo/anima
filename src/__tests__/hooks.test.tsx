@@ -98,9 +98,7 @@ function createMockElectronAPI(projects: Project[] = []): MockElectronAPI {
 
     // Scheduler
     wakeProject: vi.fn().mockResolvedValue(undefined),
-    updateWakeSchedule: vi.fn().mockResolvedValue(undefined),
-    updateAutoMerge: vi.fn().mockResolvedValue(undefined),
-    updateAutoApprove: vi.fn().mockResolvedValue(undefined),
+    updateSettings: vi.fn().mockResolvedValue(undefined),
     transitionMilestone: vi.fn().mockResolvedValue(undefined),
     getMilestoneGitStatus: vi.fn().mockResolvedValue(null),
     getMilestoneComments: vi.fn().mockResolvedValue([]),

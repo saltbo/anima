@@ -38,7 +38,7 @@ export function ProjectSettings() {
 
   const handleSaveSchedule = async () => {
     setSaving(true)
-    await window.electronAPI.updateWakeSchedule(project.id, schedule)
+    await window.electronAPI.updateSettings(project.id, { wakeSchedule: schedule })
     setSaving(false)
   }
 
@@ -164,7 +164,7 @@ export function ProjectSettings() {
           </div>
           <Switch
             checked={project.autoMerge}
-            onCheckedChange={(checked) => window.electronAPI.updateAutoMerge(project.id, checked)}
+            onCheckedChange={(checked) => window.electronAPI.updateSettings(project.id, { autoMerge: checked })}
           />
         </div>
         <div className="flex items-center justify-between">
@@ -178,7 +178,7 @@ export function ProjectSettings() {
           </div>
           <Switch
             checked={project.autoApprove}
-            onCheckedChange={(checked) => window.electronAPI.updateAutoApprove(project.id, checked)}
+            onCheckedChange={(checked) => window.electronAPI.updateSettings(project.id, { autoApprove: checked })}
           />
         </div>
       </Section>

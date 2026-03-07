@@ -88,12 +88,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Project / Scheduler ────────────────────────────────────────────────────
   wakeProject: (projectId: string) => ipcRenderer.invoke('project:wake', projectId),
   sleepProject: (projectId: string) => ipcRenderer.invoke('project:sleep', projectId),
-  updateWakeSchedule: (projectId: string, schedule: unknown) =>
-    ipcRenderer.invoke('project:updateSchedule', projectId, schedule),
-  updateAutoMerge: (projectId: string, autoMerge: boolean) =>
-    ipcRenderer.invoke('project:updateAutoMerge', projectId, autoMerge),
-  updateAutoApprove: (projectId: string, autoApprove: boolean) =>
-    ipcRenderer.invoke('project:updateAutoApprove', projectId, autoApprove),
+  updateSettings: (projectId: string, settings: Record<string, unknown>) =>
+    ipcRenderer.invoke('project:updateSettings', projectId, settings),
   transitionMilestone: (projectId: string, milestoneId: string, payload: { action: string; comment?: { id: string; body: string } }) =>
     ipcRenderer.invoke('milestones:transition', projectId, milestoneId, payload),
   getMilestoneGitStatus: (projectId: string, milestoneId: string) =>
