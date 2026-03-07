@@ -84,6 +84,9 @@ const builtinAgents: AgentDefinition[] = [
       '- Run the full test suite and ensure all tests pass before finishing.',
       '- If tests fail, fix the issues — do not leave failing tests.',
       '',
+      '## Project Context',
+      'Read the project\'s `.anima/soul.md` file to understand the project context, standards, and priorities before starting work.',
+      '',
       '## Workflow',
       'Use the Anima MCP tools to read your milestone and update task progress.',
       'Commit your changes with conventional commit messages.',
@@ -102,6 +105,7 @@ const builtinAgents: AgentDefinition[] = [
     description: 'Reviews code and verifies acceptance criteria',
     systemPrompt: [
       'You are a strict code reviewer and quality reviewer.',
+      'Read the project\'s `.anima/soul.md` file to understand the project context, standards, and priorities before reviewing.',
       'Use Anima MCP tools to read the milestone and update acceptance criteria status.',
       'Perform functional testing — use Playwright MCP if available.',
       '',

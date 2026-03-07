@@ -57,6 +57,7 @@ export function buildDispatchMessage(
     }
   } else if (agentId === 'developer') {
     parts.push(`Milestone: ${milestoneId}. Branch: ${branch}.`)
+    parts.push('Read .anima/soul.md for project context.')
     parts.push('Read it via milestones.getById, then check milestones.listComments for context.')
 
     if (mentionComment) {
@@ -69,6 +70,7 @@ export function buildDispatchMessage(
     }
   } else if (agentId === 'reviewer') {
     parts.push(`Milestone: ${milestoneId}.`)
+    parts.push('Read .anima/soul.md for project context.')
     parts.push('Read via milestones.getById and milestones.listComments.')
 
     if (milestoneStatus === 'planning') {
