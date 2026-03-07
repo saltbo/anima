@@ -17,6 +17,7 @@ const TEMPLATE_META: Omit<SoulTemplate, 'content'>[] = [
   { id: 'go', name: 'Go', description: 'Go 1.21+ · Effective Go · standard layout' },
   { id: 'typescript-react', name: 'TypeScript + React', description: 'Vite · React 18 · TypeScript strict' },
   { id: 'python', name: 'Python', description: 'Python 3.11+ · ruff · mypy strict · pytest' },
+  { id: 'flutter', name: 'Flutter', description: 'Flutter · Dart · Effective Dart · widget tests' },
 ]
 
 function getTemplatesDir(): string {
