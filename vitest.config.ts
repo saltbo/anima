@@ -7,6 +7,7 @@ export default defineConfig({
       'electron/**/__tests__/**/*.test.ts',
       'src/**/__tests__/**/*.test.{ts,tsx}',
     ],
+    setupFiles: ['electron/main/__tests__/setup.ts'],
     globals: true,
   },
   resolve: {
