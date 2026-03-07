@@ -38,6 +38,23 @@ function createMcpServer(routes: Record<string, ApiHandler>): McpServer {
     return handler(...params)
   }
 
+  // ── Project tools ──────────────────────────────────────────────────────
+
+  server.tool(
+    'projects.list',
+    'List all projects. Optionally filter by name (fuzzy match).',
+    {
+      name: z.string().optional().describe('Filter projects by name (case-insensitive fuzzy match)'),
+    },
+    async ({ name }) => {
+      const projects = await call('projects:list') as Array<{ name: string }>
+      if (!name) return textResult(JSON.stringify(projects, null, 2))
+      const query = name.toLowerCase()
+      const filtered = projects.filter((p) => p.name.toLowerCase().includes(query))
+      return textResult(JSON.stringify(filtered, null, 2))
+    }
+  )
+
   // ── Milestone tools ─────────────────────────────────────────────────────
 
   server.tool(
