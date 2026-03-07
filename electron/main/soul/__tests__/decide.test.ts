@@ -213,8 +213,8 @@ describe('think()', () => {
 
   // ── plan-milestone tests ────────────────────────────────────────────────
 
-  it('returns plan-milestone when 10+ todo backlog items and no active milestones', () => {
-    const backlogItems = Array.from({ length: 10 }, (_, i) =>
+  it('returns plan-milestone when 5+ todo backlog items and no active milestones', () => {
+    const backlogItems = Array.from({ length: 5 }, (_, i) =>
       makeBacklogItem({ id: `b${i}`, title: `Item ${i}` })
     )
     expect(think(makeContext({ backlogItems }))).toEqual({ task: 'plan-milestone' })

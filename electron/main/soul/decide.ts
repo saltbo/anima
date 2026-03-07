@@ -129,7 +129,7 @@ function shouldPlanMilestone(context: SoulContext): boolean {
   if (todoItems.length === 0) return false
 
   // Condition 1: enough backlog accumulated (≥10)
-  if (todoItems.length >= 10) return true
+  if (todoItems.length >= 5) return true
 
   // Condition 2: at least 1 todo + last milestone completed >30 days ago (or never completed)
   const lastCompleted = milestones
