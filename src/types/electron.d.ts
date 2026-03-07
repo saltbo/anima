@@ -79,6 +79,7 @@ declare global {
 
       // ── Project / Scheduler ──────────────────────────────────────────────
       wakeProject: (projectId: string) => Promise<void>
+      sleepProject: (projectId: string) => Promise<void>
       updateWakeSchedule: (projectId: string, schedule: WakeSchedule) => Promise<void>
       updateAutoMerge: (projectId: string, autoMerge: boolean) => Promise<void>
       updateAutoApprove: (projectId: string, autoApprove: boolean) => Promise<void>

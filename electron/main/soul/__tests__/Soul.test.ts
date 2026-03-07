@@ -235,13 +235,11 @@ describe('Soul', () => {
     const initialCalls = repos.milestoneRepo.getByProjectId.mock.calls.length
 
     // Advance by one heartbeat interval (60s)
-    // Note: without wakeRequested or scheduled wake, tick skips.
-    // But we already consumed wakeRequested in the initial tick.
-    // So next tick should not call sense() unless scheduled.
+    // Every tick runs sense/think/act — no gate
     await vi.advanceTimersByTimeAsync(60_000)
 
-    // No additional calls since wakeRequested was consumed and no schedule set
-    expect(repos.milestoneRepo.getByProjectId.mock.calls.length).toBe(initialCalls)
+    // Heartbeat should have ticked again, calling sense()
+    expect(repos.milestoneRepo.getByProjectId.mock.calls.length).toBe(initialCalls + 1)
 
     soul.destroy()
   })

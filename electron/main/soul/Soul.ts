@@ -1,6 +1,5 @@
 import type { BrowserWindow } from 'electron'
 import { createLogger } from '../logger'
-import { msUntil } from '../lib/time'
 import type { ProjectRepository } from '../repositories/ProjectRepository'
 import type { MilestoneRepository } from '../repositories/MilestoneRepository'
 import type { BacklogRepository } from '../repositories/BacklogRepository'
@@ -37,7 +36,6 @@ export class Soul {
   private pendingTick: ReturnType<typeof setTimeout> | null = null
   private abortController: AbortController | null = null
   private tasks = new Map<string, SoulTask>()
-  private wakeRequested = false
   private notifier: Notifier
   private opts: SoulOptions
 
@@ -55,13 +53,8 @@ export class Soul {
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   wake(): void {
-    if (this.state === 'busy') {
-      // Already working — just mark that we want to re-evaluate after
-      this.wakeRequested = true
-      return
-    }
+    if (this.state === 'busy') return // already working — will re-evaluate after task
     this.state = 'idle'
-    this.wakeRequested = true
     this.startHeartbeat()
     this.updateProjectStatus()
     log.info('soul woken', { project: this.opts.projectId })
@@ -130,10 +123,6 @@ export class Soul {
 
   private tick(): void {
     if (this.state !== 'idle') return // sleeping or busy → skip
-
-    // Wake schedule gate (unless explicitly woken)
-    if (!this.wakeRequested && !this.isScheduledWakeTime()) return
-    this.wakeRequested = false
 
     const context = this.sense()
     const decision = think(context)
@@ -206,12 +195,6 @@ export class Soul {
   }
 
   // ── Scheduling ───────────────────────────────────────────────────────────
-
-  private isScheduledWakeTime(): boolean {
-    const project = this.opts.projectRepo.getById(this.opts.projectId)
-    if (!project?.nextWakeTime) return false
-    return msUntil(project.nextWakeTime) <= 0
-  }
 
   private scheduleNextWake(): void {
     const project = this.opts.projectRepo.getById(this.opts.projectId)

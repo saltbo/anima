@@ -100,6 +100,10 @@ export class SoulService {
     this.souls.get(projectId)?.wake()
   }
 
+  sleep(projectId: string): void {
+    this.souls.get(projectId)?.sleep()
+  }
+
   updateSchedule(projectId: string, schedule: WakeSchedule): void {
     this.projectRepo.patch(projectId, { wakeSchedule: schedule })
     this.souls.get(projectId)?.updateSchedule(schedule)

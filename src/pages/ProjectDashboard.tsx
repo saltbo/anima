@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import {
   Zap, DollarSign, AlertTriangle, Activity, Flag, ClipboardList,
-  Play, ArrowRight, Code, ShieldCheck, Sparkles, ChevronRight,
+  Play, Moon, ArrowRight, Code, ShieldCheck, Sparkles, ChevronRight,
   RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -89,6 +89,17 @@ export function ProjectDashboard() {
           >
             <Play size={11} />
             Wake
+          </Button>
+        )}
+        {(project.status === 'idle' || project.status === 'busy') && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5 cursor-pointer"
+            onClick={() => window.electronAPI.sleepProject(project.id)}
+          >
+            <Moon size={11} />
+            Sleep
           </Button>
         )}
       </div>

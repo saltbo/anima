@@ -87,6 +87,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Project / Scheduler ────────────────────────────────────────────────────
   wakeProject: (projectId: string) => ipcRenderer.invoke('project:wake', projectId),
+  sleepProject: (projectId: string) => ipcRenderer.invoke('project:sleep', projectId),
   updateWakeSchedule: (projectId: string, schedule: unknown) =>
     ipcRenderer.invoke('project:updateSchedule', projectId, schedule),
   updateAutoMerge: (projectId: string, autoMerge: boolean) =>

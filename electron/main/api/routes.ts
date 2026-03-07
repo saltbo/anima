@@ -157,6 +157,7 @@ export function createRoutes(
 
     // ── Scheduler / Project ───────────────────────────────────────────────
     'project:wake': (projectId: string) => soulService.wake(projectId),
+    'project:sleep': (projectId: string) => soulService.sleep(projectId),
     'project:updateSchedule': (projectId: string, schedule: WakeSchedule) =>
       soulService.updateSchedule(projectId, schedule),
     'project:updateAutoMerge': (projectId: string, autoMerge: boolean) =>

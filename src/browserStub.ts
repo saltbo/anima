@@ -41,6 +41,7 @@ export function installBrowserStub() {
     onMilestoneReviewDone: () => () => {},
 
     wakeProject: async () => {},
+    sleepProject: async () => {},
     updateWakeSchedule: async () => {},
     updateAutoMerge: async () => {},
     updateAutoApprove: async () => {},
