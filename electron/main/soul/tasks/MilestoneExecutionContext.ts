@@ -157,18 +157,6 @@ export class MilestoneExecutionContext {
     if (refreshed) this.notifier.broadcastMilestoneUpdate(refreshed)
   }
 
-  /** Handle error during execution phase — cancel stuck milestones */
-  onError(milestoneId: string): void {
-    const current = this.milestoneRepo.getById(milestoneId)
-    if (current && current.status === 'in_progress') {
-      this.milestoneRepo.save(this.projectId, { ...current, status: 'cancelled' })
-      this.projectRepo.patch(this.projectId, { status: 'idle', currentIteration: null })
-      const project = this.projectRepo.getById(this.projectId)
-      if (project) this.notifier.broadcastStatus(project)
-      this.notifier.broadcastMilestoneUpdate({ ...current, status: 'cancelled' })
-    }
-  }
-
   // ── Private helpers ────────────────────────────────────────────────────
 
   private async prepareBranch(milestone: Milestone): Promise<Milestone> {
