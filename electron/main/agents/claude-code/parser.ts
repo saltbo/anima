@@ -49,6 +49,13 @@ export function parseLine(line: string, onEvent: (event: AgentEvent) => void): v
       // Extract meaningful error message — CLI sometimes wraps API errors
       // inside assistant messages with a top-level error:"unknown"
       let detail: string | undefined
+      let code: string | undefined
+
+      // Extract error code from structured error objects (e.g. { type: "rate_limit_error" })
+      if (json.error && typeof json.error === 'object') {
+        code = json.error.type
+      }
+
       if (json.type === 'assistant' && Array.isArray(json.message?.content)) {
         const textBlock = (json.message.content as ContentEntry[]).find((e) => e.type === 'text' && e.text)
         if (textBlock?.text) detail = textBlock.text
@@ -56,7 +63,7 @@ export function parseLine(line: string, onEvent: (event: AgentEvent) => void): v
       if (!detail) {
         detail = json.error?.message || (json.error !== 'unknown' ? json.error : undefined) || json.message || JSON.stringify(json)
       }
-      onEvent({ event: 'error', message: String(detail) })
+      onEvent({ event: 'error', message: String(detail), code })
       return
     }
     if (json.type === 'system' && json.subtype === 'init') {

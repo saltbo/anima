@@ -2,16 +2,15 @@ import dayjs from 'dayjs'
 
 export const RATE_LIMIT_FALLBACK_MS = 60 * 60 * 1000 // 60 minutes
 
-const RATE_LIMIT_PATTERNS = [
-  /rate.?limit/i,
-  /quota/i,
-  /too many requests/i,
-  /429/,
-  /402/,
-]
+/** Error codes from the Anthropic API that indicate rate/usage limits */
+const RATE_LIMIT_CODES = new Set([
+  'rate_limit_error',     // API 429
+  'overloaded_error',     // API 529
+])
 
-export function isRateLimitError(message: string): boolean {
-  return RATE_LIMIT_PATTERNS.some((p) => p.test(message))
+/** Check if an error code indicates a rate/usage limit */
+export function isRateLimitCode(code: string | undefined): boolean {
+  return code !== undefined && RATE_LIMIT_CODES.has(code)
 }
 
 export function parseResetTime(message: string, now = dayjs().valueOf()): string {

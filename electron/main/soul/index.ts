@@ -5,7 +5,7 @@ export type { SoulState, SoulContext, Decision, SoulTask, PendingMention } from 
 export { Notifier } from './notifier'
 export { calculateNextWake } from './wakeScheduler'
 export type { WakeDelay } from './wakeScheduler'
-export { isRateLimitError, parseResetTime } from './rateLimit'
+export { isRateLimitCode, parseResetTime } from './rateLimit'
 export { AgentDispatchTask } from './tasks/AgentDispatchTask'
 export type { AgentDispatchTaskOptions } from './tasks/AgentDispatchTask'
 export { MilestoneExecutionContext } from './tasks/MilestoneExecutionContext'

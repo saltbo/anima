@@ -9,7 +9,8 @@ import type { ActionRepository } from '../../repositories/ActionRepository'
 import type { GitService } from '../../services/GitService'
 import type { SoulTask, Decision } from '../types'
 import { Notifier } from '../notifier'
-import { isRateLimitError, parseResetTime } from '../rateLimit'
+import { AgentError } from '../../agents/AgentRunner'
+import { isRateLimitCode, parseResetTime } from '../rateLimit'
 import { getMcpConfigPath } from '../../mcp/mcpConfig'
 import { MilestoneExecutionContext } from './MilestoneExecutionContext'
 import { nowISO } from '../../lib/time'
@@ -205,8 +206,7 @@ export class AgentDispatchTask implements SoulTask {
 
       this.executionCtx.after(state, agentId, result)
     } catch (err) {
-      if (this.handleError(err)) return
-      this.executionCtx.onError(d.milestoneId)
+      this.handleError(err)
     }
   }
 
@@ -268,21 +268,29 @@ export class AgentDispatchTask implements SoulTask {
 
   // ── Helpers ─────────────────────────────────────────────────────────────
 
-  /** Handle error. Returns true if it was a rate limit (already handled). */
-  private handleError(err: unknown): boolean {
+  /**
+   * Handle agent error — always sets rate_limited to prevent immediate retry.
+   * Never cancels the milestone; it stays in_progress for retry after cooldown.
+   */
+  private handleError(err: unknown): void {
     const msg = err instanceof Error ? err.message : String(err)
+    const code = err instanceof AgentError ? err.code : undefined
 
-    if (isRateLimitError(msg)) {
+    if (isRateLimitCode(code)) {
       const resetAt = parseResetTime(msg)
-      log.warn('rate limit detected', { resetAt })
+      log.warn('rate limit detected', { code, resetAt })
       this.projectRepo.patch(this.projectId, { status: 'rate_limited', rateLimitResetAt: resetAt })
       const project = this.projectRepo.getById(this.projectId)
       if (project) this.notifier.broadcastStatus(project)
       this.notifier.notifyRateLimited(resetAt)
-      return true
+      return
     }
 
-    log.error('agent error', { error: msg })
-    return false
+    // Unknown error — treat as transient, cool down before retrying
+    const resetAt = parseResetTime(msg, Date.now())
+    log.error('agent error, cooling down', { error: msg, code, resetAt })
+    this.projectRepo.patch(this.projectId, { status: 'rate_limited', rateLimitResetAt: resetAt })
+    const project = this.projectRepo.getById(this.projectId)
+    if (project) this.notifier.broadcastStatus(project)
   }
 }

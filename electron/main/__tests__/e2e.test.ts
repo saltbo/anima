@@ -41,6 +41,7 @@ import { validateTransition, availableActions } from '../services/milestoneTrans
 import { AgentDispatchTask } from '../soul/tasks/AgentDispatchTask'
 import { Notifier } from '../soul/notifier'
 import { think } from '../soul/decide'
+import { AgentError } from '../agents/AgentRunner'
 import type { AgentRunner, RunOptions, ResumeOptions, RunResult } from '../agents/AgentRunner'
 import type {
   Project,
@@ -475,14 +476,14 @@ function makeRunResult(sessionId: string): RunResult {
 class MockAgentRunner {
   calls: { method: 'run' | 'resume'; opts: RunOptions | ResumeOptions }[] = []
   onRun: ((opts: RunOptions | ResumeOptions) => void) | null = null
-  nextError: string | null = null
+  nextError: { message: string; code?: string } | null = null
 
   async run(opts: RunOptions): Promise<RunResult> {
     this.calls.push({ method: 'run', opts })
     if (this.nextError) {
-      const msg = this.nextError
+      const { message, code } = this.nextError
       this.nextError = null
-      throw new Error(msg)
+      throw new AgentError(message, code)
     }
     this.onRun?.(opts)
     opts.onEvent?.({ event: 'done' })
@@ -492,9 +493,9 @@ class MockAgentRunner {
   async resume(opts: ResumeOptions): Promise<RunResult> {
     this.calls.push({ method: 'resume', opts })
     if (this.nextError) {
-      const msg = this.nextError
+      const { message, code } = this.nextError
       this.nextError = null
-      throw new Error(msg)
+      throw new AgentError(message, code)
     }
     this.onRun?.(opts)
     opts.onEvent?.({ event: 'done' })
@@ -887,7 +888,10 @@ describe('E2E: Full Milestone Lifecycle', () => {
       })
       h.milestoneRepo.save(project.id, ms)
 
-      h.agentRunner.nextError = 'rate limit exceeded. retry after 2026-03-01T13:00:00.000Z'
+      h.agentRunner.nextError = {
+        message: 'rate limit exceeded. retry after 2026-03-01T13:00:00.000Z',
+        code: 'rate_limit_error',
+      }
 
       const task = createAgentTask(project.id, project.path)
       await task.execute(

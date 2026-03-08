@@ -7,6 +7,18 @@ import type { AgentEvent } from '../../../src/types/agent'
 
 const log = createLogger('agent-runner')
 
+// ── AgentError ───────────────────────────────────────────────────────────────
+
+/** Error thrown when the agent process exits with a non-zero code */
+export class AgentError extends Error {
+  readonly code: string | undefined
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = 'AgentError'
+    this.code = code
+  }
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface RunOptions {
@@ -108,6 +120,7 @@ export class AgentRunner {
       let stdoutBuffer = ''
       let resultSeen = false
       let lastErrorMessage = ''
+      let lastErrorCode: string | undefined
       let messageSent = false
 
       const handleEvent = (event: AgentEvent): void => {
@@ -118,7 +131,8 @@ export class AgentRunner {
         }
         if (event.event === 'error') {
           lastErrorMessage = event.message
-          log.error('agent error event', { message: event.message })
+          lastErrorCode = event.code ?? lastErrorCode
+          log.error('agent error event', { message: event.message, code: event.code })
         }
         if (event.event === 'done') {
           resultSeen = true
@@ -194,7 +208,7 @@ export class AgentRunner {
         if (signal?.aborted) {
           reject(new Error('Aborted'))
         } else if (code !== 0) {
-          reject(new Error(lastErrorMessage || `Process exited with code ${code}`))
+          reject(new AgentError(lastErrorMessage || `Process exited with code ${code}`, lastErrorCode))
         } else {
           resolve({ sessionId, usage, cost, model })
         }
